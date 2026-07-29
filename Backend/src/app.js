@@ -5,6 +5,15 @@ import cors from "cors";
 
 import {config} from "./config/config.js";
 
+import authRouter from "./routes/auth.routes.js";
+
+
+
+
+
+
+
+
 const app = express();
 
 app.use(morgan("dev"));
@@ -23,5 +32,9 @@ app.use(cors({
 app.get("/", (_req, res) => {
     res.status(200).json({ message: "Server is running" });
 });
+
+app.use("/api/auth",authRouter);
+
+
 
 export default app;
