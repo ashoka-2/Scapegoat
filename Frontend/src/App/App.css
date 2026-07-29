@@ -1,0 +1,77 @@
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: var(--color-bg);
+  --color-foreground: var(--color-text);
+  --color-surface: var(--color-surf);
+  --color-surface-brand: var(--color-surf-brand);
+  --color-border-theme: var(--color-bord);
+  --color-accent: var(--color-acc);
+  --color-accent-content: var(--color-acc-cont);
+}
+
+:root {
+  /* Light Mode values */
+  --color-bg: #FFFDFB;
+  --color-text: #131313;
+  --color-surf: #ffffff;
+  --color-surf-brand: #FA6A65;
+  --color-acc: #FA6A65;
+  --color-acc-cont: #ffffff;
+  --color-bord: #e2e8f0;
+}
+
+.dark {
+  /* Dark Mode values */
+  --color-bg: #0a0a0a;
+  --color-text: #e5e2e1;
+  --color-surf: #131313;
+  --color-surf-brand: #151515;
+  --color-acc: #FFD700;
+  --color-acc-cont: #131313;
+  --color-bord: #1c1b1b;
+}
+
+/* Custom Theme-Aware Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::selection {
+  background-color: var(--color-acc);
+  color: var(--color-acc-cont);
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-acc);
+  border-radius: 10px;
+  border: 2px solid var(--color-bg);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-acc), black 10%);
+}
+
+/* Firefox */
+* {
+  scrollbar-color: var(--color-acc) var(--color-bg);
+}
+
+html, body {
+  scrollbar-width: thin;
+}
+
+
+/* Utility class for elements that need to hide their own scrollbar (e.g. sliders) */
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
