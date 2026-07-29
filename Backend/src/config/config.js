@@ -1,4 +1,4 @@
-const dotenv = require("dotenv");
+import dotenv from "dotenv";
 dotenv.config();
 
 if (!process.env.MONGO_URI) {
@@ -26,7 +26,7 @@ if(!process.env.IMAGEKIT_PUBLIC_KEY || !process.env.IMAGEKIT_PRIVATE_KEY || !pro
 }
 
 
-const config = {
+export const config = {
     MONGO_URI: process.env.MONGO_URI,
     JWT_SECRET: process.env.JWT_SECRET,
     REDIS_HOST: process.env.REDIS_HOST,
@@ -42,4 +42,4 @@ const config = {
     BACKEND_URL: process.env.BACKEND_URL || "http://localhost:3000",
 };
 
-module.exports = { config };
+
