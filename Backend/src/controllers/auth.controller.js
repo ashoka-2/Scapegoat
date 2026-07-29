@@ -1,9 +1,8 @@
-import express from "express";
 import userModel from "../models/user.model.js";
 import jwt from "jsonwebtoken";
-import {config } from "../config/config.js"
+import {config } from "../config/config.js";
 import { handleServerError } from "../utils/errorHandler.js";
-
+import redisClient from "../config/redis.js";
 
 
 async function sendTokenResponse(user,res,message){
@@ -109,3 +108,52 @@ export const login = async (req,res)=>{
         
     }
 } 
+
+
+export const getMe = async (req,res) => {
+    const userId = req.user?.id;
+
+    if (!userId) {
+        return res.status(401).json({ message: "Not authenticated" });
+    }
+
+    const user = await userModel.findById(userId);
+
+    if (!user) {
+        return res.status(400).json({
+            success: false,
+            message: "User not found",
+            err: "user not found",
+        });
+    }
+
+    res.status(200).json({
+        success: true,
+        user,
+    });
+};
+
+
+export const logout = async (req, res) => {
+    const token = req.cookies.token;
+
+    try {
+        if (token) {
+            await redisClient.set(`blacklist_${token}`, "true", "EX", 7 * 24 * 60 * 60);
+        }
+
+        res.clearCookie("token", {
+            httpOnly: true,
+            secure: config.NODE_ENV === "production",
+            sameSite: "strict",
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Logged out successfully",
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({ message: "Server error during logout" });
+    }
+};
