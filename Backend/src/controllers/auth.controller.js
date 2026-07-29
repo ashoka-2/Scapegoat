@@ -3,6 +3,8 @@ import jwt from "jsonwebtoken";
 import {config } from "../config/config.js";
 import { handleServerError } from "../utils/errorHandler.js";
 import redisClient from "../config/redis.js";
+import { sendEmail } from "../services/mail.service.js";
+import { getVerificationEmailTemplate } from "../utils/emailTemplates.js";
 
 
 async function sendTokenResponse(user,res,message){
@@ -61,7 +63,29 @@ export const register = async (req,res) =>{
             email,contact,password,fullname,role:isseller?"seller":"buyer",
         });
 
-        await sendTokenResponse(user,res,"user registered successfully");
+        const emailVerificationToken = jwt.sign(
+            { email: user.email },
+            config.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        const verificationLink = `${config.BACKEND_URL}/api/auth/verify-email?token=${emailVerificationToken}`;
+        
+        await sendEmail({
+            to: email,
+            subject: "Verify your Scapegoat email",
+            html: getVerificationEmailTemplate(user.fullname, verificationLink)
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "User registered successfully. Please check your email to verify your account.",
+            user: {
+                id: user._id,
+                fullname: user.fullname,
+                email: user.email,
+            },
+        });
     }
     catch(error){
         return handleServerError(res,error)
@@ -98,6 +122,13 @@ export const login = async (req,res)=>{
             return res.status(400).json({
                 message:"Invalid email/contact or password"
             })
+        }
+
+        if (!user.verified) {
+            return res.status(400).json({
+                message: "Please verify your email to login",
+                success: false
+            });
         }
 
         await sendTokenResponse(user,res,"User Logged In successfully")
@@ -181,7 +212,8 @@ export const googleCallback = async (req,res) => {
                 fullname: displayName,
                 contact: `G-${id}`.slice(0, 15), 
                 role: "buyer", 
-                profilePic: profilePic, 
+                profilePic: profilePic,
+                verified: true, // Google users are auto-verified
             });
         }
 
@@ -215,5 +247,70 @@ export const googleCallback = async (req,res) => {
     } catch (error) {
         console.log(error);
         res.redirect(`${config.FRONTEND_URL}/login?error=server_error`);
+    }
+};
+
+export const verifyEmail = async (req, res) => {
+    const { token } = req.query;
+
+    try {
+        const decoded = jwt.verify(token, config.JWT_SECRET);
+        const user = await userModel.findOne({ email: decoded.email });
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: "Invalid token or user not found" });
+        }
+
+        if (user.verified) {
+            return res.status(200).send("<h1 style='font-family:sans-serif; text-align:center; margin-top:50px;'>Already verified! You can log in.</h1>");
+        }
+
+        user.verified = true;
+        await user.save();
+
+        return res.status(200).send("<h1 style='font-family:sans-serif; text-align:center; margin-top:50px; color:green;'>Successfully verified! You can now log in.</h1>");
+    } catch (err) {
+        return res.status(400).send("<h1 style='font-family:sans-serif; text-align:center; margin-top:50px; color:red;'>Verification failed. Token invalid or expired.</h1>");
+    }
+};
+
+export const resendVerificationEmail = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Email is required" });
+        }
+
+        const user = await userModel.findOne({ email });
+
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        if (user.verified) {
+            return res.status(400).json({ success: false, message: "User is already verified. Please log in." });
+        }
+
+        const emailVerificationToken = jwt.sign(
+            { email: user.email },
+            config.JWT_SECRET,
+            { expiresIn: '1h' }
+        );
+
+        const verificationLink = `${config.BACKEND_URL}/api/auth/verify-email?token=${emailVerificationToken}`;
+
+        await sendEmail({
+            to: email,
+            subject: "Verify your Scapegoat email",
+            html: getVerificationEmailTemplate(user.fullname, verificationLink)
+        });
+
+        res.status(200).json({
+            success: true,
+            message: "Verification email sent successfully",
+        });
+    } catch (err) {
+        return handleServerError(res, err);
     }
 };

@@ -16,6 +16,12 @@ if (!process.env.GOOGLE_CLIENT_ID) {
 if (!process.env.GOOGLE_CLIENT_SECRET) {
     throw new Error("GOOGLE_CLIENT_SECRET is not defined in environment variables");
 }
+if(!process.env.GOOGLE_REFRESH_TOKEN){
+    throw new Error ("GOOGLE_REFRESH_TOKEN is not defined in environment variales")
+}
+if(!process.env.GOOGLE_USER){
+    throw new Error("GOOGLE_USER not def")
+}
 
 if (!process.env.REDIS_HOST || !process.env.REDIS_PORT || !process.env.REDIS_PASSWORD) {
     throw new Error("Redis configuration (HOST, PORT, or PASSWORD) is missing in environment variables");
@@ -34,6 +40,8 @@ export const config = {
     REDIS_PASSWORD: process.env.REDIS_PASSWORD,
     GOOGLE_CLIENT_ID: process.env.GOOGLE_CLIENT_ID,
     GOOGLE_CLIENT_SECRET: process.env.GOOGLE_CLIENT_SECRET,
+    GOOGLE_REFRESH_TOKEN: process.env.GOOGLE_REFRESH_TOKEN,
+    GOOGLE_USER: process.env.GOOGLE_USER,
     IMAGEKIT_PUBLIC_KEY: process.env.IMAGEKIT_PUBLIC_KEY,
     IMAGEKIT_PRIVATE_KEY: process.env.IMAGEKIT_PRIVATE_KEY,
     IMAGEKIT_URL_ENDPOINT: process.env.IMAGEKIT_URL_ENDPOINT,
