@@ -2,6 +2,8 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import cors from "cors";
+import passport from "passport";
+import "./config/passport.js";
 
 import {config} from "./config/config.js";
 
@@ -27,6 +29,8 @@ app.use(cors({
     credentials:true,
 }));
 
+
+app.use(passport.initialize());
 
 
 app.get("/", (_req, res) => {
