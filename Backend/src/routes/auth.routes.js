@@ -13,6 +13,6 @@ authRouter.post("/login",validateLoginUser,login);
 
 authRouter.get("/getMe",verifyToken,getMe)
 
-authRouter.post("/logout",logout)
+authRouter.post("/logout",verifyToken,logout)
 
 export default authRouter;

@@ -2,6 +2,15 @@ import mongoose from "mongoose";
 
 import bcrypt from "bcryptjs";
 
+const addressSchema = new mongoose.Schema({
+    street: { type: String, required: true },
+    city: { type: String, required: true },
+    state: { type: String, required: true },
+    country: { type: String, required: true },
+    pincode: { type: String, required: true },
+    isDefault: { type: Boolean, default: false }
+});
+
 const userSchema = new mongoose.Schema({
     fullname:{
         type:String,
@@ -42,7 +51,8 @@ const userSchema = new mongoose.Schema({
     isBanned:{
         type:Boolean,
         default:false,
-    }
+    },
+    addresses: [addressSchema]
 },{
     timestamps:true
 });
