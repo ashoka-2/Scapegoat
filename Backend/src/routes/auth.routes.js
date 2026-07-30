@@ -1,5 +1,5 @@
 import {Router} from "express";
-import { validateLoginUser, validateRegisterUser } from "../validators/auth.validator.js";
+import { validateLoginUser, validateRegisterUser, validateCompleteProfile } from "../validators/auth.validator.js";
 import passport from "passport";
 import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile} from "../controllers/auth.controller.js"
 import {verifyToken} from "../middlewares/auth.middleware.js"
@@ -77,6 +77,6 @@ router.post("/resend-verification", resendVerificationEmail);
  * @description Complete Google user profile
  * @access Private
  */
-router.post("/complete-profile", verifyToken, completeProfile);
+router.post("/complete-profile", verifyToken, validateCompleteProfile, completeProfile);
 
 export default router;

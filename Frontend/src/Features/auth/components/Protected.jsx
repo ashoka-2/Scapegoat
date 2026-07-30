@@ -10,7 +10,7 @@ const Protected = ({ children }) => {
         return <Navigate to="/login" replace />
     }
 
-    if (user && !user.profileCompleted && location.pathname !== '/complete-profile') {
+    if (user && user.profileCompleted === false && location.pathname !== '/complete-profile') {
         return <Navigate to="/complete-profile" replace />
     }
 

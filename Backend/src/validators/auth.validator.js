@@ -18,9 +18,8 @@ export const validateRegisterUser = [
   body("contact")
     .notEmpty()
     .withMessage("Contact is required")
-    .customSanitizer((value) => (value ? String(value).replace(/^(\+91|91|\+)/, "") : value))
-    .matches(/^\d{10}$/)
-    .withMessage("contact must be a 10-digit number"),
+    .matches(/^\+91\d{10}$/)
+    .withMessage("contact must be a valid Indian phone number starting with +91"),
   body("password")
     .isLength({ min: 6 })
     .withMessage("password must be atleast 6 characters long"),
@@ -40,4 +39,17 @@ export const validateLoginUser = [
         .withMessage("Email or Contact is required"),
     body("password").notEmpty().withMessage("Password is required"),
     validateRequest,
+];
+
+export const validateCompleteProfile = [
+  body("contact")
+    .notEmpty()
+    .withMessage("Contact is required")
+    .matches(/^\+91\d{10}$/)
+    .withMessage("contact must be a valid Indian phone number starting with +91"),
+  body("password")
+    .isLength({ min: 6 })
+    .withMessage("password must be atleast 6 characters long"),
+  body("isSeller").isBoolean().withMessage("IsSeller must be a boolean value"),
+  validateRequest,
 ];
