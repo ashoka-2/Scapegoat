@@ -65,9 +65,6 @@
 html, body {
   scrollbar-width: thin;
 }
-
-
-/* Utility class for elements that need to hide their own scrollbar (e.g. sliders) */
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
