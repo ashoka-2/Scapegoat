@@ -30,9 +30,16 @@ const userSchema = new mongoose.Schema({
         required:[true,"Contact is required"],
         trim:true,
     },
+    googleId: {
+        type: String,
+        unique: true,
+        sparse: true,
+    },
     password:{
         type:String,
-        required:[true,"Password is required"],
+        required: function() {
+            return !this.googleId;
+        },
         select:false,
     },
     role:{

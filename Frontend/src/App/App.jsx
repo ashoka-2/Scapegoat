@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import axios from "axios";
 import "./App.css";
 import { RouterProvider } from "react-router-dom";
 
@@ -48,7 +49,7 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
 
     const checkServer = async () => {
       try {
-        await axios.get('/api/auth/me');
+        await axios.get('/api/auth/getMe');
         console.log("Server active.");
         await fetchMe();
         setIsServerReady(true);

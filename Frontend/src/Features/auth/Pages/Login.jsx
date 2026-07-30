@@ -5,14 +5,64 @@ import ContinueWithGoogle from "../components/ContinueWithGoogle.jsx";
 import { useSelector } from "react-redux";
 import { PrimaryBtn, TertiaryBtn } from "../../../Components/Buttons.jsx";
 
+const appName = "ScapeGoat";
+
 const Login = () => {
+
+  const {handleLogin} = useAuth();
+
+  const navigate = useNavigate();
+
+  const {loading} = useSelector((state)=>state.auth);
+
+  const [formData,setFormData] = useState({
+    identifier:'',
+    password:''
+  });
+
+  const [showPassword, setShowPassword] = useState(false);
+
+  const handleChange = (e)=>{
+    const {name,value}= e.target;
+    setFormData(prev=>({
+      ...prev,
+      [name]:value
+    }));
+  };
+
+  const handleSubmit = async (e)=>{
+    e.preventDefault();
+    try{
+      let identifier = formData.identifier;
+      if(/^\d{10}$/.test(identifier)){
+        identifier = `+91${identifier}`;
+      };
+
+      const loggedInUser = await handleLogin({
+        identifier:identifier,
+        password:formData.password
+      });
+      if(loggedInUser?.role === 'admin'){
+        navigate("/admin");
+      }
+      else {
+        navigate("/");
+      }
+    }
+    catch (error){
+      console.log("Login failed",error);
+      
+    }
+  };
+
+
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-accent selection:text-accent-content flex flex-col lg:flex-row transition-colors duration-500">
       {/* Split Screen - Left Image Section */}
       <div className="hidden lg:flex lg:w-1/2 relative bg-surface items-center justify-center overflow-hidden border-r border-border-theme">
         <img
           src="/snitch_editorial.png"
-          alt="Snitch Fashion Editorial"
+          alt={`${appName} Fashion Editorial`}
           className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity hover:scale-105 transition-transform duration-[20s] ease-out"
         />
 
@@ -22,7 +72,7 @@ const Login = () => {
 
         <div className="relative z-10 p-16 flex flex-col h-full justify-between w-full max-w-2xl">
           <h2 className="text-accent text-xl font-bold tracking-widest uppercase">
-            Snitch.
+            {appName}.
           </h2>
 
           <div className="mt-auto">
@@ -43,7 +93,7 @@ const Login = () => {
         <div className="w-full max-w-md bg-surface lg:bg-transparent p-10 md:p-14 lg:p-6 rounded-2xl lg:rounded-none shadow-[0_24px_48px_-12px_rgba(0,0,0,0.1)] dark:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.5)] lg:shadow-none transition-shadow border border-border-theme lg:border-none">
           <div className="mb-12">
             <h2 className="text-sm uppercase tracking-widest text-accent font-medium mb-3">
-              Sign in to Snitch
+              Sign in to {appName}
             </h2>
             <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground">
               Enter the Vault

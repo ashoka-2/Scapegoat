@@ -5,6 +5,8 @@ import ContinueWithGoogle from '../components/ContinueWithGoogle.jsx';
 import { useSelector } from 'react-redux';
 import { PrimaryBtn } from '../../../Components/Buttons.jsx';
 
+const appName = "ScapeGoat";
+
 const Register = () => {
 
     const { handleRegister } = useAuth()
@@ -60,7 +62,7 @@ const Register = () => {
             <div className="hidden lg:flex lg:w-1/2 relative bg-surface items-center justify-center overflow-hidden border-r border-border-theme">
                 <img
                     src="/snitch_editorial.png"
-                    alt="Snitch Fashion Editorial"
+                    alt={`${appName} Fashion Editorial`}
                     className="absolute inset-0 w-full h-full object-cover opacity-60 mix-blend-luminosity hover:scale-105 transition-transform duration-[20s] ease-out"
                 />
 
@@ -69,7 +71,7 @@ const Register = () => {
                 <div className="absolute inset-0 bg-gradient-to-r from-background/50 via-transparent to-background opacity-90"></div>
 
                 <div className="relative z-10 p-16 flex flex-col h-full justify-between w-full max-w-2xl">
-                    <h2 className="text-accent text-xl font-bold tracking-widest uppercase">Snitch.</h2>
+                    <h2 className="text-accent text-xl font-bold tracking-widest uppercase">{appName}.</h2>
 
                     <div className="mt-auto">
                         <p className="text-5xl lg:text-6xl font-bold tracking-tighter leading-[1.1] text-foreground mb-6">
@@ -87,7 +89,7 @@ const Register = () => {
             <div className="w-full lg:w-1/2 flex items-center justify-center p-6 sm:p-12 lg:p-16 min-h-screen overflow-y-auto z-10 bg-background">
                 <div className="w-full max-w-md bg-surface lg:bg-transparent p-10 md:p-14 lg:p-6 rounded-2xl lg:rounded-none shadow-[0_24px_48px_-12px_rgba(0,0,0,0.1)] dark:shadow-[0_24px_48px_-12px_rgba(0,0,0,0.5)] lg:shadow-none transition-shadow border border-border-theme lg:border-none">
                     <div className="mb-12">
-                        <h2 className="text-sm uppercase tracking-widest text-accent font-medium mb-3">Welcome to Snitch</h2>
+                        <h2 className="text-sm uppercase tracking-widest text-accent font-medium mb-3">Welcome to {appName}</h2>
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground">Elevate Your Style</h1>
                     </div>
 
