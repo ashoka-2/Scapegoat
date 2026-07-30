@@ -222,6 +222,20 @@ const productSchema = new Schema(
       default: 0,
       min: 0,
     },
+
+    // ── AI Vector Embeddings (Semantic & Visual Search) ──────────────────
+    // Stores 384-dimensional text vector embedding generated from title + description + tags
+    embedding: {
+      type: [Number],
+      default: [],
+      select: false,
+    },
+    // Stores image vector embedding generated from product photos (for camera scan & Snap2Bill visual search)
+    imageEmbedding: {
+      type: [Number],
+      default: [],
+      select: false,
+    },
   },
   {
     timestamps: true,
