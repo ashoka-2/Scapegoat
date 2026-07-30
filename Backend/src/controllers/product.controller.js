@@ -2,6 +2,7 @@ import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import { generateTextEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
+import { uploadFile } from "../services/imageKit.service.js";
 
 /**
  * Helper to check if current user is owner of the product or an admin
@@ -23,6 +24,24 @@ export const createProduct = async (req, res) => {
       ...req.body,
       seller: req.user._id,
     };
+
+    // If images were uploaded via multipart form data (req.files buffer)
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const uploadedImages = [];
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        const uploadRes = await uploadFile({
+          file: file.buffer,
+          filename: `product_${Date.now()}_${i}.${file.originalname.split(".").pop() || "jpg"}`,
+          folder: "/products",
+        });
+        uploadedImages.push({
+          url: uploadRes.url,
+          isPrimary: i === 0,
+        });
+      }
+      productData.images = uploadedImages;
+    }
 
     // Auto-generate local AI text vector embedding for search
     try {

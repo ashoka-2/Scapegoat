@@ -12,6 +12,7 @@ import {
   getAllProducts,
 } from "../controllers/product.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
+import { upload } from "../middlewares/upload.middleware.js";
 import {
   validateCreateProduct,
   validateUpdateProduct,
@@ -47,20 +48,22 @@ router.get("/:id/similar", getSimilarProducts);
 
 // ── Protected Seller / Admin Routes ──────────────────────────────────────────
 
-// Create a new product
+// Create a new product (supports up to 7 image uploads)
 router.post(
   "/",
   verifyToken,
   requireRole("seller", "admin"),
+  upload.array("images", 7),
   validateCreateProduct,
   createProduct
 );
 
-// Update an existing product
+// Update an existing product (supports up to 7 image uploads)
 router.put(
   "/:id",
   verifyToken,
   requireRole("seller", "admin"),
+  upload.array("images", 7),
   validateUpdateProduct,
   updateProduct
 );

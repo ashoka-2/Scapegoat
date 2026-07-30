@@ -30,7 +30,14 @@ const downloadableFileSchema = new Schema(
 // ── Variant schema ──────────────────────────────────────────────────────────
 
 const variantSchema = new Schema({
-  images: [imageSchema],
+  images: {
+    type: [imageSchema],
+    default: [],
+    validate: [
+      (val) => val.length <= 7,
+      "Variant cannot have more than 7 images",
+    ],
+  },
   attributes: {
     type: Map,
     of: String,
@@ -199,7 +206,14 @@ const productSchema = new Schema(
     variants: [variantSchema],
 
     // ── Media ─────────────────────────────────────────────────────────────
-    images: [imageSchema],
+    images: {
+      type: [imageSchema],
+      default: [],
+      validate: [
+        (val) => val.length <= 7,
+        "Product cannot have more than 7 images",
+      ],
+    },
 
     // ── Product Page Options ──────────────────────────────────────────────
     // A note shown to the customer after purchase (e.g. "Wash before first use")
