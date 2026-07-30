@@ -24,7 +24,7 @@ const App = () => {
 
 
 const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
-    return sessionStorage.getItem('snitch_preloader_seen') === 'true';
+    return sessionStorage.getItem('scapegoat_preloader_seen') === 'true';
   });
   const [isServerReady, setIsServerReady] = useState(false);
 
@@ -38,7 +38,7 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
   }, []);
 
   const handlePreloaderComplete = () => {
-    sessionStorage.setItem("snitch_preloader_seen", "true");
+    sessionStorage.setItem("scapegoat_preloader_seen", "true");
     setHasSeenPreloader(true);
     setShowApp(true);
   };
