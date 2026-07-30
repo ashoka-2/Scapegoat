@@ -8,7 +8,7 @@ import "./config/passport.js";
 import {config} from "./config/config.js";
 
 import authRouter from "./routes/auth.routes.js";
-
+import productRouter from "./routes/product.routes.js";
 
 const app = express();
 
@@ -23,16 +23,13 @@ app.use(cors({
     credentials:true,
 }));
 
-
 app.use(passport.initialize());
-
 
 app.get("/", (_req, res) => {
     res.status(200).json({ message: "Server is running" });
 });
 
-app.use("/api/auth",authRouter);
-
-
+app.use("/api/auth", authRouter);
+app.use("/api/products", productRouter);
 
 export default app;
