@@ -3,6 +3,7 @@ import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import { generateTextEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
+import { broadcastUpdate } from "../services/socket.service.js";
 
 /**
  * Helper to check if current user is owner of the product or an admin
@@ -55,6 +56,17 @@ export const createProduct = async (req, res) => {
     }
 
     const newProduct = await productModel.create(productData);
+
+    // Broadcast live "Just Dropped!" notification to all online shoppers if published
+    if (newProduct.status === "published") {
+      broadcastUpdate("product_published", {
+        id: newProduct._id,
+        title: newProduct.title,
+        slug: newProduct.slug,
+        price: newProduct.sellingPrice?.amount || newProduct.maxPrice?.amount,
+        image: newProduct.images[0]?.url || null,
+      });
+    }
 
     return res.status(201).json({
       success: true,
@@ -118,6 +130,17 @@ export const updateProduct = async (req, res) => {
 
     const updatedProduct = await product.save();
 
+    // Broadcast live event so clients viewing this product get updated details
+    broadcastUpdate("product_updated", {
+      id: updatedProduct._id,
+      title: updatedProduct.title,
+      slug: updatedProduct.slug,
+      price: updatedProduct.sellingPrice?.amount || updatedProduct.maxPrice?.amount,
+      stockStatus: updatedProduct.stockStatus,
+      stock: updatedProduct.stock,
+      status: updatedProduct.status,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Product updated successfully",
@@ -161,6 +184,12 @@ export const deleteProduct = async (req, res) => {
     product.status = "trash";
     await product.save();
 
+    // Broadcast live deletion event so frontend users currently viewing this page see a notice and redirect to /shop
+    broadcastUpdate("product_deleted", {
+      id: product._id,
+      title: product.title,
+    });
+
     return res.status(200).json({
       success: true,
       message: "Product moved to trash successfully",
@@ -200,6 +229,14 @@ export const restoreProduct = async (req, res) => {
 
     product.status = "published";
     await product.save();
+
+    broadcastUpdate("product_published", {
+      id: product._id,
+      title: product.title,
+      slug: product.slug,
+      price: product.sellingPrice?.amount || product.maxPrice?.amount,
+      image: product.images[0]?.url || null,
+    });
 
     return res.status(200).json({
       success: true,

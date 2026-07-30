@@ -1,5 +1,6 @@
 import cartModel from "../models/cart.model.js";
 import productModel from "../models/product.model.js";
+import { emitToUser } from "../services/socket.service.js";
 
 /**
  * Helper to compute cart totals and item count
@@ -131,6 +132,8 @@ export const addToCart = async (req, res) => {
     });
 
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);
+
+    emitToUser(req.user._id, "cart_updated", { action: "add", productId });
 
     return res.status(200).json({
       success: true,

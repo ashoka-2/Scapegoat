@@ -1,5 +1,6 @@
 import wishlistModel from "../models/wishlist.model.js";
 import productModel from "../models/product.model.js";
+import { emitToUser } from "../services/socket.service.js";
 
 /**
  * @desc    Get user's wishlist
@@ -154,6 +155,8 @@ export const toggleWishlist = async (req, res) => {
     }
 
     await wishlist.save();
+
+    emitToUser(req.user._id, "wishlist_updated", { isWishlisted, productId });
 
     return res.status(200).json({
       success: true,
