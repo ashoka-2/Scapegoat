@@ -17,6 +17,7 @@ async function sendTokenResponse(user,res,message){
             role:user.role,
             profilePic:user.profilePic,
             verified:user.verified,
+            profileCompleted:user.profileCompleted,
         },
         config.JWT_SECRET,
         {
@@ -40,6 +41,8 @@ async function sendTokenResponse(user,res,message){
             fullname:user.fullname,
             role:user.role,
             profilePic:user.profilePic,
+            profileCompleted:user.profileCompleted,
+            verified:user.verified,
         }
     });
 }
@@ -60,7 +63,7 @@ export const register = async (req,res) =>{
             })
         }
         const user = await userModel.create({
-            email,contact,password,fullname,role:isseller?"seller":"buyer",
+            email,contact,password,fullname,role:isseller?"seller":"buyer", profileCompleted: true
         });
 
         const emailVerificationToken = jwt.sign(
@@ -230,6 +233,7 @@ export const googleCallback = async (req,res) => {
                 role: user.role,
                 profilePic: user.profilePic,
                 verified: user.verified,
+                profileCompleted: user.profileCompleted,
             },
             config.JWT_SECRET,
             {
@@ -312,5 +316,32 @@ export const resendVerificationEmail = async (req, res) => {
         });
     } catch (err) {
         return handleServerError(res, err);
+    }
+};
+
+export const completeProfile = async (req, res) => {
+    const { password, contact, isSeller } = req.body;
+    const userId = req.user?.id;
+
+    try {
+        if (!userId) return res.status(401).json({ message: "Not authenticated" });
+        
+        const user = await userModel.findById(userId);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        if (user.profileCompleted) {
+            return res.status(400).json({ message: "Profile already completed" });
+        }
+
+        user.password = password;
+        user.contact = contact;
+        user.role = isSeller ? "seller" : "buyer";
+        user.profileCompleted = true;
+
+        await user.save();
+
+        await sendTokenResponse(user, res, "Profile completed successfully");
+    } catch (error) {
+        return handleServerError(res, error);
     }
 };

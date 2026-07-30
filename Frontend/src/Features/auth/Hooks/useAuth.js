@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useDispatch } from "react-redux";
 import { setUser, setLoading, setError } from "../State/auth.slice.js";
-import { register, login, getMe, logout } from "../Services/auth.api.js";
+import { register, login, getMe, logout, completeProfile } from "../Services/auth.api.js";
 
 import { addToast } from "../../../utils/toast.slice.js";
 
@@ -12,8 +12,7 @@ export const useAuth = () => {
         dispatch(setLoading(true))
         try {
             const data = await register({ email, contact, password, fullname, isSeller })
-            dispatch(setUser(data.user))
-            dispatch(addToast({ message: "Welcome to Snitch! Account created successfully.", type: "success" }))
+            dispatch(addToast({ message: "Account created! Please check your email to verify your account before logging in.", type: "success" }))
         } catch (error) {
             const message = error.response?.data?.message || error.response?.data?.errors?.[0]?.msg || "Registration failed. Please try again."
             dispatch(addToast({ message, type: "error" }))
@@ -67,5 +66,21 @@ export const useAuth = () => {
 
 
 
-    return {handleLogin,handleRegister,handleLogout,fetchMe}
+    const handleCompleteProfile = useCallback(async ({ password, contact, isSeller }) => {
+        dispatch(setLoading(true))
+        try {
+            const data = await completeProfile({ password, contact, isSeller })
+            dispatch(setUser(data.user))
+            dispatch(addToast({ message: "Profile completed successfully!", type: "success" }))
+            return data.user
+        } catch (error) {
+            const message = error.response?.data?.message || "Failed to complete profile. Please try again."
+            dispatch(addToast({ message, type: "error" }))
+            throw error
+        } finally {
+            dispatch(setLoading(false))
+        }
+    }, [dispatch])
+
+    return {handleLogin,handleRegister,handleLogout,fetchMe, handleCompleteProfile}
 };
