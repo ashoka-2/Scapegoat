@@ -509,6 +509,66 @@ const CreateProduct = () => {
     setVariantsList((prev) => [...prev, newVariant]);
   };
 
+  // Auto-Generate Variant Matrix from Main Attributes
+  const handleAutoGenerateVariants = () => {
+    if (mainAttributes.length === 0) {
+      openConfirmModal({
+        title: "⚡ No Attributes Defined",
+        description: "Please define at least 1 attribute with options above (e.g. Size: UK 6, UK 7 or Color: Red, Blue) before auto-generating variants.",
+        confirmText: "Understood",
+        showCancel: false,
+        onConfirm: () => {},
+      });
+      return;
+    }
+
+    const cartesian = (arrays) =>
+      arrays.reduce(
+        (acc, curr) => acc.flatMap((d) => curr.map((e) => [...d, e])),
+        [[]]
+      );
+
+    const attrArrays = mainAttributes.map((attr) => {
+      const options = attr.options || attr.values || [];
+      const key = attr.name || attr.key;
+      return options.map((opt) => ({ key, value: opt }));
+    });
+
+    const combinations = cartesian(attrArrays);
+
+    const generatedVariants = combinations.map((combo) => {
+      const comboName = combo.map((item) => item.value).join(" / ");
+      const variantTitle = formData.title
+        ? `${formData.title} - ${comboName}`
+        : `Variant - ${comboName}`;
+
+      const dynamicAttributes = combo.map((item) => ({
+        key: item.key,
+        values: [item.value],
+      }));
+
+      const skuSlug = combo.map((item) => item.value.replace(/\s+/g, "").toUpperCase()).join("-");
+
+      return {
+        id: Math.random().toString(36).substring(2, 9),
+        name: variantTitle,
+        priceAmount: formData.sellingPriceAmount || formData.maxPriceAmount || "",
+        stock: formData.stock !== "" && formData.stock !== undefined ? formData.stock : 10,
+        sku: formData.title
+          ? `${formData.title.substring(0, 4).toUpperCase()}-${skuSlug}`
+          : `SKU-${skuSlug}`,
+        dynamicAttributes,
+        images: [],
+      };
+    });
+
+    setVariantsList((prev) => {
+      const existingNames = new Set(prev.map((v) => v.name));
+      const newOnly = generatedVariants.filter((v) => !existingNames.has(v.name));
+      return [...prev, ...newOnly];
+    });
+  };
+
   const handleVariantChange = (id, field, value) => {
     setVariantsList((prev) =>
       prev.map((v) => (v.id === id ? { ...v, [field]: value } : v))
@@ -1410,22 +1470,33 @@ const CreateProduct = () => {
 
               {/* SECTION 2: CUSTOM DYNAMIC VARIANTS */}
               <div className="pt-6 border-t border-border-theme space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-bold text-foreground">
-                      Product Variants
+                      Product Variants & Inventory Stock
                     </h2>
                     <p className="text-xs text-foreground/60">
-                      Add custom product variants with any dynamic attributes, prices, stock, and dedicated photos.
+                      Manage individual stock, prices, SKUs, and photos for each size/color variant combination.
                     </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={handleAddCustomVariant}
-                    className="px-4 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer"
-                  >
-                    + Add Variant Card
-                  </button>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {mainAttributes.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={handleAutoGenerateVariants}
+                        className="px-4 py-2.5 rounded-xl bg-accent/20 border border-accent/40 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1.5"
+                      >
+                        ⚡ Auto-Generate Variants
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleAddCustomVariant}
+                      className="px-4 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer"
+                    >
+                      + Add Variant Card
+                    </button>
+                  </div>
                 </div>
 
                 {variantsList.length === 0 ? (
