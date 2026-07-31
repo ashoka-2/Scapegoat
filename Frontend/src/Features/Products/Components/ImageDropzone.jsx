@@ -298,22 +298,29 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
 
       {/* URL Upload Mode */}
       {uploadMode === "url" && (
-        <form onSubmit={handleAddFromUrl} className="flex gap-2">
+        <div className="flex gap-2">
           <input
             type="text"
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                handleAddFromUrl(e);
+              }
+            }}
             placeholder="Paste image URL (e.g. https://images.unsplash.com/photo-123.jpg)"
             className="flex-1 bg-background border border-border-theme rounded-xl px-4 py-3 text-sm text-foreground placeholder:text-foreground/30 focus:outline-none focus:border-accent"
           />
           <button
-            type="submit"
+            type="button"
+            onClick={handleAddFromUrl}
             disabled={!urlInput.trim()}
             className="px-6 py-3 rounded-xl bg-accent text-accent-content font-bold text-sm hover:opacity-90 transition disabled:opacity-50 cursor-pointer"
           >
             + Add Image URL
           </button>
-        </form>
+        </div>
       )}
 
       {/* Image Filters Header & Presets */}

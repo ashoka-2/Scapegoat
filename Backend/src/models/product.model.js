@@ -9,6 +9,11 @@ const imageSchema = new Schema(
   {
     url: { type: String, required: true },
     isPrimary: { type: Boolean, default: false },
+    embedding: {
+      type: [Number],
+      default: [],
+      select: false,
+    },
   },
   { _id: false }
 );

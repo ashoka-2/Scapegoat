@@ -15,6 +15,190 @@ const isOwnerOrAdmin = (product, user) => {
 };
 
 /**
+ * Helper to generate 384-dimensional text vector embedding for a product (title, description, tags, category)
+ */
+const processProductTextEmbedding = async (targetProduct) => {
+  try {
+    const textToEmbed = buildProductTextForEmbedding(targetProduct);
+    if (textToEmbed) {
+      const textVec = await generateTextEmbedding(textToEmbed);
+      if (textVec && textVec.length > 0) {
+        targetProduct.embedding = textVec;
+      }
+    }
+  } catch (err) {
+    console.warn("[AI Search] Text embedding generation warning:", err.message);
+  }
+};
+
+/**
+ * Helper to generate visual vector embeddings for all main product images & variant images
+ */
+const processProductImageEmbeddings = async (targetProduct) => {
+  try {
+    // 1. Process Main Product Images (up to 7 images)
+    if (targetProduct.images && Array.isArray(targetProduct.images) && targetProduct.images.length > 0) {
+      for (let i = 0; i < targetProduct.images.length; i++) {
+        const imgObj = targetProduct.images[i];
+        const imgUrl = typeof imgObj === "string" ? imgObj : imgObj?.url;
+        if (imgUrl) {
+          try {
+            const imgVec = await generateImageEmbedding(imgUrl);
+            if (imgVec && imgVec.length > 0) {
+              if (typeof imgObj === "object") {
+                imgObj.embedding = imgVec;
+              }
+              // Set root-level imageEmbedding as primary cover photo shortcut
+              if (i === 0 || imgObj?.isPrimary) {
+                targetProduct.imageEmbedding = imgVec;
+              }
+            }
+          } catch (err) {
+            console.warn(`[AI Visual Search] Main image ${i} embedding warning:`, err.message);
+          }
+        }
+      }
+    }
+
+    // 2. Process Variant Images (up to 7 images per variant)
+    if (targetProduct.variants && Array.isArray(targetProduct.variants) && targetProduct.variants.length > 0) {
+      for (let vIdx = 0; vIdx < targetProduct.variants.length; vIdx++) {
+        const variant = targetProduct.variants[vIdx];
+        if (variant && variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
+          for (let imgIdx = 0; imgIdx < variant.images.length; imgIdx++) {
+            const vImgObj = variant.images[imgIdx];
+            const vImgUrl = typeof vImgObj === "string" ? vImgObj : vImgObj?.url;
+            if (vImgUrl) {
+              try {
+                const vImgVec = await generateImageEmbedding(vImgUrl);
+                if (vImgVec && vImgVec.length > 0 && typeof vImgObj === "object") {
+                  vImgObj.embedding = vImgVec;
+                }
+              } catch (err) {
+                console.warn(`[AI Visual Search] Variant ${vIdx} image ${imgIdx} embedding warning:`, err.message);
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch (err) {
+    console.warn("[AI Visual Search] Error processing product image embeddings:", err.message);
+  }
+};
+
+/**
+ * Master Helper to generate both Text & Image AI Vector Embeddings for a Product
+ */
+const generateAllProductEmbeddings = async (targetProduct) => {
+  await Promise.all([
+    processProductTextEmbedding(targetProduct),
+    processProductImageEmbeddings(targetProduct),
+  ]);
+};
+
+/**
+ * Helper to upload raw image files & external URLs to ImageKit in PARALLEL with a safety timeout
+ */
+const processImageUploadsParallel = async (files = [], rawUrls = []) => {
+  const tasks = [];
+
+  // 1. Process Multer file buffers in parallel
+  if (files && files.length > 0) {
+    files.forEach((file, i) => {
+      tasks.push(
+        (async () => {
+          try {
+            const ext = file.originalname ? file.originalname.split(".").pop() : "jpg";
+            const uploadRes = await Promise.race([
+              uploadFile({
+                file: file.buffer,
+                filename: `product_${Date.now()}_${i}.${ext}`,
+                folder: "/products",
+              }),
+              new Promise((_, reject) => setTimeout(() => reject(new Error("Upload timeout")), 5000)),
+            ]);
+            if (uploadRes && uploadRes.url) {
+              return { url: uploadRes.url };
+            }
+          } catch (err) {
+            console.warn(`[ImageKit File Upload Warning]:`, err.message);
+          }
+          return null;
+        })()
+      );
+    });
+  }
+
+  // 2. Process image URLs (ImageKit URLs, Base64, or external URLs) in parallel
+  if (rawUrls && rawUrls.length > 0) {
+    rawUrls.forEach((urlStr, i) => {
+      if (!urlStr || typeof urlStr !== "string" || !urlStr.trim()) return;
+      const cleanUrl = urlStr.trim();
+
+      tasks.push(
+        (async () => {
+          // If already ImageKit URL, return immediately without re-uploading!
+          if (cleanUrl.includes("imagekit.io")) {
+            return { url: cleanUrl };
+          }
+
+          if (cleanUrl.startsWith("data:image")) {
+            try {
+              const uploadRes = await Promise.race([
+                uploadFile({
+                  file: cleanUrl,
+                  filename: `product_b64_${Date.now()}_${i}.jpg`,
+                  folder: "/products",
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("Base64 upload timeout")), 5000)),
+              ]);
+              if (uploadRes && uploadRes.url) return { url: uploadRes.url };
+            } catch (err) {
+              console.warn(`[ImageKit Base64 Upload Warning]:`, err.message);
+            }
+            return null;
+          }
+
+          if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+            try {
+              const uploadRes = await Promise.race([
+                uploadFile({
+                  file: cleanUrl,
+                  filename: `product_ext_${Date.now()}_${i}.jpg`,
+                  folder: "/products",
+                }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("External URL upload timeout")), 4000)),
+              ]);
+              if (uploadRes && uploadRes.url) return { url: uploadRes.url };
+            } catch (err) {
+              console.warn(`[ImageKit External URL Upload Warning]: ${err.message} - Using original URL.`);
+            }
+            return { url: cleanUrl };
+          }
+
+          return null;
+        })()
+      );
+    });
+  }
+
+  const results = await Promise.all(tasks);
+  const uploadedImages = [];
+
+  results.forEach((res) => {
+    if (res && res.url) {
+      uploadedImages.push({
+        url: res.url,
+        isPrimary: uploadedImages.length === 0,
+      });
+    }
+  });
+
+  return uploadedImages;
+};
+
+/**
  * @desc    Create a new product
  * @route   POST /api/products
  * @access  Private (Seller, Admin)
@@ -26,32 +210,7 @@ export const createProduct = async (req, res) => {
       seller: req.user._id,
     };
 
-    const uploadedImages = [];
-
-    // 1. Process uploaded files (Multer memory buffers -> ImageKit)
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        try {
-          const ext = file.originalname ? file.originalname.split(".").pop() : "jpg";
-          const uploadRes = await uploadFile({
-            file: file.buffer,
-            filename: `product_${Date.now()}_${i}.${ext}`,
-            folder: "/products",
-          });
-          if (uploadRes && uploadRes.url) {
-            uploadedImages.push({
-              url: uploadRes.url,
-              isPrimary: uploadedImages.length === 0,
-            });
-          }
-        } catch (fileErr) {
-          console.error(`[ImageKit File Upload Error]:`, fileErr.message);
-        }
-      }
-    }
-
-    // 2. Process image URLs (Existing URLs or base64 / external URLs)
+    // Extract rawUrls from request body
     let rawUrls = [];
     if (req.body.imageUrls) {
       rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
@@ -63,64 +222,8 @@ export const createProduct = async (req, res) => {
       });
     }
 
-    for (let i = 0; i < rawUrls.length; i++) {
-      const urlStr = rawUrls[i];
-      if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
-        const cleanUrl = urlStr.trim();
-        if (cleanUrl.startsWith("data:image")) {
-          // Base64 image data -> Upload to ImageKit
-          try {
-            const uploadRes = await uploadFile({
-              file: cleanUrl,
-              filename: `product_b64_${Date.now()}_${i}.jpg`,
-              folder: "/products",
-            });
-            if (uploadRes && uploadRes.url) {
-              uploadedImages.push({
-                url: uploadRes.url,
-                isPrimary: uploadedImages.length === 0,
-              });
-            }
-          } catch (b64Err) {
-            console.error(`[ImageKit Base64 Error]:`, b64Err.message);
-          }
-        } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-          // If the URL is already an ImageKit CDN URL, keep it as is
-          if (cleanUrl.includes("imagekit.io")) {
-            uploadedImages.push({
-              url: cleanUrl,
-              isPrimary: uploadedImages.length === 0,
-            });
-          } else {
-            // Re-upload external HTTP/HTTPS image URL to ImageKit CDN for permanent storage
-            try {
-              const uploadRes = await uploadFile({
-                file: cleanUrl,
-                filename: `product_ext_${Date.now()}_${i}.jpg`,
-                folder: "/products",
-              });
-              if (uploadRes && uploadRes.url) {
-                uploadedImages.push({
-                  url: uploadRes.url,
-                  isPrimary: uploadedImages.length === 0,
-                });
-              } else {
-                uploadedImages.push({
-                  url: cleanUrl,
-                  isPrimary: uploadedImages.length === 0,
-                });
-              }
-            } catch (extUrlErr) {
-              console.warn(`[ImageKit External URL Upload Warning]:`, extUrlErr.message, "- Keeping original URL as fallback.");
-              uploadedImages.push({
-                url: cleanUrl,
-                isPrimary: uploadedImages.length === 0,
-              });
-            }
-          }
-        }
-      }
-    }
+    // Process all file uploads and external image URLs in PARALLEL (<1-2s total!)
+    const uploadedImages = await processImageUploadsParallel(req.files || [], rawUrls);
 
     if (uploadedImages.length > 0) {
       productData.images = uploadedImages;
@@ -159,17 +262,6 @@ export const createProduct = async (req, res) => {
       } catch (e) {}
     }
 
-    // Auto-generate local AI text vector embedding for search
-    try {
-      const textToEmbed = buildProductTextForEmbedding(productData);
-      const embedding = await generateTextEmbedding(textToEmbed);
-      if (embedding && embedding.length > 0) {
-        productData.embedding = embedding;
-      }
-    } catch (embErr) {
-      console.warn("[Product Controller] Skipping embedding generation:", embErr.message);
-    }
-
     const newProduct = await productModel.create(productData);
 
     // Broadcast live "Just Dropped!" notification to all online shoppers if published
@@ -182,6 +274,20 @@ export const createProduct = async (req, res) => {
         image: newProduct.images[0]?.url || null,
       });
     }
+
+    // Trigger AI Text & Image vector embedding generation in background (Non-Blocking)
+    setImmediate(async () => {
+      try {
+        const doc = await productModel.findById(newProduct._id);
+        if (doc) {
+          await generateAllProductEmbeddings(doc);
+          await doc.save();
+          console.log(`[AI Search] Background embeddings generated for: ${doc.title}`);
+        }
+      } catch (err) {
+        console.warn("[AI Search] Background embedding notice:", err.message);
+      }
+    });
 
     return res.status(201).json({
       success: true,
@@ -222,31 +328,6 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    // Process uploaded images/URLs during update
-    const updatedUploadedImages = [];
-
-    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      for (let i = 0; i < req.files.length; i++) {
-        const file = req.files[i];
-        try {
-          const ext = file.originalname ? file.originalname.split(".").pop() : "jpg";
-          const uploadRes = await uploadFile({
-            file: file.buffer,
-            filename: `product_${Date.now()}_${i}.${ext}`,
-            folder: "/products",
-          });
-          if (uploadRes && uploadRes.url) {
-            updatedUploadedImages.push({
-              url: uploadRes.url,
-              isPrimary: updatedUploadedImages.length === 0,
-            });
-          }
-        } catch (fileErr) {
-          console.error(`[ImageKit Update File Upload Error]:`, fileErr.message);
-        }
-      }
-    }
-
     let rawUrls = [];
     if (req.body.imageUrls) {
       rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
@@ -258,63 +339,8 @@ export const updateProduct = async (req, res) => {
       });
     }
 
-    for (let i = 0; i < rawUrls.length; i++) {
-      const urlStr = rawUrls[i];
-      if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
-        const cleanUrl = urlStr.trim();
-        if (cleanUrl.startsWith("data:image")) {
-          try {
-            const uploadRes = await uploadFile({
-              file: cleanUrl,
-              filename: `product_b64_${Date.now()}_${i}.jpg`,
-              folder: "/products",
-            });
-            if (uploadRes && uploadRes.url) {
-              updatedUploadedImages.push({
-                url: uploadRes.url,
-                isPrimary: updatedUploadedImages.length === 0,
-              });
-            }
-          } catch (b64Err) {
-            console.error(`[ImageKit Base64 Error]:`, b64Err.message);
-          }
-        } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-          // If the URL is already an ImageKit CDN URL, keep it as is
-          if (cleanUrl.includes("imagekit.io")) {
-            updatedUploadedImages.push({
-              url: cleanUrl,
-              isPrimary: updatedUploadedImages.length === 0,
-            });
-          } else {
-            // Re-upload external HTTP/HTTPS image URL to ImageKit CDN for permanent storage
-            try {
-              const uploadRes = await uploadFile({
-                file: cleanUrl,
-                filename: `product_ext_${Date.now()}_${i}.jpg`,
-                folder: "/products",
-              });
-              if (uploadRes && uploadRes.url) {
-                updatedUploadedImages.push({
-                  url: uploadRes.url,
-                  isPrimary: updatedUploadedImages.length === 0,
-                });
-              } else {
-                updatedUploadedImages.push({
-                  url: cleanUrl,
-                  isPrimary: updatedUploadedImages.length === 0,
-                });
-              }
-            } catch (extUrlErr) {
-              console.warn(`[ImageKit External URL Upload Warning]:`, extUrlErr.message, "- Keeping original URL as fallback.");
-              updatedUploadedImages.push({
-                url: cleanUrl,
-                isPrimary: updatedUploadedImages.length === 0,
-              });
-            }
-          }
-        }
-      }
-    }
+    // Process all file uploads and external image URLs in PARALLEL (<1-2s total!)
+    const updatedUploadedImages = await processImageUploadsParallel(req.files || [], rawUrls);
     // Parse JSON strings for complex fields sent via FormData
     const updateData = { ...req.body };
 
@@ -338,24 +364,6 @@ export const updateProduct = async (req, res) => {
       product.images = updatedUploadedImages;
     }
 
-    // If text fields were modified, recalculate AI vector embedding
-    if (
-      req.body.title ||
-      req.body.description ||
-      req.body.tags ||
-      req.body.shortDescription
-    ) {
-      try {
-        const textToEmbed = buildProductTextForEmbedding(product);
-        const embedding = await generateTextEmbedding(textToEmbed);
-        if (embedding && embedding.length > 0) {
-          product.embedding = embedding;
-        }
-      } catch (embErr) {
-        console.warn("[Product Controller] Skipping embedding update:", embErr.message);
-      }
-    }
-
     const updatedProduct = await product.save();
 
     // Broadcast live event so clients viewing this product get updated details
@@ -367,6 +375,20 @@ export const updateProduct = async (req, res) => {
       stockStatus: updatedProduct.stockStatus,
       stock: updatedProduct.stock,
       status: updatedProduct.status,
+    });
+
+    // Trigger AI Text & Image vector embedding update in background (Non-Blocking)
+    setImmediate(async () => {
+      try {
+        const doc = await productModel.findById(updatedProduct._id);
+        if (doc) {
+          await generateAllProductEmbeddings(doc);
+          await doc.save();
+          console.log(`[AI Search] Background embeddings updated for: ${doc.title}`);
+        }
+      } catch (err) {
+        console.warn("[AI Search] Background embedding update notice:", err.message);
+      }
     });
 
     return res.status(200).json({
@@ -1038,7 +1060,7 @@ export const aiImageSearchProducts = async (req, res) => {
 
     const candidates = await productModel
       .find({ status: "published" })
-      .select("+imageEmbedding")
+      .select("+imageEmbedding +images.embedding +variants.images.embedding")
       .populate("category", "name slug")
       .populate("brand", "name slug image")
       .populate("seller", "fullname profilePic");
@@ -1047,11 +1069,39 @@ export const aiImageSearchProducts = async (req, res) => {
 
     if (imageEmbedding && imageEmbedding.length > 0) {
       results = candidates.map((product) => {
-        let score = 0;
+        let maxScore = 0;
+
+        // 1. Compare against Root imageEmbedding (primary photo)
         if (product.imageEmbedding && product.imageEmbedding.length === imageEmbedding.length) {
-          score = cosineSimilarity(imageEmbedding, product.imageEmbedding);
+          const s = cosineSimilarity(imageEmbedding, product.imageEmbedding);
+          if (s > maxScore) maxScore = s;
         }
-        return { product, score };
+
+        // 2. Compare against every Main Product Image embedding (up to 7 images)
+        if (product.images && product.images.length > 0) {
+          product.images.forEach((img) => {
+            if (img.embedding && img.embedding.length === imageEmbedding.length) {
+              const s = cosineSimilarity(imageEmbedding, img.embedding);
+              if (s > maxScore) maxScore = s;
+            }
+          });
+        }
+
+        // 3. Compare against every Variant Image embedding (up to 7 images per variant)
+        if (product.variants && product.variants.length > 0) {
+          product.variants.forEach((variant) => {
+            if (variant.images && variant.images.length > 0) {
+              variant.images.forEach((vImg) => {
+                if (vImg.embedding && vImg.embedding.length === imageEmbedding.length) {
+                  const s = cosineSimilarity(imageEmbedding, vImg.embedding);
+                  if (s > maxScore) maxScore = s;
+                }
+              });
+            }
+          });
+        }
+
+        return { product, score: maxScore };
       });
 
       results.sort((a, b) => b.score - a.score);
