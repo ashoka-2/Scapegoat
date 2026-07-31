@@ -9,7 +9,10 @@ import {
   getProductsByBrand,
   getProductsBySeller,
   getSimilarProducts,
+  getYouMayAlsoLikeProducts,
   getAllProducts,
+  aiSearchProducts,
+  aiImageSearchProducts,
 } from "../controllers/product.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
@@ -25,6 +28,12 @@ const router = express.Router();
 // Get all published products (search, filter, sort, paginate)
 router.get("/", getAllProducts);
 
+// AI Smart Hybrid Search (Natural text prompt & keyword matching)
+router.get("/search/ai", aiSearchProducts);
+
+// AI Visual Photo Search (Camera photo upload / Google Lens style)
+router.post("/search/visual", upload.array("images", 1), aiImageSearchProducts);
+
 // Get single product by ID or Slug
 router.get("/single/:identifier", getSingleProduct);
 
@@ -36,15 +45,15 @@ router.get("/brand/:brandIdentifier", getProductsByBrand);
 
 // Get products by Seller ID (Public caller sees published items, logged-in seller sees all)
 router.get("/seller/:sellerId", (req, res, next) => {
-  // Optional auth: if cookie token exists, decode user so getProductsBySeller knows if it's the owner
   if (req.cookies && req.cookies.token) {
     return verifyToken(req, res, () => getProductsBySeller(req, res, next));
   }
   return getProductsBySeller(req, res, next);
 });
 
-// Get similar products recommendation
+// Get similar / "You May Also Like" product recommendations (AI Vector Similarity + Multi-Seller boost)
 router.get("/:id/similar", getSimilarProducts);
+router.get("/:id/you-may-also-like", getYouMayAlsoLikeProducts);
 
 // ── Protected Seller / Admin Routes ──────────────────────────────────────────
 

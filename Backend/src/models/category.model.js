@@ -28,6 +28,12 @@ const categorySchema = new mongoose.Schema(
             type: String,
             required: [true, "Image is required"],
         },
+        // If null, it is a main category. If set, it's a subcategory (e.g., "Shirts" under "Clothing")
+        parentCategory: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: "Category",
+            default: null,
+        },
         createdBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",

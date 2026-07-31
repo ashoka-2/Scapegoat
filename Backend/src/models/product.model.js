@@ -96,6 +96,13 @@ const productSchema = new Schema(
       ref: "Category",
       required: true,
     },
+    // Multiple subcategories can belong to a product (e.g. ["Shirts", "Casual Wear", "Summer Collection"])
+    subcategories: [
+      {
+        type: Schema.Types.ObjectId,
+        ref: "Category",
+      },
+    ],
     brand: {
       type: Schema.Types.ObjectId,
       ref: "Brand",
@@ -222,6 +229,8 @@ const productSchema = new Schema(
     enableReviews: { type: Boolean, default: true },
     // Show size chart on product page (useful for clothing/footwear)
     showSizeChart: { type: Boolean, default: false },
+    // Cash on Delivery availability (seller can toggle per product)
+    isCodAvailable: { type: Boolean, default: true },
 
     // ── Ratings (computed from reviews, cached here for fast queries) ─────
     averageRating: {

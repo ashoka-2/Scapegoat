@@ -1,7 +1,7 @@
 import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
-import { generateTextEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
+import { generateTextEmbedding, generateImageEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
 
@@ -463,11 +463,99 @@ export const getProductsBySeller = async (req, res) => {
 };
 
 /**
- * @desc    Get Similar / Related Products (for product detail page recommendations)
+ * Cosine Similarity Helper for Vector Embeddings
+ */
+const cosineSimilarity = (vecA, vecB) => {
+  if (!vecA || !vecB || vecA.length !== vecB.length || vecA.length === 0) return 0;
+  let dotProduct = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < vecA.length; i++) {
+    dotProduct += vecA[i] * vecB[i];
+    normA += vecA[i] * vecA[i];
+    normB += vecB[i] * vecB[i];
+  }
+  if (normA === 0 || normB === 0) return 0;
+  return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
+};
+
+/**
+ * @desc    Get Similar Products (AI Vector Cosine Similarity Matching)
  * @route   GET /api/products/:id/similar
  * @access  Public
  */
 export const getSimilarProducts = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Explicitly select embedding for AI vector similarity comparison
+    const product = await productModel.findById(id).select("+embedding");
+
+    if (!product) {
+      return res.status(404).json({
+        success: false,
+        message: "Product not found",
+      });
+    }
+
+    const filter = {
+      _id: { $ne: product._id },
+      status: "published",
+    };
+
+    let candidates = await productModel
+      .find(filter)
+      .select("+embedding")
+      .populate("category", "name slug")
+      .populate("subcategories", "name slug")
+      .populate("brand", "name slug image")
+      .populate("seller", "fullname profilePic email contact");
+
+    // If target product has vector embeddings, rank candidates using Cosine Similarity
+    if (product.embedding && product.embedding.length > 0) {
+      const rankedCandidates = candidates.map((item) => {
+        let similarityScore = 0;
+        if (item.embedding && item.embedding.length === product.embedding.length) {
+          similarityScore = cosineSimilarity(product.embedding, item.embedding);
+        } else if (item.category?.toString() === product.category?.toString()) {
+          similarityScore = 0.5;
+        }
+
+        // Slight boost for other sellers
+        if (item.seller?._id.toString() !== product.seller.toString()) {
+          similarityScore += 0.05;
+        }
+
+        return {
+          product: item,
+          similarityScore,
+        };
+      });
+
+      rankedCandidates.sort((a, b) => b.similarityScore - a.similarityScore);
+      candidates = rankedCandidates.map((c) => c.product);
+    }
+
+    const result = candidates.slice(0, 8);
+
+    return res.status(200).json({
+      success: true,
+      count: result.length,
+      data: result,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch similar products",
+    });
+  }
+};
+
+/**
+ * @desc    Get You May Also Like Products (Category, Subcategories, Brand, Tags & Multi-Seller Matching)
+ * @route   GET /api/products/:id/you-may-also-like
+ * @access  Public
+ */
+export const getYouMayAlsoLikeProducts = async (req, res) => {
   try {
     const { id } = req.params;
     const product = await productModel.findById(id);
@@ -479,29 +567,45 @@ export const getSimilarProducts = async (req, res) => {
       });
     }
 
-    // Find published products in the same category or brand, excluding current product
+    // Match by category, subcategories, brand, or tags
     const filter = {
       _id: { $ne: product._id },
       status: "published",
-      $or: [{ category: product.category }, { brand: product.brand }],
+      $or: [
+        { category: product.category },
+        { subcategories: { $in: product.subcategories || [] } },
+        { brand: product.brand },
+        { tags: { $in: product.tags || [] } },
+      ],
     };
 
-    const similarProducts = await productModel
+    let candidates = await productModel
       .find(filter)
-      .limit(8)
       .populate("category", "name slug")
+      .populate("subcategories", "name slug")
       .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic");
+      .populate("seller", "fullname profilePic email contact");
+
+    // Prioritize products from OTHER sellers so buyers see options from alternative sellers for similar items
+    candidates.sort((a, b) => {
+      const aOther = a.seller?._id.toString() !== product.seller.toString();
+      const bOther = b.seller?._id.toString() !== product.seller.toString();
+      if (aOther && !bOther) return -1;
+      if (!aOther && bOther) return 1;
+      return b.createdAt - a.createdAt;
+    });
+
+    const result = candidates.slice(0, 8);
 
     return res.status(200).json({
       success: true,
-      count: similarProducts.length,
-      data: similarProducts,
+      count: result.length,
+      data: result,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
-      message: error.message || "Failed to fetch similar products",
+      message: error.message || "Failed to fetch you may also like products",
     });
   }
 };
@@ -529,6 +633,11 @@ export const getAllProducts = async (req, res) => {
       filter.category = req.query.category;
     }
 
+    // Subcategory filter (matches products with this subcategory ID)
+    if (req.query.subcategory) {
+      filter.subcategories = req.query.subcategory;
+    }
+
     // Brand filter
     if (req.query.brand) {
       filter.brand = req.query.brand;
@@ -537,6 +646,26 @@ export const getAllProducts = async (req, res) => {
     // In Stock Only filter
     if (req.query.inStockOnly === "true") {
       filter.stockStatus = "instock";
+    }
+
+    // COD Availability filter
+    if (req.query.isCodAvailable === "true") {
+      filter.isCodAvailable = true;
+    }
+
+    // Minimum Rating filter (e.g., ?rating=4 for 4 stars and above)
+    if (req.query.rating) {
+      filter.averageRating = { $gte: Number(req.query.rating) };
+    }
+
+    // Attribute options filter (e.g., ?color=Red or ?size=XL)
+    if (req.query.attributeName && req.query.attributeValue) {
+      filter.attributes = {
+        $elemMatch: {
+          name: new RegExp(`^${req.query.attributeName}$`, "i"),
+          options: { $in: [new RegExp(`^${req.query.attributeValue}$`, "i")] },
+        },
+      };
     }
 
     // Price range filter
@@ -560,6 +689,7 @@ export const getAllProducts = async (req, res) => {
       .skip(skip)
       .limit(limit)
       .populate("category", "name slug")
+      .populate("subcategories", "name slug")
       .populate("brand", "name slug image")
       .populate("seller", "fullname profilePic");
 
@@ -575,6 +705,142 @@ export const getAllProducts = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch products",
+    });
+  }
+};
+
+/**
+ * @desc    AI Smart Hybrid Search (Natural text prompt & keyword matching)
+ * @route   GET /api/products/search/ai
+ * @access  Public
+ */
+export const aiSearchProducts = async (req, res) => {
+  try {
+    const { q } = req.query;
+    if (!q || !q.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Search query string 'q' is required",
+      });
+    }
+
+    const queryText = q.trim();
+
+    // Generate local 384-dimensional vector embedding for prompt
+    const queryEmbedding = await generateTextEmbedding(queryText);
+
+    const candidates = await productModel
+      .find({ status: "published" })
+      .select("+embedding")
+      .populate("category", "name slug")
+      .populate("subcategories", "name slug")
+      .populate("brand", "name slug image")
+      .populate("seller", "fullname profilePic");
+
+    let results = [];
+
+    if (queryEmbedding && queryEmbedding.length > 0) {
+      // Calculate Cosine Similarity with vector embeddings
+      results = candidates.map((product) => {
+        let score = 0;
+        if (product.embedding && product.embedding.length === queryEmbedding.length) {
+          score = cosineSimilarity(queryEmbedding, product.embedding);
+        }
+
+        // Title match boost
+        if (product.title.toLowerCase().includes(queryText.toLowerCase())) {
+          score += 0.3;
+        }
+
+        return { product, score };
+      });
+
+      results.sort((a, b) => b.score - a.score);
+      results = results.map((r) => r.product);
+    } else {
+      // Fallback: MongoDB Text Index Search
+      results = await productModel
+        .find({ $text: { $search: queryText }, status: "published" })
+        .populate("category", "name slug")
+        .populate("brand", "name slug image")
+        .populate("seller", "fullname profilePic");
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      data: results.slice(0, 20),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "AI search failed",
+    });
+  }
+};
+
+/**
+ * @desc    AI Visual Photo Search (Camera photo matching / Google Lens style)
+ * @route   POST /api/products/search/visual
+ * @access  Public
+ */
+export const aiImageSearchProducts = async (req, res) => {
+  try {
+    let imageUrl = req.body.imageUrl;
+
+    // If file uploaded via multipart form data
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      const uploadRes = await uploadFile({
+        file: req.files[0].buffer,
+        filename: `search_${Date.now()}.jpg`,
+        folder: "/search",
+      });
+      imageUrl = uploadRes.url;
+    }
+
+    if (!imageUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Please upload an image file or provide an imageUrl",
+      });
+    }
+
+    // Generate visual feature vector using CLIP model
+    const imageEmbedding = await generateImageEmbedding(imageUrl);
+
+    const candidates = await productModel
+      .find({ status: "published" })
+      .select("+imageEmbedding")
+      .populate("category", "name slug")
+      .populate("brand", "name slug image")
+      .populate("seller", "fullname profilePic");
+
+    let results = [];
+
+    if (imageEmbedding && imageEmbedding.length > 0) {
+      results = candidates.map((product) => {
+        let score = 0;
+        if (product.imageEmbedding && product.imageEmbedding.length === imageEmbedding.length) {
+          score = cosineSimilarity(imageEmbedding, product.imageEmbedding);
+        }
+        return { product, score };
+      });
+
+      results.sort((a, b) => b.score - a.score);
+      results = results.map((r) => r.product);
+    } else {
+      results = candidates;
+    }
+
+    return res.status(200).json({
+      success: true,
+      count: results.length,
+      data: results.slice(0, 20),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Visual image search failed",
     });
   }
 };

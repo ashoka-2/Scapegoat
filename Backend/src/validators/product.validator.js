@@ -35,6 +35,16 @@ export const validateCreateProduct = [
     .isMongoId()
     .withMessage("Invalid Category ID format"),
 
+  body("subcategories")
+    .optional()
+    .isArray()
+    .withMessage("Subcategories must be an array of IDs"),
+
+  body("subcategories.*")
+    .optional()
+    .isMongoId()
+    .withMessage("Invalid Subcategory ID format"),
+
   body("brand")
     .optional()
     .isMongoId()
@@ -81,6 +91,11 @@ export const validateCreateProduct = [
     .isIn(["draft", "published", "trash"])
     .withMessage("status must be draft, published, or trash"),
 
+  body("isCodAvailable")
+    .optional()
+    .isBoolean()
+    .withMessage("isCodAvailable must be a boolean value"),
+
   validateRequest,
 ];
 
@@ -121,6 +136,11 @@ export const validateUpdateProduct = [
     .optional()
     .isBoolean()
     .withMessage("manageStock must be a boolean"),
+
+  body("isCodAvailable")
+    .optional()
+    .isBoolean()
+    .withMessage("isCodAvailable must be a boolean value"),
 
   body("status")
     .optional()
