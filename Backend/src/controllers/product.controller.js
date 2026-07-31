@@ -199,6 +199,80 @@ const processImageUploadsParallel = async (files = [], rawUrls = []) => {
 };
 
 /**
+ * Helper to upload variant base64 & external image links to ImageKit in parallel
+ */
+const processVariantImagesUpload = async (variants = []) => {
+  if (!variants || !Array.isArray(variants) || variants.length === 0) return;
+
+  for (let vIdx = 0; vIdx < variants.length; vIdx++) {
+    const variant = variants[vIdx];
+    if (variant && variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
+      const tasks = [];
+
+      variant.images.forEach((imgObj, imgIdx) => {
+        const cleanUrl = typeof imgObj === "string" ? imgObj.trim() : imgObj?.url?.trim();
+        if (!cleanUrl) return;
+
+        tasks.push(
+          (async () => {
+            if (cleanUrl.includes("imagekit.io")) {
+              return { url: cleanUrl };
+            }
+
+            if (cleanUrl.startsWith("data:image")) {
+              try {
+                const uploadRes = await Promise.race([
+                  uploadFile({
+                    file: cleanUrl,
+                    filename: `variant_${vIdx}_${Date.now()}_${imgIdx}.jpg`,
+                    folder: "/products/variants",
+                  }),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error("Base64 upload timeout")), 5000)),
+                ]);
+                if (uploadRes && uploadRes.url) return { url: uploadRes.url };
+              } catch (err) {
+                console.warn(`[ImageKit Variant Base64 Upload Warning]:`, err.message);
+              }
+              return null;
+            }
+
+            if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+              try {
+                const uploadRes = await Promise.race([
+                  uploadFile({
+                    file: cleanUrl,
+                    filename: `variant_${vIdx}_${Date.now()}_${imgIdx}.jpg`,
+                    folder: "/products/variants",
+                  }),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error("External URL upload timeout")), 4000)),
+                ]);
+                if (uploadRes && uploadRes.url) return { url: uploadRes.url };
+              } catch (err) {
+                console.warn(`[ImageKit Variant External URL Upload Warning]: ${err.message} - Using original URL.`);
+              }
+              return { url: cleanUrl };
+            }
+
+            return { url: cleanUrl };
+          })()
+        );
+      });
+
+      const results = await Promise.all(tasks);
+      const updatedImages = [];
+
+      results.forEach((res) => {
+        if (res && res.url) {
+          updatedImages.push({ url: res.url });
+        }
+      });
+
+      variant.images = updatedImages;
+    }
+  }
+};
+
+/**
  * @desc    Create a new product
  * @route   POST /api/products
  * @access  Private (Seller, Admin)
@@ -260,6 +334,11 @@ export const createProduct = async (req, res) => {
       try {
         productData.bulkDiscountRules = JSON.parse(productData.bulkDiscountRules);
       } catch (e) {}
+    }
+
+    // Process & upload any variant base64/external image links in parallel to ImageKit
+    if (productData.variants) {
+      await processVariantImagesUpload(productData.variants);
     }
 
     const newProduct = await productModel.create(productData);
@@ -355,6 +434,11 @@ export const updateProduct = async (req, res) => {
     }
     if (typeof updateData.bulkDiscountRules === "string") {
       try { updateData.bulkDiscountRules = JSON.parse(updateData.bulkDiscountRules); } catch (e) {}
+    }
+
+    // Process & upload any variant base64/external image links in parallel to ImageKit
+    if (updateData.variants) {
+      await processVariantImagesUpload(updateData.variants);
     }
 
     // Update fields

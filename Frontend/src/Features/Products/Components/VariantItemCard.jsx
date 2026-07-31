@@ -131,15 +131,8 @@ const VariantItemCard = ({
           Variant Photos Gallery (Upload photo gallery for this variant):
         </p>
         <ImageDropzone
-          images={variant.images}
-          setImages={(newImgs) =>
-            handleVariantImagesChange(
-              variant.id,
-              typeof newImgs === "function"
-                ? newImgs(variant.images)
-                : newImgs
-            )
-          }
+          images={variant.images || []}
+          setImages={(updater) => handleVariantImagesChange(variant.id, updater)}
           maxImages={7}
         />
       </div>

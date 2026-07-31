@@ -540,9 +540,19 @@ const CreateProduct = () => {
     );
   };
 
-  const handleVariantImagesChange = (id, newImages) => {
+  const handleVariantImagesChange = (id, updaterOrImages) => {
     setVariantsList((prev) =>
-      prev.map((v) => (v.id === id ? { ...v, images: newImages } : v))
+      prev.map((v) => {
+        if (v.id === id) {
+          const currentImages = v.images || [];
+          const updatedImages =
+            typeof updaterOrImages === "function"
+              ? updaterOrImages(currentImages)
+              : updaterOrImages;
+          return { ...v, images: updatedImages };
+        }
+        return v;
+      })
     );
   };
 
@@ -706,26 +716,49 @@ const CreateProduct = () => {
 
     // Custom Product Variants
     if (variantsList.length > 0) {
-      const formattedVariants = variantsList.map((v) => {
-        const attrMap = {};
-        (v.dynamicAttributes || []).forEach((da) => {
-          const k = da.key || da.name;
-          const vals = da.values || da.options || (da.value ? [da.value] : []);
-          attrMap[k] = vals.length === 1 ? vals[0] : vals;
-        });
+      const formattedVariants = await Promise.all(
+        variantsList.map(async (v) => {
+          const attrMap = {};
+          (v.dynamicAttributes || []).forEach((da) => {
+            const k = da.key || da.name;
+            const vals = da.values || da.options || (da.value ? [da.value] : []);
+            attrMap[k] = vals.length === 1 ? vals[0] : vals;
+          });
 
-        return {
-          name: v.name || formData.title,
-          attributes: attrMap,
-          price: {
-            amount: Number(v.priceAmount || formData.sellingPriceAmount || formData.maxPriceAmount),
-            currency: formData.maxPriceCurrency,
-          },
-          stock: Number(v.stock),
-          sku: v.sku,
-          imageUrls: v.images ? v.images.filter((img) => img.isUrl).map((img) => img.url) : [],
-        };
-      });
+          // Process variant images (both URL links & local file uploads)
+          const processedImages = await Promise.all(
+            (v.images || []).map(async (img) => {
+              if (img.file && !img.isUrl) {
+                try {
+                  const reader = new FileReader();
+                  const b64 = await new Promise((resolve) => {
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = () => resolve(null);
+                    reader.readAsDataURL(img.file);
+                  });
+                  if (b64) return { url: b64 };
+                } catch (e) {
+                  return null;
+                }
+              }
+              const u = typeof img === "string" ? img : img.url || img.preview;
+              return u ? { url: u } : null;
+            })
+          );
+
+          return {
+            name: v.name || formData.title,
+            attributes: attrMap,
+            price: {
+              amount: Number(v.priceAmount || formData.sellingPriceAmount || formData.maxPriceAmount),
+              currency: formData.maxPriceCurrency,
+            },
+            stock: Number(v.stock),
+            sku: v.sku,
+            images: processedImages.filter(Boolean),
+          };
+        })
+      );
 
       payload.append("variants", JSON.stringify(formattedVariants));
     }
