@@ -11,6 +11,9 @@ import authRouter from "./routes/auth.routes.js";
 import productRouter from "./routes/product.routes.js";
 import cartRouter from "./routes/cart.routes.js";
 import wishlistRouter from "./routes/wishlist.routes.js";
+import categoryRouter from "./routes/category.routes.js";
+import brandRouter from "./routes/brand.routes.js";
+import unitRouter from "./routes/unit.routes.js";
 
 const app = express();
 
@@ -35,5 +38,8 @@ app.use("/api/auth", authRouter);
 app.use("/api/products", productRouter);
 app.use("/api/cart", cartRouter);
 app.use("/api/wishlist", wishlistRouter);
+app.use("/api/categories", categoryRouter);
+app.use("/api/brands", brandRouter);
+app.use("/api/units", unitRouter);
 
 export default app;
