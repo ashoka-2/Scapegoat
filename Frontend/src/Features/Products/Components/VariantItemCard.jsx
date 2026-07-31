@@ -97,25 +97,30 @@ const VariantItemCard = ({
           </button>
         </div>
 
-        {variant.dynamicAttributes.length > 0 && (
+        {variant.dynamicAttributes && variant.dynamicAttributes.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
-            {variant.dynamicAttributes.map((da, daIdx) => (
-              <span
-                key={daIdx}
-                className="bg-surface border border-border-theme rounded-lg px-3 py-1 text-xs text-foreground flex items-center space-x-2"
-              >
-                <span>
-                  <strong className="text-accent">{da.key}:</strong> {da.value}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => removeVariantAttribute(variant.id, daIdx)}
-                  className="text-red-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
+            {variant.dynamicAttributes.map((da, daIdx) => {
+              const vals = da.values || da.options || (da.value ? [da.value] : []);
+              return (
+                <span
+                  key={daIdx}
+                  className="bg-surface border border-border-theme rounded-xl px-3.5 py-1.5 text-xs text-foreground flex items-center space-x-2 shadow-sm"
                 >
-                  ✕
-                </button>
-              </span>
-            ))}
+                  <span>
+                    <strong className="text-accent">{da.key || da.name}:</strong>{" "}
+                    {vals.join(", ")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => removeVariantAttribute(variant.id, daIdx)}
+                    className="text-red-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
+                    title="Remove Attribute"
+                  >
+                    ✕
+                  </button>
+                </span>
+              );
+            })}
           </div>
         )}
       </div>

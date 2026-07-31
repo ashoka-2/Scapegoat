@@ -30,6 +30,10 @@ const downloadableFileSchema = new Schema(
 // ── Variant schema ──────────────────────────────────────────────────────────
 
 const variantSchema = new Schema({
+  name: {
+    type: String,
+    trim: true,
+  },
   images: {
     type: [imageSchema],
     default: [],
@@ -40,7 +44,7 @@ const variantSchema = new Schema({
   },
   attributes: {
     type: Map,
-    of: String,
+    of: Schema.Types.Mixed,
     default: {},
   },
   price: {

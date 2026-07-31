@@ -26,9 +26,10 @@ export const createProduct = async (req, res) => {
       seller: req.user._id,
     };
 
-    // If images were uploaded via multipart form data (req.files buffer)
+    const uploadedImages = [];
+
+    // 1. Handle uploaded image files (Multer buffers)
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      const uploadedImages = [];
       for (let i = 0; i < req.files.length; i++) {
         const file = req.files[i];
         const uploadRes = await uploadFile({
@@ -38,10 +39,51 @@ export const createProduct = async (req, res) => {
         });
         uploadedImages.push({
           url: uploadRes.url,
-          isPrimary: i === 0,
+          isPrimary: uploadedImages.length === 0,
         });
       }
+    }
+
+    // 2. Handle pasted image URLs (ImageKit uploads directly from URL string)
+    if (req.body.imageUrls) {
+      const urlList = Array.isArray(req.body.imageUrls)
+        ? req.body.imageUrls
+        : [req.body.imageUrls];
+      for (let i = 0; i < urlList.length; i++) {
+        const urlStr = urlList[i];
+        if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
+          try {
+            const uploadRes = await uploadFile({
+              file: urlStr.trim(),
+              filename: `product_url_${Date.now()}_${i}.jpg`,
+              folder: "/products",
+            });
+            uploadedImages.push({
+              url: uploadRes.url,
+              isPrimary: uploadedImages.length === 0,
+            });
+          } catch (urlErr) {
+            console.warn(`[ImageKit] Failed to upload URL (${urlStr}):`, urlErr.message);
+          }
+        }
+      }
+    }
+
+    if (uploadedImages.length > 0) {
       productData.images = uploadedImages;
+    }
+
+    // Safely parse JSON strings for variants and attributes if sent as stringified JSON
+    if (typeof productData.variants === "string") {
+      try {
+        productData.variants = JSON.parse(productData.variants);
+      } catch (e) {}
+    }
+
+    if (typeof productData.attributes === "string") {
+      try {
+        productData.attributes = JSON.parse(productData.attributes);
+      } catch (e) {}
     }
 
     // Auto-generate local AI text vector embedding for search

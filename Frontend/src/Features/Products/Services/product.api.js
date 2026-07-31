@@ -1,0 +1,90 @@
+import axios from "../../../utils/axios";
+
+const productApiInstance = axios.create({
+  baseURL: "/api/products",
+  withCredentials: true,
+});
+
+/**
+ * Create a new product (supports multipart form data with images array)
+ */
+export async function createProductApi(formData) {
+  const response = await productApiInstance.post("/", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+}
+
+/**
+ * Fetch all published products
+ */
+export async function getAllProductsApi(params = {}) {
+  const response = await productApiInstance.get("/", { params });
+  return response.data;
+}
+
+/**
+ * Fetch a single product by ID or Slug
+ */
+export async function getSingleProductApi(identifier) {
+  const response = await productApiInstance.get(`/single/${identifier}`);
+  return response.data;
+}
+
+/**
+ * Fetch products created by a specific seller
+ */
+export async function getSellerProductsApi(sellerId, params = {}) {
+  const response = await productApiInstance.get(`/seller/${sellerId}`, { params });
+  return response.data;
+}
+
+/**
+ * Update an existing product
+ */
+export async function updateProductApi(id, formData) {
+  const response = await productApiInstance.put(`/${id}`, formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+  });
+  return response.data;
+}
+
+/**
+ * Soft delete product (move to trash)
+ */
+export async function deleteProductApi(id) {
+  const response = await productApiInstance.delete(`/${id}`);
+  return response.data;
+}
+
+/**
+ * Restore product from trash
+ */
+export async function restoreProductApi(id) {
+  const response = await productApiInstance.patch(`/${id}/restore`);
+  return response.data;
+}
+
+/**
+ * AI Smart Text Search
+ */
+export async function aiSearchProductsApi(query) {
+  const response = await productApiInstance.get(`/search/ai`, {
+    params: { q: query },
+  });
+  return response.data;
+}
+
+/**
+ * AI Visual Photo Search
+ */
+export async function aiVisualSearchProductsApi(formData) {
+  const response = await productApiInstance.post(`/search/visual`, formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return response.data;
+}

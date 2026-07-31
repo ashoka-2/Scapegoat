@@ -5,7 +5,7 @@ import Home from "../Features/Home/Pages/Home.jsx";
 import CompleteProfile from "../Features/auth/Pages/CompleteProfile.jsx";
 import Protected from "../Features/auth/components/Protected.jsx";
 import MainLayout from "./MainLayout.jsx";
-
+import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";
 
 export const routes = createBrowserRouter([
   {
@@ -16,20 +16,30 @@ export const routes = createBrowserRouter([
     path: "/login",
     element: <Login />,
   },
-  
   {
     path: "/complete-profile",
-    element: <Protected><CompleteProfile /></Protected>
+    element: (
+      <Protected>
+        <CompleteProfile />
+      </Protected>
+    ),
   },
   {
-    path:"/",
-    element: <Protected><MainLayout/></Protected>,
+    path: "/",
+    element: (
+      <Protected>
+        <MainLayout />
+      </Protected>
+    ),
     children: [
       {
         index: true,
-        element: <Home/>
-      }
-    ]
+        element: <Home />,
+      },
+      {
+        path: "products/create",
+        element: <CreateProduct />,
+      },
+    ],
   },
- 
 ]);
