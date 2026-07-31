@@ -53,8 +53,7 @@ categorySchema.pre("save", function () {
     }
 });
 
-categorySchema.index({ slug: 1 }, { unique: true });
-categorySchema.index({ status: 1 });
+// Note: slug index is created automatically via unique: true on the field schema
 
 const categoryModel = mongoose.model("Category", categorySchema);
 
