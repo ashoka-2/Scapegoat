@@ -47,9 +47,6 @@ brandSchema.pre("save", function () {
     }
 });
 
-brandSchema.index({ slug: 1 }, { unique: true });
-brandSchema.index({ status: 1 });
-
 const brandModel = mongoose.model("Brand", brandSchema);
 
 export default brandModel;
