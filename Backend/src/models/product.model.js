@@ -236,6 +236,17 @@ const productSchema = new Schema(
     // Cash on Delivery availability (seller can toggle per product)
     isCodAvailable: { type: Boolean, default: true },
 
+    // ── Bulk / Quantity Discount Rules ────────────────────────────────────
+    // Tiered pricing for bulk purchases e.g. Buy 10+ → 10% OFF, Buy 50+ → ₹200 OFF
+    bulkDiscountRules: [
+      {
+        _id: false,
+        minQty: { type: Number, required: true, min: 2 },
+        discType: { type: String, enum: ["percentage", "fixed"], required: true },
+        discValue: { type: Number, required: true, min: 0 },
+      },
+    ],
+
     // ── Ratings (computed from reviews, cached here for fast queries) ─────
     averageRating: {
       type: Number,

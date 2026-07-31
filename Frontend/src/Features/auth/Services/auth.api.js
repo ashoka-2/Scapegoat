@@ -46,3 +46,13 @@ export async function completeProfile({ password, contact, isSeller }) {
     })
     return response.data
 }
+
+export async function updateProfileApi(payload) {
+    const response = await authApiInstance.put("/update-profile", payload);
+    return response.data;
+}
+
+export async function changePasswordApi(payload) {
+    const response = await authApiInstance.put("/change-password", payload);
+    return response.data;
+}

@@ -8,12 +8,15 @@ import {
   setSellerProducts,
   setCurrentProduct,
   addCreatedProduct,
+  removeProduct,
 } from "../State/product.slice.js";
 import {
   createProductApi,
   getAllProductsApi,
   getSingleProductApi,
   getSellerProductsApi,
+  deleteProductApi,
+  updateProductApi,
 } from "../Services/product.api.js";
 import { addToast } from "../../../utils/toast.slice.js";
 
@@ -111,6 +114,53 @@ export const useProduct = () => {
     [dispatch]
   );
 
+  const handleDeleteProduct = useCallback(
+    async (productId) => {
+      dispatch(setLoading(true));
+      try {
+        await deleteProductApi(productId);
+        dispatch(removeProduct(productId));
+        dispatch(addToast({ message: "Product deleted successfully", type: "success" }));
+        return { success: true };
+      } catch (err) {
+        const message = err.response?.data?.message || "Failed to delete product.";
+        dispatch(addToast({ message, type: "error" }));
+        return { success: false, error: message };
+      } finally {
+        dispatch(setLoading(false));
+      }
+    },
+    [dispatch]
+  );
+
+  const handleUpdateProduct = useCallback(
+    async (id, formData) => {
+      dispatch(setCreating(true));
+      dispatch(setError(null));
+      try {
+        const data = await updateProductApi(id, formData);
+        dispatch(
+          addToast({
+            message: "🎉 Product updated successfully!",
+            type: "success",
+          })
+        );
+        return { success: true, data: data.data };
+      } catch (err) {
+        const message =
+          err.response?.data?.message ||
+          err.message ||
+          "Failed to update product. Please try again.";
+        dispatch(setError(message));
+        dispatch(addToast({ message, type: "error" }));
+        return { success: false, error: message };
+      } finally {
+        dispatch(setCreating(false));
+      }
+    },
+    [dispatch]
+  );
+
   return {
     products,
     sellerProducts,
@@ -125,5 +175,7 @@ export const useProduct = () => {
     handleFetchAllProducts,
     handleFetchSingleProduct,
     handleFetchSellerProducts,
+    handleDeleteProduct,
+    handleUpdateProduct,
   };
 };

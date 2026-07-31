@@ -1,7 +1,7 @@
 import { useCallback } from "react";
 import { useDispatch } from "react-redux";
 import { setUser, setLoading, setError } from "../State/auth.slice.js";
-import { register, login, getMe, logout, completeProfile } from "../Services/auth.api.js";
+import { register, login, getMe, logout, completeProfile, updateProfileApi, changePasswordApi } from "../Services/auth.api.js";
 
 import { addToast } from "../../../utils/toast.slice.js";
 
@@ -82,5 +82,36 @@ export const useAuth = () => {
         }
     }, [dispatch])
 
-    return {handleLogin,handleRegister,handleLogout,fetchMe, handleCompleteProfile}
+    const handleUpdateProfile = useCallback(async (payload) => {
+        dispatch(setLoading(true));
+        try {
+            const data = await updateProfileApi(payload);
+            dispatch(setUser(data.user));
+            dispatch(addToast({ message: "Profile updated successfully!", type: "success" }));
+            return data.user;
+        } catch (error) {
+            const message = error.response?.data?.message || "Failed to update profile.";
+            dispatch(addToast({ message, type: "error" }));
+            throw error;
+        } finally {
+            dispatch(setLoading(false));
+        }
+    }, [dispatch]);
+
+    const handleChangePassword = useCallback(async (payload) => {
+        dispatch(setLoading(true));
+        try {
+            const data = await changePasswordApi(payload);
+            dispatch(addToast({ message: "Password updated successfully!", type: "success" }));
+            return data;
+        } catch (error) {
+            const message = error.response?.data?.message || "Failed to change password.";
+            dispatch(addToast({ message, type: "error" }));
+            throw error;
+        } finally {
+            dispatch(setLoading(false));
+        }
+    }, [dispatch]);
+
+    return {handleLogin,handleRegister,handleLogout,fetchMe, handleCompleteProfile, handleUpdateProfile, handleChangePassword}
 };

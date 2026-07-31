@@ -1,7 +1,7 @@
 import {Router} from "express";
 import { validateLoginUser, validateRegisterUser, validateCompleteProfile } from "../validators/auth.validator.js";
 import passport from "passport";
-import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile} from "../controllers/auth.controller.js"
+import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword} from "../controllers/auth.controller.js"
 import {verifyToken} from "../middlewares/auth.middleware.js"
 import { config } from "../config/config.js";
 
@@ -34,6 +34,20 @@ router.get("/getMe",verifyToken,getMe);
  * @access Private
  */
 router.post("/logout",verifyToken,logout);
+
+/**
+ * @route PUT /api/auth/update-profile
+ * @description Update user profile details & address
+ * @access Private
+ */
+router.put("/update-profile", verifyToken, updateProfile);
+
+/**
+ * @route PUT /api/auth/change-password
+ * @description Change user password
+ * @access Private
+ */
+router.put("/change-password", verifyToken, changePassword);
 
 /**
  * @route GET /api/auth/google

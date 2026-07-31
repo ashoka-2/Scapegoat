@@ -1,16 +1,17 @@
 import React from "react";
 
 const tabs = [
-  { id: "general", label: "General Info", icon: "ri-settings-4-line" },
-  { id: "pricing", label: "Pricing & Stock", icon: "ri-inbox-archive-line" },
-  { id: "variants", label: "Attributes & Variants", icon: "ri-git-branch-line" },
-  { id: "shipping", label: "Shipping & Options", icon: "ri-truck-line" },
-  { id: "media", label: "Media & Filters", icon: "ri-palette-line" },
+  { id: "general", label: "General Info", icon: "📋" },
+  { id: "pricing", label: "Pricing & Stock", icon: "💰" },
+  { id: "discount", label: "Discounts", icon: "🏷️" },
+  { id: "variants", label: "Attributes & Variants", icon: "🔀" },
+  { id: "shipping", label: "Shipping & Options", icon: "📦" },
+  { id: "media", label: "Media & Filters", icon: "🖼️" },
 ];
 
 /**
  * ProductFormTabs Component
- * Theme-aware Tab Navigation Bar with Attributes & Variants tab
+ * Theme-aware Tab Navigation Bar for product creation/editing
  */
 const ProductFormTabs = ({ activeTab, setActiveTab }) => {
   return (
@@ -28,7 +29,7 @@ const ProductFormTabs = ({ activeTab, setActiveTab }) => {
                 : "text-foreground/70 hover:text-foreground hover:bg-surface/80 border border-transparent hover:border-border-theme"
             }`}
           >
-            <span className="text-base">{tab.icon.startsWith("ri-") ? <i className={tab.icon}></i> : tab.icon}</span>
+            <span className="text-base">{tab.icon}</span>
             <span>{tab.label}</span>
           </button>
         );

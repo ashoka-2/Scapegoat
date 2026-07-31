@@ -28,43 +28,68 @@ export const createProduct = async (req, res) => {
 
     const uploadedImages = [];
 
-    // 1. Handle uploaded image files (Multer buffers)
+    // 1. Process uploaded files (Multer memory buffers -> ImageKit)
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {
       for (let i = 0; i < req.files.length; i++) {
         const file = req.files[i];
-        const uploadRes = await uploadFile({
-          file: file.buffer,
-          filename: `product_${Date.now()}_${i}.${file.originalname.split(".").pop() || "jpg"}`,
-          folder: "/products",
-        });
-        uploadedImages.push({
-          url: uploadRes.url,
-          isPrimary: uploadedImages.length === 0,
-        });
-      }
-    }
-
-    // 2. Handle pasted image URLs (ImageKit uploads directly from URL string)
-    if (req.body.imageUrls) {
-      const urlList = Array.isArray(req.body.imageUrls)
-        ? req.body.imageUrls
-        : [req.body.imageUrls];
-      for (let i = 0; i < urlList.length; i++) {
-        const urlStr = urlList[i];
-        if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
-          try {
-            const uploadRes = await uploadFile({
-              file: urlStr.trim(),
-              filename: `product_url_${Date.now()}_${i}.jpg`,
-              folder: "/products",
-            });
+        try {
+          const ext = file.originalname ? file.originalname.split(".").pop() : "jpg";
+          const uploadRes = await uploadFile({
+            file: file.buffer,
+            filename: `product_${Date.now()}_${i}.${ext}`,
+            folder: "/products",
+          });
+          if (uploadRes && uploadRes.url) {
             uploadedImages.push({
               url: uploadRes.url,
               isPrimary: uploadedImages.length === 0,
             });
-          } catch (urlErr) {
-            console.warn(`[ImageKit] Failed to upload URL (${urlStr}):`, urlErr.message);
           }
+        } catch (fileErr) {
+          console.error(`[ImageKit File Upload Error]:`, fileErr.message);
+        }
+      }
+    }
+
+    // 2. Process image URLs (Existing URLs or base64 / external URLs)
+    let rawUrls = [];
+    if (req.body.imageUrls) {
+      rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
+    } else {
+      Object.keys(req.body).forEach((key) => {
+        if (key.startsWith("imageUrls")) {
+          rawUrls.push(req.body[key]);
+        }
+      });
+    }
+
+    for (let i = 0; i < rawUrls.length; i++) {
+      const urlStr = rawUrls[i];
+      if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
+        const cleanUrl = urlStr.trim();
+        if (cleanUrl.startsWith("data:image")) {
+          // Base64 image data -> Upload to ImageKit
+          try {
+            const uploadRes = await uploadFile({
+              file: cleanUrl,
+              filename: `product_b64_${Date.now()}_${i}.jpg`,
+              folder: "/products",
+            });
+            if (uploadRes && uploadRes.url) {
+              uploadedImages.push({
+                url: uploadRes.url,
+                isPrimary: uploadedImages.length === 0,
+              });
+            }
+          } catch (b64Err) {
+            console.error(`[ImageKit Base64 Error]:`, b64Err.message);
+          }
+        } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+          // Direct image URL -> Save to DB
+          uploadedImages.push({
+            url: cleanUrl,
+            isPrimary: uploadedImages.length === 0,
+          });
         }
       }
     }
@@ -91,6 +116,18 @@ export const createProduct = async (req, res) => {
     if (typeof productData.attributes === "string") {
       try {
         productData.attributes = JSON.parse(productData.attributes);
+      } catch (e) {}
+    }
+
+    if (typeof productData.downloadableFiles === "string") {
+      try {
+        productData.downloadableFiles = JSON.parse(productData.downloadableFiles);
+      } catch (e) {}
+    }
+
+    if (typeof productData.bulkDiscountRules === "string") {
+      try {
+        productData.bulkDiscountRules = JSON.parse(productData.bulkDiscountRules);
       } catch (e) {}
     }
 
@@ -157,8 +194,92 @@ export const updateProduct = async (req, res) => {
       });
     }
 
+    // Process uploaded images/URLs during update
+    const updatedUploadedImages = [];
+
+    if (req.files && Array.isArray(req.files) && req.files.length > 0) {
+      for (let i = 0; i < req.files.length; i++) {
+        const file = req.files[i];
+        try {
+          const ext = file.originalname ? file.originalname.split(".").pop() : "jpg";
+          const uploadRes = await uploadFile({
+            file: file.buffer,
+            filename: `product_${Date.now()}_${i}.${ext}`,
+            folder: "/products",
+          });
+          if (uploadRes && uploadRes.url) {
+            updatedUploadedImages.push({
+              url: uploadRes.url,
+              isPrimary: updatedUploadedImages.length === 0,
+            });
+          }
+        } catch (fileErr) {
+          console.error(`[ImageKit Update File Upload Error]:`, fileErr.message);
+        }
+      }
+    }
+
+    let rawUrls = [];
+    if (req.body.imageUrls) {
+      rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
+    } else {
+      Object.keys(req.body).forEach((key) => {
+        if (key.startsWith("imageUrls")) {
+          rawUrls.push(req.body[key]);
+        }
+      });
+    }
+
+    for (let i = 0; i < rawUrls.length; i++) {
+      const urlStr = rawUrls[i];
+      if (urlStr && typeof urlStr === "string" && urlStr.trim()) {
+        const cleanUrl = urlStr.trim();
+        if (cleanUrl.startsWith("data:image")) {
+          try {
+            const uploadRes = await uploadFile({
+              file: cleanUrl,
+              filename: `product_b64_${Date.now()}_${i}.jpg`,
+              folder: "/products",
+            });
+            if (uploadRes && uploadRes.url) {
+              updatedUploadedImages.push({
+                url: uploadRes.url,
+                isPrimary: updatedUploadedImages.length === 0,
+              });
+            }
+          } catch (b64Err) {
+            console.error(`[ImageKit Base64 Error]:`, b64Err.message);
+          }
+        } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+          updatedUploadedImages.push({
+            url: cleanUrl,
+            isPrimary: updatedUploadedImages.length === 0,
+          });
+        }
+      }
+    }
+    // Parse JSON strings for complex fields sent via FormData
+    const updateData = { ...req.body };
+
+    if (typeof updateData.variants === "string") {
+      try { updateData.variants = JSON.parse(updateData.variants); } catch (e) {}
+    }
+    if (typeof updateData.attributes === "string") {
+      try { updateData.attributes = JSON.parse(updateData.attributes); } catch (e) {}
+    }
+    if (typeof updateData.downloadableFiles === "string") {
+      try { updateData.downloadableFiles = JSON.parse(updateData.downloadableFiles); } catch (e) {}
+    }
+    if (typeof updateData.bulkDiscountRules === "string") {
+      try { updateData.bulkDiscountRules = JSON.parse(updateData.bulkDiscountRules); } catch (e) {}
+    }
+
     // Update fields
-    Object.assign(product, req.body);
+    Object.assign(product, updateData);
+
+    if (updatedUploadedImages.length > 0) {
+      product.images = updatedUploadedImages;
+    }
 
     // If text fields were modified, recalculate AI vector embedding
     if (

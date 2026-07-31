@@ -345,3 +345,68 @@ export const completeProfile = async (req, res) => {
         return handleServerError(res, error);
     }
 };
+
+export const updateProfile = async (req, res) => {
+    const userId = req.user?.id;
+    const { fullname, contact, address } = req.body;
+
+    try {
+        if (!userId) return res.status(401).json({ message: "Not authenticated", success: false });
+
+        const user = await userModel.findById(userId);
+        if (!user) return res.status(404).json({ message: "User not found", success: false });
+
+        if (fullname && fullname.trim()) user.fullname = fullname.trim();
+        if (contact && contact.trim()) user.contact = contact.trim();
+
+        if (address && typeof address === "object") {
+            const { street, city, state, country = "India", pincode } = address;
+            if (street || city || pincode) {
+                user.addresses = [
+                    {
+                        street: street || "",
+                        city: city || "",
+                        state: state || "",
+                        country: country || "India",
+                        pincode: pincode || "",
+                        isDefault: true,
+                    },
+                ];
+            }
+        }
+
+        await user.save();
+        await sendTokenResponse(user, res, "Profile updated successfully");
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
+export const changePassword = async (req, res) => {
+    const userId = req.user?.id;
+    const { currentPassword, newPassword } = req.body;
+
+    try {
+        if (!userId) return res.status(401).json({ message: "Not authenticated", success: false });
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ message: "Both current and new passwords are required", success: false });
+        }
+
+        const user = await userModel.findById(userId).select("+password");
+        if (!user) return res.status(404).json({ message: "User not found", success: false });
+
+        if (user.password) {
+            const isMatch = await user.comparePassword(currentPassword);
+            if (!isMatch) {
+                return res.status(400).json({ message: "Current password is incorrect", success: false });
+            }
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        res.status(200).json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};

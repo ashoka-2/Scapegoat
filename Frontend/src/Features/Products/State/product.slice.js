@@ -41,6 +41,11 @@ const productSlice = createSlice({
       state.sellerProducts.unshift(action.payload);
       state.products.unshift(action.payload);
     },
+    removeProduct: (state, action) => {
+      const id = action.payload;
+      state.sellerProducts = state.sellerProducts.filter((p) => p._id !== id);
+      state.products = state.products.filter((p) => p._id !== id);
+    },
   },
 });
 
@@ -52,6 +57,7 @@ export const {
   setSellerProducts,
   setCurrentProduct,
   addCreatedProduct,
+  removeProduct,
 } = productSlice.actions;
 
 export default productSlice.reducer;
