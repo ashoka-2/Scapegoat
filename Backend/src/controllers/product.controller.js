@@ -73,6 +73,14 @@ export const createProduct = async (req, res) => {
       productData.images = uploadedImages;
     }
 
+    const finalStatus = productData.status || "published";
+    if (finalStatus === "published" && uploadedImages.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least 1 product image is required to publish a product listing.",
+      });
+    }
+
     // Safely parse JSON strings for variants and attributes if sent as stringified JSON
     if (typeof productData.variants === "string") {
       try {

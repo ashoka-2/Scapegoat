@@ -287,6 +287,12 @@ const CreateProduct = () => {
 
     const finalStatus = targetStatus || formData.status || "published";
 
+    if (finalStatus === "published" && mainImages.length === 0) {
+      alert("📸 At least 1 product image is required to publish a product listing. Please upload or paste an image in the Media tab.");
+      setActiveTab("media");
+      return;
+    }
+
     const payload = new FormData();
     payload.append("title", formData.title);
     payload.append("shortDescription", formData.shortDescription);
