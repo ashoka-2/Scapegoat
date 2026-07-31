@@ -85,11 +85,39 @@ export const createProduct = async (req, res) => {
             console.error(`[ImageKit Base64 Error]:`, b64Err.message);
           }
         } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-          // Direct image URL -> Save to DB
-          uploadedImages.push({
-            url: cleanUrl,
-            isPrimary: uploadedImages.length === 0,
-          });
+          // If the URL is already an ImageKit CDN URL, keep it as is
+          if (cleanUrl.includes("imagekit.io")) {
+            uploadedImages.push({
+              url: cleanUrl,
+              isPrimary: uploadedImages.length === 0,
+            });
+          } else {
+            // Re-upload external HTTP/HTTPS image URL to ImageKit CDN for permanent storage
+            try {
+              const uploadRes = await uploadFile({
+                file: cleanUrl,
+                filename: `product_ext_${Date.now()}_${i}.jpg`,
+                folder: "/products",
+              });
+              if (uploadRes && uploadRes.url) {
+                uploadedImages.push({
+                  url: uploadRes.url,
+                  isPrimary: uploadedImages.length === 0,
+                });
+              } else {
+                uploadedImages.push({
+                  url: cleanUrl,
+                  isPrimary: uploadedImages.length === 0,
+                });
+              }
+            } catch (extUrlErr) {
+              console.warn(`[ImageKit External URL Upload Warning]:`, extUrlErr.message, "- Keeping original URL as fallback.");
+              uploadedImages.push({
+                url: cleanUrl,
+                isPrimary: uploadedImages.length === 0,
+              });
+            }
+          }
         }
       }
     }
@@ -251,10 +279,39 @@ export const updateProduct = async (req, res) => {
             console.error(`[ImageKit Base64 Error]:`, b64Err.message);
           }
         } else if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-          updatedUploadedImages.push({
-            url: cleanUrl,
-            isPrimary: updatedUploadedImages.length === 0,
-          });
+          // If the URL is already an ImageKit CDN URL, keep it as is
+          if (cleanUrl.includes("imagekit.io")) {
+            updatedUploadedImages.push({
+              url: cleanUrl,
+              isPrimary: updatedUploadedImages.length === 0,
+            });
+          } else {
+            // Re-upload external HTTP/HTTPS image URL to ImageKit CDN for permanent storage
+            try {
+              const uploadRes = await uploadFile({
+                file: cleanUrl,
+                filename: `product_ext_${Date.now()}_${i}.jpg`,
+                folder: "/products",
+              });
+              if (uploadRes && uploadRes.url) {
+                updatedUploadedImages.push({
+                  url: uploadRes.url,
+                  isPrimary: updatedUploadedImages.length === 0,
+                });
+              } else {
+                updatedUploadedImages.push({
+                  url: cleanUrl,
+                  isPrimary: updatedUploadedImages.length === 0,
+                });
+              }
+            } catch (extUrlErr) {
+              console.warn(`[ImageKit External URL Upload Warning]:`, extUrlErr.message, "- Keeping original URL as fallback.");
+              updatedUploadedImages.push({
+                url: cleanUrl,
+                isPrimary: updatedUploadedImages.length === 0,
+              });
+            }
+          }
         }
       }
     }
