@@ -265,7 +265,18 @@ const CreateProduct = () => {
           });
 
           if (prod.images && prod.images.length > 0) {
-            setMainImages(prod.images.map((img) => ({ url: img.url, isUrl: true })));
+            setMainImages(
+              prod.images.map((img) => {
+                const u = typeof img === "string" ? img : img?.url || img;
+                return {
+                  id: Math.random().toString(36).substring(2, 9),
+                  url: u,
+                  preview: u,
+                  isUrl: true,
+                  filter: "normal",
+                };
+              })
+            );
           }
 
           if (prod.attributes && prod.attributes.length > 0) {
@@ -287,7 +298,16 @@ const CreateProduct = () => {
                     }))
                   : [],
                 images: v.images
-                  ? v.images.map((img) => ({ url: img.url, isUrl: true }))
+                  ? v.images.map((img) => {
+                      const u = typeof img === "string" ? img : img?.url || img;
+                      return {
+                        id: Math.random().toString(36).substring(2, 9),
+                        url: u,
+                        preview: u,
+                        isUrl: true,
+                        filter: "normal",
+                      };
+                    })
                   : [],
               }))
             );

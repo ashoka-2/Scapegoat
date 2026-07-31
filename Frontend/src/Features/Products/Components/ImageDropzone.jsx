@@ -407,7 +407,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
 
             return (
               <div
-                key={img.id}
+                key={img.id || idx}
                 onClick={() => setActiveImageId(img.id)}
                 className={`relative group rounded-xl overflow-hidden border bg-surface aspect-square cursor-pointer transition-all duration-200 ${
                   isSelected
@@ -418,7 +418,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
                 }`}
               >
                 <img
-                  src={img.preview}
+                  src={img.preview || img.url || (typeof img === "string" ? img : "")}
                   alt={`Product preview ${idx + 1}`}
                   className="w-full h-full object-cover transition duration-300"
                   style={{ filter: appliedStyle }}
