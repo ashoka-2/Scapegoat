@@ -27,7 +27,7 @@ const FILTER_SLIDERS = [
  * 3. Clipboard Paste (Ctrl+V handles BOTH copied image files & copied URL text!)
  * 4. Custom Image Filters & Preset Filters (Individual OR Apply to All)
  */
-const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
+const ImageDropzone = ({ images = [], setImages: setImagesProp, onImagesChange, maxImages = 7 }) => {
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadMode, setUploadMode] = useState("file"); // 'file' | 'url'
@@ -45,6 +45,14 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
     hueRotate: 0,
   });
 
+  // Normalize state updater across setImages and onImagesChange
+  const updateImages = (updater) => {
+    const callback = onImagesChange || setImagesProp;
+    if (typeof callback === "function") {
+      callback(updater);
+    }
+  };
+
   const getCustomCssFilter = () => {
     return `brightness(${customFilter.brightness}%) contrast(${customFilter.contrast}%) saturate(${customFilter.saturate}%) sepia(${customFilter.sepia}%) grayscale(${customFilter.grayscale}%) hue-rotate(${customFilter.hueRotate}deg)`;
   };
@@ -55,7 +63,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
     const cssFilter = `brightness(${updated.brightness}%) contrast(${updated.contrast}%) saturate(${updated.saturate}%) sepia(${updated.sepia}%) grayscale(${updated.grayscale}%) hue-rotate(${updated.hueRotate}deg)`;
 
     if (activeImageId) {
-      setImages((prev) =>
+      updateImages((prev) =>
         prev.map((img) =>
           img.id === activeImageId
             ? { ...img, filter: "custom", customCss: cssFilter }
@@ -63,7 +71,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
         )
       );
     } else {
-      setImages((prev) =>
+      updateImages((prev) =>
         prev.map((img) => ({ ...img, filter: "custom", customCss: cssFilter }))
       );
     }
@@ -88,13 +96,25 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
 
     if (validFiles.length === 0) return;
 
-    setImages((prev) => {
+    updateImages((prev) => {
       if (prev.length >= maxImages) {
         alert(`Maximum ${maxImages} images allowed per product.`);
         return prev;
       }
+
+      // Filter out files with same name and size if already in prev
+      const existingFileKeys = new Set(
+        prev.filter((img) => img.file).map((img) => `${img.file.name}-${img.file.size}`)
+      );
+
+      const uniqueFiles = validFiles.filter(
+        (file) => !existingFileKeys.has(`${file.name}-${file.size}`)
+      );
+
+      if (uniqueFiles.length === 0) return prev;
+
       const availableSlots = maxImages - prev.length;
-      const filesToAdd = validFiles.slice(0, availableSlots).map((file) => ({
+      const filesToAdd = uniqueFiles.slice(0, availableSlots).map((file) => ({
         id: Math.random().toString(36).substring(2, 9),
         file,
         isUrl: false,
@@ -114,7 +134,11 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
       cleanUrl = "https://" + cleanUrl;
     }
 
-    setImages((prev) => {
+    updateImages((prev) => {
+      // Prevent adding exact duplicate URL if already present
+      if (prev.some((img) => (img.url || img.preview) === cleanUrl)) {
+        return prev;
+      }
       if (prev.length >= maxImages) {
         alert(`Maximum ${maxImages} images allowed per product.`);
         return prev;
@@ -138,13 +162,13 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
   };
 
   const removeImage = (id) => {
-    setImages((prev) => prev.filter((img) => img.id !== id));
+    updateImages((prev) => prev.filter((img) => img.id !== id));
     if (activeImageId === id) setActiveImageId(null);
   };
 
   const setPrimary = (index) => {
     if (index === 0) return;
-    setImages((prev) => {
+    updateImages((prev) => {
       const copy = [...prev];
       const selected = copy.splice(index, 1)[0];
       copy.unshift(selected);
@@ -154,7 +178,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
 
   const applyFilterToImage = (filterId) => {
     if (!activeImageId) return;
-    setImages((prev) =>
+    updateImages((prev) =>
       prev.map((img) =>
         img.id === activeImageId ? { ...img, filter: filterId, customCss: null } : img
       )
@@ -162,7 +186,7 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
   };
 
   const applyFilterToAll = (filterId) => {
-    setImages((prev) =>
+    updateImages((prev) =>
       prev.map((img) => ({ ...img, filter: filterId, customCss: null }))
     );
   };
@@ -232,7 +256,13 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
             accept="image/*"
             multiple
             className="hidden"
-            onChange={(e) => addFilesToState(e.target.files)}
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => {
+              if (e.target.files && e.target.files.length > 0) {
+                addFilesToState(e.target.files);
+                e.target.value = "";
+              }
+            }}
             disabled={images.length >= maxImages}
           />
           <div className="flex flex-col items-center justify-center space-y-2">

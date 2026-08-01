@@ -276,6 +276,78 @@ const processVariantImagesUpload = async (variants = []) => {
 };
 
 /**
+ * Helper to ensure every variant has an explicitly populated attributes map (e.g. { Size: "S", Color: "Pink" })
+ */
+const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
+  if (!Array.isArray(variants) || variants.length === 0) return variants;
+
+  return variants.map((v) => {
+    const attrMap = {};
+
+    // 1. Check existing attributes object/map
+    if (v.attributes) {
+      const raw =
+        typeof v.attributes.forEach === "function"
+          ? Object.fromEntries(v.attributes)
+          : v.attributes instanceof Map
+          ? Object.fromEntries(v.attributes)
+          : v.attributes._doc || v.attributes;
+
+      if (raw && typeof raw === "object") {
+        Object.entries(raw).forEach(([k, val]) => {
+          if (val) attrMap[k] = Array.isArray(val) ? val[0] : val;
+        });
+      }
+    }
+
+    // 2. Check existing dynamicAttributes array
+    if (Array.isArray(v.dynamicAttributes)) {
+      v.dynamicAttributes.forEach((da) => {
+        const k = da.key || da.name;
+        const vals = da.values || da.options || (da.value ? [da.value] : []);
+        if (k && vals.length > 0) {
+          attrMap[k] = vals[0];
+        }
+      });
+    }
+
+    // 3. Infer missing attributes from variant.name against mainAttributes
+    if (Array.isArray(mainAttributes) && mainAttributes.length > 0) {
+      const vTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+
+      mainAttributes.forEach((attr) => {
+        const attrName = attr.name || attr.key;
+        if (!attrName) return;
+
+        const keyLower = attrName.toLowerCase();
+        const hasKey = Object.keys(attrMap).some((k) => k.toLowerCase() === keyLower);
+
+        if (!hasKey) {
+          const options = attr.options || attr.values || [];
+          const foundOpt = options.find((opt) => {
+            const optLower = String(opt).trim().toLowerCase();
+            const optWords = optLower.split(/\s+/).filter(Boolean);
+            if (optWords.length > 1) {
+              return optWords.every((w) => (v.name || "").toLowerCase().includes(w));
+            }
+            return vTokens.some((t) => t === optLower);
+          });
+
+          if (foundOpt) {
+            attrMap[attrName] = foundOpt;
+          }
+        }
+      });
+    }
+
+    return {
+      ...v,
+      attributes: attrMap,
+    };
+  });
+};
+
+/**
  * @desc    Create a new product
  * @route   POST /api/products
  * @access  Private (Seller, Admin)
@@ -341,6 +413,7 @@ export const createProduct = async (req, res) => {
 
     // Process & upload any variant base64/external image links in parallel to ImageKit
     if (productData.variants) {
+      productData.variants = ensureVariantAttributesMap(productData.variants, productData.attributes);
       await processVariantImagesUpload(productData.variants);
     }
 
@@ -441,6 +514,7 @@ export const updateProduct = async (req, res) => {
 
     // Process & upload any variant base64/external image links in parallel to ImageKit
     if (updateData.variants) {
+      updateData.variants = ensureVariantAttributesMap(updateData.variants, updateData.attributes || product.attributes);
       await processVariantImagesUpload(updateData.variants);
     }
 

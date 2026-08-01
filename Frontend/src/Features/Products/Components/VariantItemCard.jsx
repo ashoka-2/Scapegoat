@@ -36,13 +36,60 @@ const VariantItemCard = ({
     setNewVal("");
   };
 
+  // Combine attributes from dynamicAttributes AND raw attributes object/map
+  const getCombinedAttributes = () => {
+    const list = [];
+    const setKeys = new Set();
+
+    // 1. From dynamicAttributes array
+    if (Array.isArray(variant.dynamicAttributes)) {
+      variant.dynamicAttributes.forEach((da, idx) => {
+        const k = da.key || da.name;
+        if (!k) return;
+        const vals = da.values || da.options || (da.value ? [da.value] : []);
+        list.push({ key: k, value: vals.join(", "), index: idx });
+        setKeys.add(k.toLowerCase());
+      });
+    }
+
+    // 2. From raw attributes object/map
+    if (variant.attributes) {
+      const raw =
+        typeof variant.attributes.forEach === "function"
+          ? Object.fromEntries(variant.attributes)
+          : variant.attributes instanceof Map
+          ? Object.fromEntries(variant.attributes)
+          : variant.attributes._doc || variant.attributes;
+
+      if (raw && typeof raw === "object") {
+        Object.entries(raw).forEach(([k, v]) => {
+          if (k && v && !setKeys.has(k.toLowerCase())) {
+            const valStr = Array.isArray(v) ? v.join(", ") : String(v);
+            list.push({ key: k, value: valStr, index: list.length });
+            setKeys.add(k.toLowerCase());
+          }
+        });
+      }
+    }
+
+    return list;
+  };
+
+  const combinedAttrsList = getCombinedAttributes();
+
+  const attrSummary = combinedAttrsList
+    .map((attr) => `${attr.key}: ${attr.value}`)
+    .join(" • ");
+
+  const headerTitle = attrSummary
+    ? `Variant #${vIdx + 1}: ${attrSummary}`
+    : `Variant #${vIdx + 1}: ${variant.name || "Default Variant"}`;
+
   return (
     <div className="bg-background border border-border-theme rounded-2xl p-6 space-y-6 relative shadow-sm">
       {/* Header Bar */}
       <div className="flex items-center justify-between border-b border-border-theme pb-3">
-        <span className="font-bold text-sm text-accent">
-          Variant #{vIdx + 1}: {variant.name || `Variant ${vIdx + 1}`}
-        </span>
+        <span className="font-bold text-sm text-accent">{headerTitle}</span>
         <button
           type="button"
           onClick={() => removeVariant(variant.id)}
@@ -97,43 +144,39 @@ const VariantItemCard = ({
           </button>
         </div>
 
-        {variant.dynamicAttributes && variant.dynamicAttributes.length > 0 && (
+        {combinedAttrsList.length > 0 && (
           <div className="flex flex-wrap gap-2 pt-1">
-            {variant.dynamicAttributes.map((da, daIdx) => {
-              const vals = da.values || da.options || (da.value ? [da.value] : []);
-              return (
-                <span
-                  key={daIdx}
-                  className="bg-surface border border-border-theme rounded-xl px-3.5 py-1.5 text-xs text-foreground flex items-center space-x-2 shadow-sm"
-                >
-                  <span>
-                    <strong className="text-accent">{da.key || da.name}:</strong>{" "}
-                    {vals.join(", ")}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => removeVariantAttribute(variant.id, daIdx)}
-                    className="text-red-400 hover:text-red-600 font-bold ml-1 cursor-pointer"
-                    title="Remove Attribute"
-                  >
-                    ✕
-                  </button>
+            {combinedAttrsList.map((attr, aIdx) => (
+              <span
+                key={aIdx}
+                className="bg-accent/10 border border-accent/30 text-accent text-xs font-bold px-3 py-1 rounded-xl flex items-center gap-2"
+              >
+                <span>
+                  {attr.key}: {attr.value}
                 </span>
-              );
-            })}
+                <button
+                  type="button"
+                  onClick={() => removeVariantAttribute(variant.id, attr.index, attr.key)}
+                  className="text-red-400 hover:text-red-600 font-extrabold cursor-pointer text-xs"
+                >
+                  ✕
+                </button>
+              </span>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Dedicated Photos Gallery */}
-      <div className="pt-3 border-t border-border-theme">
-        <p className="text-xs font-bold text-foreground/80 mb-2">
+      {/* Variant Images Upload */}
+      <div className="space-y-2 pt-2 border-t border-border-theme/40">
+        <label className="text-xs font-bold text-foreground/80 block">
           Variant Photos Gallery (Upload photo gallery for this variant):
-        </p>
+        </label>
         <ImageDropzone
           images={variant.images || []}
-          setImages={(updater) => handleVariantImagesChange(variant.id, updater)}
+          onImagesChange={(newImgs) => handleVariantImagesChange(variant.id, newImgs)}
           maxImages={7}
+          enableFilters={true}
         />
       </div>
     </div>

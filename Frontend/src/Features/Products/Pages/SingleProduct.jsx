@@ -5,32 +5,80 @@ import { getSimilarProductsApi } from "../Services/product.api";
 import { addToast } from "../../../utils/toast.slice";
 import { useDispatch } from "react-redux";
 
-// Robust helper to check if a variant matches a specified attribute option (handles multi-word colors like "Light Blue")
+// Color name to Hex map for fallback swatches
+const getColorHex = (colorName) => {
+  if (!colorName) return null;
+  const c = String(colorName).trim().toLowerCase();
+  const colors = {
+    white: "#ffffff",
+    black: "#18181b",
+    grey: "#6b7280",
+    gray: "#6b7280",
+    red: "#ef4444",
+    blue: "#3b82f6",
+    navy: "#1e3a8a",
+    green: "#22c55e",
+    yellow: "#eab308",
+    pink: "#ec4899",
+    purple: "#a855f7",
+    orange: "#f97316",
+    brown: "#78350f",
+    beige: "#f5f5dc",
+  };
+  return colors[c] || null;
+};
+
+// Robust helper to check if a variant matches a specified attribute option
 const matchOptionInVariant = (variant, attrName, optionValue) => {
   if (!variant || !optionValue) return false;
   const optLower = String(optionValue).trim().toLowerCase();
+  const attrNameLower = String(attrName).trim().toLowerCase();
 
-  // 1. Check raw attributes map/object (e.g. { Color: "light blue" })
+  // 1. Check raw attributes map/object (e.g. { Color: "light blue", Size: "M" })
   const rawAttrs = variant.attributes instanceof Map
     ? Object.fromEntries(variant.attributes)
-    : (variant.attributes || {});
+    : (variant.attributes?._doc || variant.attributes || {});
 
-  const attrVal = String(rawAttrs[attrName] || rawAttrs[attrName.toLowerCase()] || "").trim().toLowerCase();
-  if (attrVal === optLower) return true;
+  let hasMatchingKey = false;
+  let attrValStr = "";
 
-  // 2. Direct substring match on variant name (e.g. "Oversized Stretch Polo T-Shirt - S / Light Blue")
-  const vNameLower = (variant.name || "").toLowerCase();
-  if (vNameLower.includes(optLower)) return true;
-
-  // 3. Multi-word match (e.g. "light blue" -> words ["light", "blue"])
-  const optWords = optLower.split(/\s+/).filter(Boolean);
-  if (optWords.length > 1 && optWords.every((w) => vNameLower.includes(w))) {
-    return true;
+  for (const [k, v] of Object.entries(rawAttrs)) {
+    if (String(k).trim().toLowerCase() === attrNameLower) {
+      hasMatchingKey = true;
+      attrValStr = String(Array.isArray(v) ? v[0] : v).trim().toLowerCase();
+      break;
+    }
   }
 
-  // 4. Token match for single-word options (e.g. "S", "M", "L", "XL")
-  const vTokens = vNameLower.split(/[\s/\-,_]+/);
+  // If attribute key exists in rawAttrs from MongoDB, use authoritative DB match!
+  if (hasMatchingKey) {
+    return attrValStr === optLower;
+  }
+
+  // 2. Check dynamicAttributes array if present on variant
+  if (Array.isArray(variant.dynamicAttributes)) {
+    for (const da of variant.dynamicAttributes) {
+      const k = da.key || da.name;
+      if (k && String(k).trim().toLowerCase() === attrNameLower) {
+        const vals = da.values || da.options || (da.value ? [da.value] : []);
+        const match = vals.some((v) => String(v).trim().toLowerCase() === optLower);
+        if (match) return true;
+      }
+    }
+  }
+
+  // 3. Fallback to token/word matching against variant.sku AND variant.name
+  const textToSearch = `${variant.sku || ""} ${variant.name || ""}`.toLowerCase();
+  const vTokens = textToSearch.split(/[\s/\-,_.]+/).filter(Boolean);
+
+  // Exact token match (e.g. "s", "m", "l", "xl", "white", "grey", "red")
   if (vTokens.some((t) => t === optLower)) return true;
+
+  // Multi-word match (e.g. "light blue" -> words ["light", "blue"])
+  const optWords = optLower.split(/\s+/).filter(Boolean);
+  if (optWords.length > 1 && optWords.every((w) => textToSearch.includes(w))) {
+    return true;
+  }
 
   return false;
 };
@@ -47,16 +95,16 @@ const getActiveAttrVal = (selectedAttrs, attrName) => {
   return "";
 };
 
-// Helper to derive accurate attribute values from a variant while preserving explicit user selections
-const deriveVariantAttributes = (variant, productAttributes, currentSelections = {}) => {
-  const derived = { ...currentSelections };
+// Helper to derive accurate attribute values directly from a variant while prioritizing user selections
+const deriveVariantAttributes = (variant, productAttributes, prioritySelections = {}) => {
+  const derived = { ...prioritySelections };
   if (!variant) return derived;
 
   const rawAttrs = variant.attributes instanceof Map
     ? Object.fromEntries(variant.attributes)
-    : (variant.attributes || {});
+    : (variant.attributes?._doc || variant.attributes || {});
 
-  // Copy raw attributes ONLY if not already explicitly set in currentSelections
+  // Copy raw attributes if not already in prioritySelections
   Object.entries(rawAttrs).forEach(([k, v]) => {
     const keyLower = k.toLowerCase();
     const isAlreadySet = Object.keys(derived).some((dk) => dk.toLowerCase() === keyLower);
@@ -171,31 +219,86 @@ const SingleProduct = () => {
     }
   }, [product?._id]);
 
-  // 🎨 Sort Attributes so COLOR is ALWAYS rendered FIRST!
+  // 🎨 Sort & Merge Attributes so COLOR is ALWAYS rendered FIRST (position 0), and options from all variants are harvested!
   const sortedAttributes = useMemo(() => {
-    if (!product?.attributes || !Array.isArray(product.attributes)) return [];
-    return [...product.attributes].sort((a, b) => {
-      const aName = (a.name || a.key || "").toLowerCase();
-      const bName = (b.name || b.key || "").toLowerCase();
+    if (!product) return [];
+
+    const attrMap = new Map();
+
+    // 1. Add root product attributes
+    if (Array.isArray(product.attributes)) {
+      product.attributes.forEach((attr) => {
+        const name = attr.name || attr.key;
+        if (!name) return;
+        const options = Array.isArray(attr.options || attr.values) ? attr.options || attr.values : [];
+        attrMap.set(name, new Set(options));
+      });
+    }
+
+    // 2. Harvest options from all variants' attributes map/object
+    if (Array.isArray(product.variants)) {
+      product.variants.forEach((v) => {
+        const raw = v.attributes instanceof Map
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+
+        Object.entries(raw).forEach(([k, val]) => {
+          if (!k || !val) return;
+          const valStr = Array.isArray(val) ? val[0] : val;
+          if (!valStr) return;
+
+          let existingKey = Array.from(attrMap.keys()).find(
+            (mk) => mk.toLowerCase() === k.toLowerCase()
+          );
+
+          if (!existingKey) {
+            existingKey = k;
+            attrMap.set(existingKey, new Set());
+          }
+
+          attrMap.get(existingKey).add(valStr);
+        });
+      });
+    }
+
+    // Convert Map back to array format
+    const combinedAttrs = Array.from(attrMap.entries()).map(([name, optSet]) => ({
+      name,
+      options: Array.from(optSet),
+    }));
+
+    // Sort so Color is ALWAYS rendered FIRST!
+    return combinedAttrs.sort((a, b) => {
+      const aName = a.name.toLowerCase();
+      const bName = b.name.toLowerCase();
       if (aName.includes("color")) return -1;
       if (bName.includes("color")) return 1;
       return 0;
     });
-  }, [product?.attributes]);
+  }, [product]);
 
-  // 📸 Gallery Images Logic (Smart Variant & Sister-Variant Color Image Inheritance)
+  // 📸 Gallery Images Logic (Smart Variant & Sister-Variant Color Image Inheritance & Positional Fallback)
   const galleryImages = useMemo(() => {
-    // 1. Direct images on currently selected variant
+    const activeColor = getActiveAttrVal(selectedAttributes, "Color");
+    const colorAttr = sortedAttributes.find((a) => (a.name || a.key || "").toLowerCase().includes("color"));
+    const colorOpts = colorAttr?.options || [];
+    const colorIndex = activeColor
+      ? colorOpts.findIndex((opt) => String(opt).trim().toLowerCase() === String(activeColor).trim().toLowerCase())
+      : -1;
+
+    // 1. Direct images on currently selected variant if it has images and matches active color
     if (selectedVariant?.images?.length > 0) {
-      const vImgs = selectedVariant.images.map((img) => img?.url).filter(Boolean);
-      if (vImgs.length > 0) return vImgs;
+      const vColorMatch = !activeColor || matchOptionInVariant(selectedVariant, "Color", activeColor);
+      if (vColorMatch) {
+        const vImgs = selectedVariant.images.map((img) => img?.url).filter(Boolean);
+        if (vImgs.length > 0) return vImgs;
+      }
     }
 
-    // 2. Sister variant sharing the SAME active color that HAS custom images
-    const activeColor = getActiveAttrVal(selectedAttributes, "Color");
+    // 2. Sister variant matching active color with custom images
     if (activeColor && product?.variants?.length > 0) {
       const colorSister = product.variants.find((v) => {
-        const hasColorMatch = matchOptionInVariant(v, "Color", activeColor) || matchOptionInVariant(v, "color", activeColor);
+        const hasColorMatch = matchOptionInVariant(v, "Color", activeColor);
         return hasColorMatch && v.images?.length > 0;
       });
 
@@ -205,34 +308,66 @@ const SingleProduct = () => {
       }
     }
 
-    // 3. Fallback to main product images
+    // 3. Positional variant matching by color index if variants exist
+    if (colorIndex >= 0 && product?.variants?.[colorIndex]?.images?.length > 0) {
+      const posImgs = product.variants[colorIndex].images.map((img) => img?.url).filter(Boolean);
+      if (posImgs.length > 0) return posImgs;
+    }
+
+    // 4. Main product images with color index swap
     if (product?.images?.length > 0) {
+      if (colorIndex >= 0 && product.images[colorIndex]?.url) {
+        const primaryUrl = product.images[colorIndex].url;
+        const remaining = product.images
+          .map((img) => img?.url)
+          .filter((url) => url && url !== primaryUrl);
+        return [primaryUrl, ...remaining];
+      }
       const pImgs = product.images.map((img) => img?.url).filter(Boolean);
       if (pImgs.length > 0) return pImgs;
     }
 
+    // 5. Ultimate fallback: Use selectedVariant.images or first variant with images
+    if (selectedVariant?.images?.length > 0) {
+      const vImgs = selectedVariant.images.map((img) => img?.url).filter(Boolean);
+      if (vImgs.length > 0) return vImgs;
+    }
+
+    if (product?.variants?.length > 0) {
+      const firstVarWithImgs = product.variants.find((v) => v.images?.length > 0);
+      if (firstVarWithImgs?.images?.length > 0) {
+        return firstVarWithImgs.images.map((img) => img?.url).filter(Boolean);
+      }
+    }
+
     return ["https://via.placeholder.com/600x600?text=No+Image"];
-  }, [selectedVariant, selectedAttributes, product]);
+  }, [selectedVariant, selectedAttributes, product, sortedAttributes]);
 
   // Reset active image index when selected variant or gallery changes
   useEffect(() => {
     setActiveImageIndex(0);
   }, [galleryImages, selectedVariant?._id]);
 
-  // Helper to check if an attribute option is available in any variant
+  // Helper to check if an attribute option is available & in-stock for the currently selected color
   const isOptionAvailable = (attrName, optionValue) => {
     if (!product?.variants || product.variants.length === 0) return true;
 
-    const isColorAttr = attrName.toLowerCase().includes("color");
+    const attrNameLower = attrName.toLowerCase();
+    const isColorAttr = attrNameLower.includes("color");
 
     return product.variants.some((v) => {
+      // 1. Stock Check: Variant must have stock > 0 & stockStatus !== "outofstock"
+      const hasStock = (v.stock === undefined || Number(v.stock) > 0) && v.stockStatus !== "outofstock";
+      if (!hasStock) return false;
+
+      // 2. Must match target attribute option (e.g. Size: "S" or Color: "White")
       const matchesTarget = matchOptionInVariant(v, attrName, optionValue);
       if (!matchesTarget) return false;
 
-      // Color swatches are ALWAYS available as long as ANY variant exists with this color
+      // Color swatches are available as long as ANY in-stock variant exists for this color
       if (isColorAttr) return true;
 
-      // For size/other attributes, check if it matches the currently selected active Color
+      // For size/other attributes, strictly check if a variant exists that matches BOTH this size AND the active Color
       const activeColor = getActiveAttrVal(selectedAttributes, "Color");
       if (activeColor) {
         return matchOptionInVariant(v, "Color", activeColor) || matchOptionInVariant(v, "color", activeColor);
@@ -246,43 +381,65 @@ const SingleProduct = () => {
   const handleSelectAttributeOption = (attrName, optionValue) => {
     const newAttrs = { ...selectedAttributes };
 
-    // Standardize case-insensitive key update
     const existingKey = Object.keys(newAttrs).find(
       (k) => k.toLowerCase() === attrName.toLowerCase()
     ) || attrName;
 
     newAttrs[existingKey] = optionValue;
 
-    // Immediately set user selection in state so highlight updates instantly!
-    setSelectedAttributes(newAttrs);
-
     if (product?.variants?.length > 0) {
-      // 1. Try finding exact variant matching ALL new attributes
+      // 1. Try finding exact IN-STOCK variant matching ALL new attributes
       let matched = product.variants.find((v) => {
+        const hasStock = (v.stock === undefined || Number(v.stock) > 0) && v.stockStatus !== "outofstock";
+        if (!hasStock) return false;
+
         return Object.entries(newAttrs).every(([k, val]) => {
           if (!val) return true;
           return matchOptionInVariant(v, k, val);
         });
       });
 
-      // 2. Partial fallback match: find ANY variant for the selected option (e.g. "Light Blue")
-      if (!matched) {
-        matched = product.variants.find((v) => matchOptionInVariant(v, attrName, optionValue));
-      }
-
       if (matched) {
         setSelectedVariant(matched);
-        const derived = deriveVariantAttributes(matched, product.attributes, newAttrs);
-        setSelectedAttributes(derived);
+        setSelectedAttributes(newAttrs);
         setQuantity(1);
+      } else {
+        // 2. Fallback: Find ANY IN-STOCK variant matching the newly selected option (e.g. Color: "light blue")
+        matched = product.variants.find((v) => {
+          const hasStock = (v.stock === undefined || Number(v.stock) > 0) && v.stockStatus !== "outofstock";
+          if (!hasStock) return false;
+          return matchOptionInVariant(v, attrName, optionValue);
+        });
+
+        // 3. Ultimate fallback if all are out of stock
+        if (!matched) {
+          matched = product.variants.find((v) => matchOptionInVariant(v, attrName, optionValue));
+        }
+
+        if (matched) {
+          setSelectedVariant(matched);
+          const derived = deriveVariantAttributes(matched, product.attributes, { [existingKey]: optionValue });
+          setSelectedAttributes(derived);
+          setQuantity(1);
+        } else {
+          setSelectedAttributes(newAttrs);
+        }
       }
+    } else {
+      setSelectedAttributes(newAttrs);
     }
   };
 
   // Pricing Logic (Variant vs Root Product)
   const currentPrice = useMemo(() => {
     if (selectedVariant?.price?.amount) {
-      return selectedVariant.price.amount;
+      return Number(selectedVariant.price.amount);
+    }
+    if (selectedVariant?.priceAmount !== undefined && selectedVariant?.priceAmount !== "") {
+      return Number(selectedVariant.priceAmount);
+    }
+    if (typeof selectedVariant?.price === "number") {
+      return selectedVariant.price;
     }
     return product?.sellingPrice?.amount || product?.maxPrice?.amount || 0;
   }, [selectedVariant, product]);
@@ -321,7 +478,7 @@ const SingleProduct = () => {
     if (isOutOfStock) return;
     dispatch(
       addToast({
-        message: `🛒 Added ${quantity}x "${selectedVariant?.name || product?.title}" to cart!`,
+        message: `🛒 Added ${quantity}x "${product?.title || selectedVariant?.name}" to cart!`,
         type: "success",
       })
     );
@@ -332,7 +489,7 @@ const SingleProduct = () => {
     if (isOutOfStock) return;
     dispatch(
       addToast({
-        message: `⚡ Proceeding to checkout for "${selectedVariant?.name || product?.title}"`,
+        message: `⚡ Proceeding to checkout for "${product?.title || selectedVariant?.name}"`,
         type: "info",
       })
     );
@@ -429,9 +586,9 @@ const SingleProduct = () => {
                   -{discountPercent}% OFF
                 </span>
               )}
-              {selectedVariant && (
+              {selectedAttributes && (
                 <span className="w-fit inline-flex items-center px-3 py-1 rounded-full bg-background/80 backdrop-blur border border-border-theme text-foreground text-[10px] font-extrabold uppercase shadow truncate max-w-full">
-                  Variant: {selectedVariant.name}
+                  Variant: {Object.entries(selectedAttributes).map(([k, v]) => `${k}: ${v}`).join(" • ")}
                 </span>
               )}
             </div>
@@ -441,7 +598,7 @@ const SingleProduct = () => {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <span className="text-[11px] font-extrabold uppercase text-foreground/50 tracking-wider">
-                {selectedVariant ? `Photos for ${selectedVariant.name}` : "Product Photos"} ({galleryImages.length})
+                Product Photos ({galleryImages.length})
               </span>
             </div>
             <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
@@ -483,7 +640,7 @@ const SingleProduct = () => {
             </div>
 
             <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
-              {selectedVariant?.name || product.title}
+              {product.title}
             </h1>
 
             {product.shortDescription && (
@@ -529,7 +686,7 @@ const SingleProduct = () => {
                         </span>
                       </div>
 
-                      {/* 🖼️ Visual Image Thumbnail Swatches for Colors */}
+                      {/* 🖼️ Visual Image Thumbnail Swatches for Colors (First Cover Photo of Variant) */}
                       <div className="flex flex-wrap gap-3">
                         {options.map((opt, oIdx) => {
                           const isSelected =
@@ -544,7 +701,11 @@ const SingleProduct = () => {
                           const optImg =
                             matchedVarForOpt?.images?.[0]?.url ||
                             product.variants?.find((v) => matchOptionInVariant(v, attrName, opt))?.images?.[0]?.url ||
+                            product.variants?.[oIdx]?.images?.[0]?.url ||
+                            product.images?.[oIdx]?.url ||
                             product.images?.[0]?.url;
+
+                          const hexColor = getColorHex(opt);
 
                           return (
                             <button
@@ -563,12 +724,17 @@ const SingleProduct = () => {
                                   : "border-border-theme/30 bg-surface/30 opacity-30 cursor-not-allowed grayscale"
                               }`}
                             >
-                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-surface border border-border-theme/50">
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-surface border border-border-theme/50 relative flex items-center justify-center">
                                 {optImg ? (
                                   <img
                                     src={optImg}
                                     alt={opt}
                                     className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                                  />
+                                ) : hexColor ? (
+                                  <div
+                                    className="w-8 h-8 rounded-full border border-border-theme/80 shadow-inner"
+                                    style={{ backgroundColor: hexColor }}
                                   />
                                 ) : (
                                   <div className="w-full h-full flex items-center justify-center font-bold text-xs text-foreground/60">
@@ -591,7 +757,7 @@ const SingleProduct = () => {
                   );
                 }
 
-                // Default Pill Badges for Sizes / Other Attributes (With Disabled & Line-Through for Unavailable Options)
+                // Default Pill Badges for Sizes / Other Attributes (Disabled & Line-Through for Stock=0 or Unavailable Color Combinations)
                 return (
                   <div key={idx} className="space-y-3">
                     <div className="flex items-center justify-between">

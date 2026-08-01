@@ -290,19 +290,80 @@ const CreateProduct = () => {
           }
 
           if (prod.variants && prod.variants.length > 0) {
+            const productMainAttrs = prod.attributes || [];
             setVariantsList(
               prod.variants.map((v, i) => {
-                let rawAttrs = {};
+                const rawAttrs = {};
+
+                // 1. Check existing attributes on v.attributes
                 if (v.attributes) {
-                  if (typeof v.attributes.forEach === "function") {
-                    v.attributes.forEach((val, key) => {
-                      rawAttrs[key] = val;
+                  const raw =
+                    typeof v.attributes.forEach === "function"
+                      ? Object.fromEntries(v.attributes)
+                      : v.attributes instanceof Map
+                      ? Object.fromEntries(v.attributes)
+                      : v.attributes._doc || v.attributes;
+
+                  if (raw && typeof raw === "object") {
+                    Object.entries(raw).forEach(([k, val]) => {
+                      if (val) {
+                        const targetKey = productMainAttrs.find((a) => (a.name || a.key || "").toLowerCase() === k.toLowerCase())?.name || k;
+                        rawAttrs[targetKey] = Array.isArray(val) ? val[0] : val;
+                      }
                     });
-                  } else if (v.attributes instanceof Map) {
-                    rawAttrs = Object.fromEntries(v.attributes);
-                  } else {
-                    rawAttrs = v.attributes._doc || v.attributes || {};
                   }
+                }
+
+                // 2. Check existing dynamicAttributes array
+                if (Array.isArray(v.dynamicAttributes)) {
+                  v.dynamicAttributes.forEach((da) => {
+                    const k = da.key || da.name;
+                    const vals = da.values || da.options || (da.value ? [da.value] : []);
+                    if (k && vals.length > 0) {
+                      const targetKey = productMainAttrs.find((a) => (a.name || a.key || "").toLowerCase() === k.toLowerCase())?.name || k;
+                      rawAttrs[targetKey] = vals[0];
+                    }
+                  });
+                }
+
+                // 3. Search text sources: v.sku (prioritized) + v.name against product attributes
+                if (Array.isArray(productMainAttrs) && productMainAttrs.length > 0) {
+                  const skuText = (v.sku || "").toLowerCase();
+                  const nameText = (v.name || "").toLowerCase();
+                  const skuTokens = skuText.split(/[\s/\-,_.]+/).filter(Boolean);
+                  const nameTokens = nameText.split(/[\s/\-,_.]+/).filter(Boolean);
+
+                  productMainAttrs.forEach((attr) => {
+                    const attrName = attr.name || attr.key;
+                    if (!attrName) return;
+
+                    const keyLower = attrName.toLowerCase();
+                    const hasKey = Object.keys(rawAttrs).some((k) => k.toLowerCase() === keyLower);
+
+                    if (!hasKey) {
+                      const options = attr.options || attr.values || [];
+                      // First check SKU tokens (authoritative for variant codes like SNIT-M-WHITE)
+                      let foundOpt = options.find((opt) => {
+                        const optLower = String(opt).trim().toLowerCase();
+                        const optNoSpaces = optLower.replace(/\s+/g, "");
+                        return skuTokens.some((t) => t === optLower || t === optNoSpaces);
+                      });
+
+                      // If not in SKU tokens, check name tokens or full SKU string
+                      if (!foundOpt) {
+                        foundOpt = options.find((opt) => {
+                          const optLower = String(opt).trim().toLowerCase();
+                          const optNoSpaces = optLower.replace(/\s+/g, "");
+                          if (skuText.includes(optLower) || skuText.includes(optNoSpaces)) return true;
+                          return nameTokens.some((t) => t === optLower || t === optNoSpaces);
+                        });
+                      }
+
+                      if (foundOpt) {
+                        rawAttrs[attrName] = foundOpt;
+                      }
+                    }
+                  });
                 }
 
                 const dynamicAttrs = Object.entries(rawAttrs).map(([k, val]) => ({
@@ -562,15 +623,20 @@ const CreateProduct = () => {
     const combinations = cartesian(attrArrays);
 
     const generatedVariants = combinations.map((combo) => {
-      const comboName = combo.map((item) => item.value).join(" / ");
+      const comboNameStr = combo.map((item) => item.value).join(" / ");
       const variantTitle = formData.title
-        ? `${formData.title} - ${comboName}`
-        : `Variant - ${comboName}`;
+        ? `${formData.title} - ${comboNameStr}`
+        : comboNameStr;
 
       const dynamicAttributes = combo.map((item) => ({
         key: item.key,
         values: [item.value],
       }));
+
+      const attributesMap = {};
+      combo.forEach((item) => {
+        attributesMap[item.key] = item.value;
+      });
 
       const skuSlug = combo.map((item) => item.value.replace(/\s+/g, "").toUpperCase()).join("-");
 
@@ -583,6 +649,7 @@ const CreateProduct = () => {
           ? `${formData.title.substring(0, 4).toUpperCase()}-${skuSlug}`
           : `SKU-${skuSlug}`,
         dynamicAttributes,
+        attributes: attributesMap,
         images: [],
       };
     });
@@ -600,25 +667,36 @@ const CreateProduct = () => {
     );
   };
 
+
   const handleAddVariantAttribute = (variantId, key, value) => {
     if (!key.trim() || !value.trim()) return;
     setVariantsList((prev) =>
       prev.map((v) => {
         if (v.id === variantId) {
           const mergedAttrs = mergeAttributeItem(v.dynamicAttributes || [], key, value);
-          return { ...v, dynamicAttributes: mergedAttrs };
+          const newAttributesObj = { ...(v.attributes || {}), [key.trim()]: value.trim() };
+          return { ...v, dynamicAttributes: mergedAttrs, attributes: newAttributesObj };
         }
         return v;
       })
     );
   };
 
-  const removeVariantAttribute = (variantId, attrIndex) => {
+  const removeVariantAttribute = (variantId, attrIndex, targetKey) => {
     setVariantsList((prev) =>
       prev.map((v) => {
         if (v.id === variantId) {
-          const updatedAttrs = v.dynamicAttributes.filter((_, i) => i !== attrIndex);
-          return { ...v, dynamicAttributes: updatedAttrs };
+          const updatedAttrs = (v.dynamicAttributes || []).filter((_, i) => i !== attrIndex);
+          const updatedAttributesObj = { ...(v.attributes || {}) };
+          if (targetKey) {
+            delete updatedAttributesObj[targetKey];
+            Object.keys(updatedAttributesObj).forEach((k) => {
+              if (k.toLowerCase() === targetKey.toLowerCase()) {
+                delete updatedAttributesObj[k];
+              }
+            });
+          }
+          return { ...v, dynamicAttributes: updatedAttrs, attributes: updatedAttributesObj };
         }
         return v;
       })
@@ -897,12 +975,40 @@ const CreateProduct = () => {
     if (variantsList.length > 0) {
       const formattedVariants = await Promise.all(
         variantsList.map(async (v) => {
-          const attrMap = {};
+          const attrMap = { ...(v.attributes || {}) };
           (v.dynamicAttributes || []).forEach((da) => {
             const k = da.key || da.name;
             const vals = da.values || da.options || (da.value ? [da.value] : []);
-            attrMap[k] = vals.length === 1 ? vals[0] : vals;
+            if (k && vals.length > 0) {
+              attrMap[k] = vals[0];
+            }
           });
+
+          // Infer missing attributes from variant name against mainAttributes
+          if (mainAttributes.length > 0) {
+            const vTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+            mainAttributes.forEach((attr) => {
+              const attrName = attr.name || attr.key;
+              if (!attrName) return;
+              const keyLower = attrName.toLowerCase();
+              const hasKey = Object.keys(attrMap).some((k) => k.toLowerCase() === keyLower);
+
+              if (!hasKey) {
+                const options = attr.options || attr.values || [];
+                const foundOpt = options.find((opt) => {
+                  const optLower = String(opt).trim().toLowerCase();
+                  const optWords = optLower.split(/\s+/).filter(Boolean);
+                  if (optWords.length > 1) {
+                    return optWords.every((w) => (v.name || "").toLowerCase().includes(w));
+                  }
+                  return vTokens.some((t) => t === optLower);
+                });
+                if (foundOpt) {
+                  attrMap[attrName] = foundOpt;
+                }
+              }
+            });
+          }
 
           // Process variant images (both URL links & local file uploads)
           const processedImages = await Promise.all(
