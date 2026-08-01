@@ -5,7 +5,49 @@ import { getSimilarProductsApi } from "../Services/product.api";
 import { addToast } from "../../../utils/toast.slice";
 import { useDispatch } from "react-redux";
 
-// Helper to derive accurate attribute values from a variant (checks variant.attributes AND tokenized variant.name)
+// Robust helper to check if a variant matches a specified attribute option (handles multi-word colors like "Light Blue")
+const matchOptionInVariant = (variant, attrName, optionValue) => {
+  if (!variant || !optionValue) return false;
+  const optLower = String(optionValue).trim().toLowerCase();
+
+  // 1. Check raw attributes map/object (e.g. { Color: "light blue" })
+  const rawAttrs = variant.attributes instanceof Map
+    ? Object.fromEntries(variant.attributes)
+    : (variant.attributes || {});
+
+  const attrVal = String(rawAttrs[attrName] || rawAttrs[attrName.toLowerCase()] || "").trim().toLowerCase();
+  if (attrVal === optLower) return true;
+
+  // 2. Direct substring match on variant name (e.g. "Oversized Stretch Polo T-Shirt - S / Light Blue")
+  const vNameLower = (variant.name || "").toLowerCase();
+  if (vNameLower.includes(optLower)) return true;
+
+  // 3. Multi-word match (e.g. "light blue" -> words ["light", "blue"])
+  const optWords = optLower.split(/\s+/).filter(Boolean);
+  if (optWords.length > 1 && optWords.every((w) => vNameLower.includes(w))) {
+    return true;
+  }
+
+  // 4. Token match for single-word options (e.g. "S", "M", "L", "XL")
+  const vTokens = vNameLower.split(/[\s/\-,_]+/);
+  if (vTokens.some((t) => t === optLower)) return true;
+
+  return false;
+};
+
+// Case-insensitive helper to look up attribute values from selectedAttributes state
+const getActiveAttrVal = (selectedAttrs, attrName) => {
+  if (!selectedAttrs || !attrName) return "";
+  const targetKey = String(attrName).trim().toLowerCase();
+  for (const [k, v] of Object.entries(selectedAttrs)) {
+    if (String(k).trim().toLowerCase() === targetKey) {
+      return String(v).trim();
+    }
+  }
+  return "";
+};
+
+// Helper to derive accurate attribute values from a variant while preserving explicit user selections
 const deriveVariantAttributes = (variant, productAttributes, currentSelections = {}) => {
   const derived = { ...currentSelections };
   if (!variant) return derived;
@@ -14,32 +56,27 @@ const deriveVariantAttributes = (variant, productAttributes, currentSelections =
     ? Object.fromEntries(variant.attributes)
     : (variant.attributes || {});
 
-  // Copy raw attributes first
+  // Copy raw attributes ONLY if not already explicitly set in currentSelections
   Object.entries(rawAttrs).forEach(([k, v]) => {
-    derived[k] = Array.isArray(v) ? v[0] : v;
+    const keyLower = k.toLowerCase();
+    const isAlreadySet = Object.keys(derived).some((dk) => dk.toLowerCase() === keyLower);
+    if (!isAlreadySet) {
+      derived[k] = Array.isArray(v) ? v[0] : v;
+    }
   });
 
-  // Tokenize variant name by spaces, slashes, dashes to prevent partial substring matches (e.g. "shirt" matching "s")
-  const vTokens = (variant.name || "").toLowerCase().split(/[\s/\-,_]+/);
-
-  // For any missing product attribute, try to infer from variant.name or options match using exact tokens
   if (productAttributes && Array.isArray(productAttributes)) {
     productAttributes.forEach((attr) => {
       const attrName = attr.name || attr.key;
       const options = attr.options || attr.values || [];
 
-      // Find option matching exact word token in variant name
-      const foundOpt = options.find((opt) => {
-        const optLower = String(opt).toLowerCase();
-        return vTokens.some((token) => token === optLower);
-      });
+      const keyLower = attrName.toLowerCase();
+      const isAlreadySet = Object.keys(derived).some((dk) => dk.toLowerCase() === keyLower);
 
-      if (foundOpt) {
-        derived[attrName] = foundOpt;
-      } else if (!derived[attrName] && options.length > 0) {
-        const rawVal = rawAttrs[attrName] || rawAttrs[attrName.toLowerCase()];
-        if (rawVal) {
-          derived[attrName] = Array.isArray(rawVal) ? rawVal[0] : rawVal;
+      if (!isAlreadySet) {
+        const foundOpt = options.find((opt) => matchOptionInVariant(variant, attrName, opt));
+        if (foundOpt) {
+          derived[attrName] = foundOpt;
         }
       }
     });
@@ -155,13 +192,10 @@ const SingleProduct = () => {
     }
 
     // 2. Sister variant sharing the SAME active color that HAS custom images
-    const activeColor = selectedAttributes["Color"] || selectedAttributes["color"];
+    const activeColor = getActiveAttrVal(selectedAttributes, "Color");
     if (activeColor && product?.variants?.length > 0) {
       const colorSister = product.variants.find((v) => {
-        const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-        const hasColorMatch =
-          String(vAttrs["Color"] || vAttrs["color"]).toLowerCase() === String(activeColor).toLowerCase() ||
-          v.name?.toLowerCase().includes(String(activeColor).toLowerCase());
+        const hasColorMatch = matchOptionInVariant(v, "Color", activeColor) || matchOptionInVariant(v, "color", activeColor);
         return hasColorMatch && v.images?.length > 0;
       });
 
@@ -185,30 +219,23 @@ const SingleProduct = () => {
     setActiveImageIndex(0);
   }, [galleryImages, selectedVariant?._id]);
 
-  // Helper to check if an attribute option is available in any variant for the current selection
+  // Helper to check if an attribute option is available in any variant
   const isOptionAvailable = (attrName, optionValue) => {
     if (!product?.variants || product.variants.length === 0) return true;
 
-    const optValLower = String(optionValue).toLowerCase();
+    const isColorAttr = attrName.toLowerCase().includes("color");
 
     return product.variants.some((v) => {
-      const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-      const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
-
-      // Check if variant matches target option
-      const attrVal = String(vAttrs[attrName] || vAttrs[attrName.toLowerCase()] || "").toLowerCase();
-      const matchesTarget = attrVal === optValLower || vNameTokens.some((t) => t === optValLower);
-
+      const matchesTarget = matchOptionInVariant(v, attrName, optionValue);
       if (!matchesTarget) return false;
 
-      // Check if variant ALSO matches active selections for other attributes (like active Color)
-      const activeColor = selectedAttributes["Color"] || selectedAttributes["color"];
-      if (attrName.toLowerCase() !== "color" && activeColor) {
-        const colorVal = String(vAttrs["Color"] || vAttrs["color"] || "").toLowerCase();
-        const colorMatches =
-          colorVal === String(activeColor).toLowerCase() ||
-          vNameTokens.some((t) => t === String(activeColor).toLowerCase());
-        return colorMatches;
+      // Color swatches are ALWAYS available as long as ANY variant exists with this color
+      if (isColorAttr) return true;
+
+      // For size/other attributes, check if it matches the currently selected active Color
+      const activeColor = getActiveAttrVal(selectedAttributes, "Color");
+      if (activeColor) {
+        return matchOptionInVariant(v, "Color", activeColor) || matchOptionInVariant(v, "color", activeColor);
       }
 
       return true;
@@ -217,31 +244,30 @@ const SingleProduct = () => {
 
   // 🔀 Handle Attribute Selection & Synchronize Variant & Photos
   const handleSelectAttributeOption = (attrName, optionValue) => {
-    const newAttrs = { ...selectedAttributes, [attrName]: optionValue };
+    const newAttrs = { ...selectedAttributes };
+
+    // Standardize case-insensitive key update
+    const existingKey = Object.keys(newAttrs).find(
+      (k) => k.toLowerCase() === attrName.toLowerCase()
+    ) || attrName;
+
+    newAttrs[existingKey] = optionValue;
+
+    // Immediately set user selection in state so highlight updates instantly!
+    setSelectedAttributes(newAttrs);
 
     if (product?.variants?.length > 0) {
-      // Find matching variant based on attributes
+      // 1. Try finding exact variant matching ALL new attributes
       let matched = product.variants.find((v) => {
-        const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-        const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
-
         return Object.entries(newAttrs).every(([k, val]) => {
           if (!val) return true;
-          const valLower = String(val).toLowerCase();
-          const attrVal = String(vAttrs[k] || vAttrs[k.toLowerCase()] || "").toLowerCase();
-          return attrVal === valLower || vNameTokens.some((t) => t === valLower);
+          return matchOptionInVariant(v, k, val);
         });
       });
 
-      // Partial fallback match by color or selected option
+      // 2. Partial fallback match: find ANY variant for the selected option (e.g. "Light Blue")
       if (!matched) {
-        matched = product.variants.find((v) => {
-          const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-          const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
-          const valLower = String(optionValue).toLowerCase();
-          const attrVal = String(vAttrs[attrName] || vAttrs[attrName.toLowerCase()] || "").toLowerCase();
-          return attrVal === valLower || vNameTokens.some((t) => t === valLower);
-        });
+        matched = product.variants.find((v) => matchOptionInVariant(v, attrName, optionValue));
       }
 
       if (matched) {
@@ -249,11 +275,7 @@ const SingleProduct = () => {
         const derived = deriveVariantAttributes(matched, product.attributes, newAttrs);
         setSelectedAttributes(derived);
         setQuantity(1);
-      } else {
-        setSelectedAttributes(newAttrs);
       }
-    } else {
-      setSelectedAttributes(newAttrs);
     }
   };
 
@@ -494,7 +516,8 @@ const SingleProduct = () => {
               {sortedAttributes.map((attr, idx) => {
                 const attrName = attr.name || attr.key;
                 const options = attr.options || attr.values || [];
-                const activeVal = selectedAttributes[attrName] || (options.length > 0 ? options[0] : "");
+                const foundVal = getActiveAttrVal(selectedAttributes, attrName);
+                const activeVal = foundVal || (options.length > 0 ? options[0] : "");
                 const isColorAttr = attrName.toLowerCase().includes("color");
 
                 if (isColorAttr) {
@@ -510,20 +533,17 @@ const SingleProduct = () => {
                       <div className="flex flex-wrap gap-3">
                         {options.map((opt, oIdx) => {
                           const isSelected =
-                            String(activeVal).toLowerCase() === String(opt).toLowerCase();
+                            String(activeVal).trim().toLowerCase() === String(opt).trim().toLowerCase();
                           const available = isOptionAvailable(attrName, opt);
 
                           // Find matching variant cover image for this color option (or sister variant with photos)
                           const matchedVarForOpt = product.variants?.find((v) => {
-                            const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-                            const colorVal = String(vAttrs[attrName] || vAttrs["color"] || "").toLowerCase();
-                            const optLower = String(opt).toLowerCase();
-                            return (colorVal === optLower || v.name?.toLowerCase().includes(optLower)) && v.images?.length > 0;
+                            return matchOptionInVariant(v, attrName, opt) && v.images?.length > 0;
                           });
 
                           const optImg =
                             matchedVarForOpt?.images?.[0]?.url ||
-                            product.variants?.find((v) => v.name?.toLowerCase().includes(String(opt).toLowerCase()))?.images?.[0]?.url ||
+                            product.variants?.find((v) => matchOptionInVariant(v, attrName, opt))?.images?.[0]?.url ||
                             product.images?.[0]?.url;
 
                           return (
@@ -583,7 +603,7 @@ const SingleProduct = () => {
                     <div className="flex flex-wrap gap-2.5">
                       {options.map((opt, oIdx) => {
                         const isSelected =
-                          String(activeVal).toLowerCase() === String(opt).toLowerCase();
+                          String(activeVal).trim().toLowerCase() === String(opt).trim().toLowerCase();
                         const available = isOptionAvailable(attrName, opt);
 
                         return (
@@ -597,7 +617,7 @@ const SingleProduct = () => {
                             disabled={!available}
                             className={`px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
                               isSelected
-                                ? "bg-accent text-accent-content border-accent shadow-md scale-105 ring-2 ring-accent/30 cursor-pointer"
+                                ? "bg-accent text-accent-content border-accent shadow-md scale-105 ring-4 ring-accent/30 cursor-pointer"
                                 : available
                                 ? "bg-background text-foreground/80 border-border-theme hover:border-accent/50 hover:text-foreground cursor-pointer"
                                 : "bg-surface/30 text-foreground/20 border-border-theme/30 opacity-30 cursor-not-allowed line-through relative"
