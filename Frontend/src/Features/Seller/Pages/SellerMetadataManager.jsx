@@ -139,12 +139,12 @@ const SellerMetadataManager = () => {
             <span>⚙️</span> Categories, Brands & Units Manager
           </h1>
           <p className="text-xs text-foreground/60 mt-1">
-            Create, update, or delete Categories, Subcategories, Brands, and Units used across your product catalog.
+            Dedicated workspace to create, update, or delete your store's taxonomy, brand list, and measurement units.
           </p>
         </div>
 
-        {/* Management Sub-tabs */}
-        <div className="flex items-center space-x-2 bg-surface border border-border-theme p-1 rounded-xl">
+        {/* Sub-tabs */}
+        <div className="flex items-center space-x-2 bg-background border border-border-theme p-1 rounded-xl">
           {[
             { id: "categories", label: `Categories (${categories.length})` },
             { id: "brands", label: `Brands (${brands.length})` },
@@ -157,7 +157,7 @@ const SellerMetadataManager = () => {
               className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
                 mgmtTab === tab.id
                   ? "bg-accent text-accent-content shadow"
-                  : "text-foreground/70 hover:text-foreground hover:bg-background"
+                  : "text-foreground/70 hover:text-foreground hover:bg-surface"
               }`}
             >
               {tab.label}
@@ -169,7 +169,7 @@ const SellerMetadataManager = () => {
       {/* ── TAB 1: CATEGORIES & SUBCATEGORIES MANAGEMENT ── */}
       {mgmtTab === "categories" && (
         <div className="space-y-6">
-          <form onSubmit={handleCategorySubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
+          <form onSubmit={handleCategorySubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
               {editingCatId ? "✏️ Edit Category" : "+ Add New Category / Subcategory"}
             </h3>
@@ -210,7 +210,7 @@ const SellerMetadataManager = () => {
                       setEditingCatId(null);
                       setCatName("");
                     }}
-                    className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
+                    className="px-3 py-2.5 rounded-xl bg-surface border border-border-theme text-foreground text-xs font-bold"
                   >
                     Cancel
                   </button>
@@ -221,13 +221,13 @@ const SellerMetadataManager = () => {
 
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-              Existing Categories & Subcategories ({categories.length})
+              Existing Categories List
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {categories.map((cat) => (
                 <div
                   key={cat._id}
-                  className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
+                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
                 >
                   <div className="min-w-0 pr-2">
                     <p className="font-bold text-foreground truncate">{cat.name}</p>
@@ -242,7 +242,7 @@ const SellerMetadataManager = () => {
                         setEditingCatId(cat._id);
                         setCatName(cat.name);
                       }}
-                      className="px-2.5 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
                       ✏️ Edit
                     </button>
@@ -256,7 +256,7 @@ const SellerMetadataManager = () => {
                           onConfirm: () => handleDeleteCategory(cat._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
                       🗑️ Delete
                     </button>
@@ -271,7 +271,7 @@ const SellerMetadataManager = () => {
       {/* ── TAB 2: BRANDS MANAGEMENT ── */}
       {mgmtTab === "brands" && (
         <div className="space-y-6">
-          <form onSubmit={handleBrandSubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
+          <form onSubmit={handleBrandSubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
               {editingBrandId ? "✏️ Edit Brand" : "+ Add New Brand"}
             </h3>
@@ -298,7 +298,7 @@ const SellerMetadataManager = () => {
                       setEditingBrandId(null);
                       setBrandName("");
                     }}
-                    className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
+                    className="px-3 py-2.5 rounded-xl bg-surface border border-border-theme text-foreground text-xs font-bold"
                   >
                     Cancel
                   </button>
@@ -309,13 +309,13 @@ const SellerMetadataManager = () => {
 
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-              Existing Brands ({brands.length})
+              Existing Brands List
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {brands.map((b) => (
                 <div
                   key={b._id}
-                  className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
+                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
                 >
                   <p className="font-bold text-foreground truncate pr-2">{b.name}</p>
                   <div className="flex items-center space-x-2 shrink-0">
@@ -325,7 +325,7 @@ const SellerMetadataManager = () => {
                         setEditingBrandId(b._id);
                         setBrandName(b.name);
                       }}
-                      className="px-2.5 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
                       ✏️ Edit
                     </button>
@@ -339,7 +339,7 @@ const SellerMetadataManager = () => {
                           onConfirm: () => handleDeleteBrand(b._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
                       🗑️ Delete
                     </button>
@@ -354,7 +354,7 @@ const SellerMetadataManager = () => {
       {/* ── TAB 3: UNITS MANAGEMENT ── */}
       {mgmtTab === "units" && (
         <div className="space-y-6">
-          <form onSubmit={handleUnitSubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
+          <form onSubmit={handleUnitSubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
               {editingUnitId ? "✏️ Edit Unit" : "+ Add New Unit of Measurement"}
             </h3>
@@ -390,7 +390,7 @@ const SellerMetadataManager = () => {
                       setUnitName("");
                       setUnitAbbr("");
                     }}
-                    className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
+                    className="px-3 py-2.5 rounded-xl bg-surface border border-border-theme text-foreground text-xs font-bold"
                   >
                     Cancel
                   </button>
@@ -401,13 +401,13 @@ const SellerMetadataManager = () => {
 
           <div className="space-y-3">
             <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-              Existing Units ({units.length})
+              Existing Units List
             </h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {units.map((u) => (
                 <div
                   key={u._id}
-                  className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
+                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
                 >
                   <div className="min-w-0 pr-2">
                     <p className="font-bold text-foreground truncate">{u.name}</p>
@@ -421,7 +421,7 @@ const SellerMetadataManager = () => {
                         setUnitName(u.name);
                         setUnitAbbr(u.abbreviation || "");
                       }}
-                      className="px-2.5 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
                       ✏️ Edit
                     </button>
@@ -435,7 +435,7 @@ const SellerMetadataManager = () => {
                           onConfirm: () => handleDeleteUnit(u._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
                       🗑️ Delete
                     </button>

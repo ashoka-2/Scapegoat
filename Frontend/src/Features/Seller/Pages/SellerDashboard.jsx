@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link } from "react-router-dom";
-import { useProduct } from "../Hooks/useProduct";
+import { useProduct } from "../../Products/Hooks/useProduct";
 import { useCategory } from "../../Categories/Hooks/useCategory";
 import { useBrand } from "../../Brands/Hooks/useBrand";
 import { useUnit } from "../../Units/Hooks/useUnit";

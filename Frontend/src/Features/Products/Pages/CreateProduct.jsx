@@ -219,7 +219,8 @@ const CreateProduct = () => {
   useEffect(() => {
     if (editId) {
       handleFetchSingleProduct(editId).then((prod) => {
-        if (prod) {
+        if (!prod) return;
+        try {
           const maxP = prod.maxPrice?.amount || "";
           const sellP = prod.sellingPrice?.amount || "";
 
@@ -239,14 +240,14 @@ const CreateProduct = () => {
             subcategories: (prod.subcategories || []).map((sc) => sc._id || sc),
             brand: prod.brand?._id || prod.brand || "",
             unit: prod.unit?._id || prod.unit || "",
-            tags: (prod.tags || []).join(", "),
+            tags: Array.isArray(prod.tags) ? prod.tags.join(", ") : prod.tags || "",
             sku: prod.sku || "",
             maxPriceAmount: maxP,
             maxPriceCurrency: prod.maxPrice?.currency || "INR",
             sellingPriceAmount: sellP,
             discountType: discType,
             discountValue: discVal ? String(discVal) : "",
-            stock: prod.stock ?? 10,
+            stock: prod.stock !== undefined ? prod.stock : 10,
             manageStock: prod.manageStock ?? true,
             lowStockThreshold: prod.lowStockThreshold ?? 5,
             stockStatus: prod.stockStatus || "instock",
@@ -280,24 +281,36 @@ const CreateProduct = () => {
           }
 
           if (prod.attributes && prod.attributes.length > 0) {
-            setMainAttributes(prod.attributes);
+            setMainAttributes(
+              prod.attributes.map((attr) => ({
+                name: attr.name || attr.key || "",
+                options: attr.options || attr.values || [],
+              }))
+            );
           }
 
           if (prod.variants && prod.variants.length > 0) {
             setVariantsList(
-              prod.variants.map((v, i) => ({
-                id: v._id || Math.random().toString(36).substring(2, 9),
-                name: v.name || `Variant ${i + 1}`,
-                priceAmount: v.price?.amount || "",
-                stock: v.stock || 10,
-                sku: v.sku || "",
-                dynamicAttributes: v.attributes
-                  ? Object.entries(v.attributes).map(([k, val]) => ({
-                      key: k,
-                      values: Array.isArray(val) ? val : [val],
-                    }))
-                  : [],
-                images: v.images
+              prod.variants.map((v, i) => {
+                let rawAttrs = {};
+                if (v.attributes) {
+                  if (typeof v.attributes.forEach === "function") {
+                    v.attributes.forEach((val, key) => {
+                      rawAttrs[key] = val;
+                    });
+                  } else if (v.attributes instanceof Map) {
+                    rawAttrs = Object.fromEntries(v.attributes);
+                  } else {
+                    rawAttrs = v.attributes._doc || v.attributes || {};
+                  }
+                }
+
+                const dynamicAttrs = Object.entries(rawAttrs).map(([k, val]) => ({
+                  key: k,
+                  values: Array.isArray(val) ? val : [val],
+                }));
+
+                const vImgs = v.images
                   ? v.images.map((img) => {
                       const u = typeof img === "string" ? img : img?.url || img;
                       return {
@@ -308,8 +321,18 @@ const CreateProduct = () => {
                         filter: "normal",
                       };
                     })
-                  : [],
-              }))
+                  : [];
+
+                return {
+                  id: v._id || Math.random().toString(36).substring(2, 9),
+                  name: v.name || `Variant ${i + 1}`,
+                  priceAmount: v.price?.amount || "",
+                  stock: v.stock !== undefined ? v.stock : 10,
+                  sku: v.sku || "",
+                  dynamicAttributes: dynamicAttrs,
+                  images: vImgs,
+                };
+              })
             );
           }
 
@@ -320,6 +343,8 @@ const CreateProduct = () => {
           if (prod.bulkDiscountRules && prod.bulkDiscountRules.length > 0) {
             setBulkDiscountRules(prod.bulkDiscountRules);
           }
+        } catch (err) {
+          console.error("Error prepopulating edit product form:", err);
         }
       });
     }

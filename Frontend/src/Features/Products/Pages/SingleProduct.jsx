@@ -1,0 +1,752 @@
+import React, { useEffect, useState, useMemo } from "react";
+import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom";
+import { useProduct } from "../Hooks/useProduct";
+import { getSimilarProductsApi } from "../Services/product.api";
+import { addToast } from "../../../utils/toast.slice";
+import { useDispatch } from "react-redux";
+
+// Helper to derive accurate attribute values from a variant (checks variant.attributes AND variant.name)
+const deriveVariantAttributes = (variant, productAttributes, currentSelections = {}) => {
+  const derived = { ...currentSelections };
+  if (!variant) return derived;
+
+  const rawAttrs = variant.attributes instanceof Map
+    ? Object.fromEntries(variant.attributes)
+    : (variant.attributes || {});
+
+  // Copy raw attributes first
+  Object.entries(rawAttrs).forEach(([k, v]) => {
+    derived[k] = Array.isArray(v) ? v[0] : v;
+  });
+
+  // For any missing product attribute, try to infer from variant.name or options match
+  if (productAttributes && Array.isArray(productAttributes)) {
+    productAttributes.forEach((attr) => {
+      const attrName = attr.name || attr.key;
+      const options = attr.options || attr.values || [];
+
+      const vNameLower = (variant.name || "").toLowerCase();
+      const foundOpt = options.find((opt) => vNameLower.includes(String(opt).toLowerCase()));
+
+      if (foundOpt) {
+        derived[attrName] = foundOpt;
+      } else if (!derived[attrName] && options.length > 0) {
+        derived[attrName] = options[0];
+      }
+    });
+  }
+
+  return derived;
+};
+
+const SingleProduct = () => {
+  const { id: paramId, variantId: paramVariantId } = useParams();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+  const dispatch = useDispatch();
+  const { handleFetchSingleProduct, loading, error } = useProduct();
+
+  const queryVariantId = searchParams.get("variant");
+  const targetIdentifier = paramVariantId || queryVariantId || paramId;
+
+  const [product, setProduct] = useState(null);
+  const [similarProducts, setSimilarProducts] = useState([]);
+  const [loadingSimilar, setLoadingSimilar] = useState(false);
+
+  // Active Gallery State
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [isZoomed, setIsZoomed] = useState(false);
+  const [zoomPos, setZoomPos] = useState({ x: 0, y: 0 });
+
+  // Selected Variant & Quantity State
+  const [selectedVariant, setSelectedVariant] = useState(null);
+  const [selectedAttributes, setSelectedAttributes] = useState({});
+  const [quantity, setQuantity] = useState(1);
+
+  // Active Specs Tab
+  const [activeTab, setActiveTab] = useState("description");
+
+  // 📜 1. Always scroll to top when targetIdentifier changes or a new product is clicked
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, [targetIdentifier]);
+
+  // 🔄 2. Fetch Single Product Data & Synchronize Variant & Attributes
+  useEffect(() => {
+    let isMounted = true;
+    if (targetIdentifier) {
+      handleFetchSingleProduct(targetIdentifier).then((res) => {
+        if (isMounted && res) {
+          setProduct(res);
+
+          // Find initial matched variant
+          let matchedVar = null;
+
+          if (res.selectedVariantId && res.variants?.length > 0) {
+            matchedVar = res.variants.find((v) => String(v._id) === String(res.selectedVariantId));
+          } else if (res.variants?.length > 0) {
+            matchedVar = res.variants.find((v) => String(v._id) === String(targetIdentifier));
+
+            if (!matchedVar) {
+              const mainTags = res.tags || [];
+              matchedVar =
+                res.variants.find((v) => {
+                  const vName = (v.name || "").toLowerCase();
+                  return mainTags.some((tag) => vName.includes(tag.toLowerCase()));
+                }) || res.variants[0];
+            }
+          }
+
+          if (matchedVar) {
+            setSelectedVariant(matchedVar);
+            const derivedAttrs = deriveVariantAttributes(matchedVar, res.attributes);
+            setSelectedAttributes(derivedAttrs);
+          }
+        }
+      });
+    }
+    return () => {
+      isMounted = false;
+    };
+  }, [targetIdentifier, handleFetchSingleProduct]);
+
+  // Fetch Similar / Recommended Products
+  useEffect(() => {
+    if (product?._id) {
+      setLoadingSimilar(true);
+      getSimilarProductsApi(product._id)
+        .then((res) => {
+          if (res.success && res.data) {
+            setSimilarProducts(res.data);
+          }
+        })
+        .catch(() => {})
+        .finally(() => setLoadingSimilar(false));
+    }
+  }, [product?._id]);
+
+  // 🎨 Sort Attributes so COLOR is ALWAYS rendered FIRST!
+  const sortedAttributes = useMemo(() => {
+    if (!product?.attributes || !Array.isArray(product.attributes)) return [];
+    return [...product.attributes].sort((a, b) => {
+      const aName = (a.name || a.key || "").toLowerCase();
+      const bName = (b.name || b.key || "").toLowerCase();
+      if (aName.includes("color")) return -1;
+      if (bName.includes("color")) return 1;
+      return 0;
+    });
+  }, [product?.attributes]);
+
+  // 📸 Gallery Images Logic (Smart Variant & Sister-Variant Color Image Inheritance)
+  const galleryImages = useMemo(() => {
+    // 1. Direct images on currently selected variant
+    if (selectedVariant?.images?.length > 0) {
+      const vImgs = selectedVariant.images.map((img) => img?.url).filter(Boolean);
+      if (vImgs.length > 0) return vImgs;
+    }
+
+    // 2. Sister variant sharing the SAME active color that HAS custom images
+    const activeColor = selectedAttributes["Color"] || selectedAttributes["color"];
+    if (activeColor && product?.variants?.length > 0) {
+      const colorSister = product.variants.find((v) => {
+        const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+        const hasColorMatch =
+          String(vAttrs["Color"] || vAttrs["color"]).toLowerCase() === String(activeColor).toLowerCase() ||
+          v.name?.toLowerCase().includes(String(activeColor).toLowerCase());
+        return hasColorMatch && v.images?.length > 0;
+      });
+
+      if (colorSister?.images?.length > 0) {
+        const sisterImgs = colorSister.images.map((img) => img?.url).filter(Boolean);
+        if (sisterImgs.length > 0) return sisterImgs;
+      }
+    }
+
+    // 3. Fallback to main product images
+    if (product?.images?.length > 0) {
+      const pImgs = product.images.map((img) => img?.url).filter(Boolean);
+      if (pImgs.length > 0) return pImgs;
+    }
+
+    return ["https://via.placeholder.com/600x600?text=No+Image"];
+  }, [selectedVariant, selectedAttributes, product]);
+
+  // Reset active image index when selected variant or gallery changes
+  useEffect(() => {
+    setActiveImageIndex(0);
+  }, [galleryImages, selectedVariant?._id]);
+
+  // 🔀 Handle Attribute Selection & Synchronize Variant & Photos
+  const handleSelectAttributeOption = (attrName, optionValue) => {
+    const newAttrs = { ...selectedAttributes, [attrName]: optionValue };
+
+    if (product?.variants?.length > 0) {
+      // Find matching variant based on attributes
+      let matched = product.variants.find((v) => {
+        const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+        return Object.entries(newAttrs).every(([k, val]) => {
+          if (!val) return true;
+          return (
+            String(vAttrs[k]).toLowerCase() === String(val).toLowerCase() ||
+            v.name?.toLowerCase().includes(String(val).toLowerCase())
+          );
+        });
+      });
+
+      // Partial fallback match by color or selected option
+      if (!matched) {
+        matched = product.variants.find((v) => {
+          const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+          return (
+            String(vAttrs[attrName]).toLowerCase() === String(optionValue).toLowerCase() ||
+            v.name?.toLowerCase().includes(String(optionValue).toLowerCase())
+          );
+        });
+      }
+
+      if (matched) {
+        setSelectedVariant(matched);
+        const derived = deriveVariantAttributes(matched, product.attributes, newAttrs);
+        setSelectedAttributes(derived);
+        setQuantity(1);
+      } else {
+        setSelectedAttributes(newAttrs);
+      }
+    } else {
+      setSelectedAttributes(newAttrs);
+    }
+  };
+
+  // Pricing Logic (Variant vs Root Product)
+  const currentPrice = useMemo(() => {
+    if (selectedVariant?.price?.amount) {
+      return selectedVariant.price.amount;
+    }
+    return product?.sellingPrice?.amount || product?.maxPrice?.amount || 0;
+  }, [selectedVariant, product]);
+
+  const originalPrice = useMemo(() => {
+    return product?.maxPrice?.amount || currentPrice;
+  }, [product, currentPrice]);
+
+  const discountPercent = useMemo(() => {
+    if (originalPrice > currentPrice) {
+      return Math.round(((originalPrice - currentPrice) / originalPrice) * 100);
+    }
+    return 0;
+  }, [originalPrice, currentPrice]);
+
+  // Stock Calculation
+  const currentStock = useMemo(() => {
+    if (selectedVariant && selectedVariant.stock !== undefined) {
+      return selectedVariant.stock;
+    }
+    return product?.stock !== undefined ? product.stock : 10;
+  }, [selectedVariant, product]);
+
+  const isOutOfStock = currentStock <= 0 || product?.stockStatus === "outofstock";
+
+  // Mouse move zoom effect handler
+  const handleMouseMoveZoom = (e) => {
+    const { left, top, width, height } = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - left) / width) * 100;
+    const y = ((e.clientY - top) / height) * 100;
+    setZoomPos({ x, y });
+  };
+
+  // Add to Cart Action
+  const handleAddToCart = () => {
+    if (isOutOfStock) return;
+    dispatch(
+      addToast({
+        message: `🛒 Added ${quantity}x "${selectedVariant?.name || product?.title}" to cart!`,
+        type: "success",
+      })
+    );
+  };
+
+  // Buy Now Action
+  const handleBuyNow = () => {
+    if (isOutOfStock) return;
+    dispatch(
+      addToast({
+        message: `⚡ Proceeding to checkout for "${selectedVariant?.name || product?.title}"`,
+        type: "info",
+      })
+    );
+  };
+
+  // Loading Skeleton State
+  if (loading && !product) {
+    return (
+      <div className="max-w-7xl mx-auto px-4 py-12 space-y-8 animate-pulse">
+        <div className="h-6 bg-surface rounded-xl w-1/4"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+          <div className="h-[480px] bg-surface rounded-3xl"></div>
+          <div className="space-y-6">
+            <div className="h-10 bg-surface rounded-xl w-3/4"></div>
+            <div className="h-6 bg-surface rounded-xl w-1/3"></div>
+            <div className="h-24 bg-surface rounded-2xl w-full"></div>
+            <div className="h-12 bg-surface rounded-xl w-1/2"></div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || (!loading && !product)) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-6">
+        <div className="w-20 h-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto text-3xl font-extrabold border border-red-500/20">
+          ⚠️
+        </div>
+        <h1 className="text-2xl font-extrabold text-foreground">Product Not Found</h1>
+        <p className="text-xs text-foreground/60">
+          The requested product or variant could not be retrieved. It may have been unlisted or removed.
+        </p>
+        <button
+          onClick={() => navigate("/")}
+          className="px-6 py-3 rounded-xl bg-accent text-accent-content font-extrabold text-xs shadow hover:opacity-90 transition cursor-pointer"
+        >
+          ← Return to Marketplace
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen space-y-12 pb-20 selection:bg-accent selection:text-accent-content">
+      {/* ── Breadcrumb Header ── */}
+      <nav className="flex items-center space-x-2 text-xs font-semibold text-foreground/50 border-b border-border-theme pb-4">
+        <Link to="/" className="hover:text-accent transition">
+          Home
+        </Link>
+        <span>/</span>
+        {product.category && (
+          <>
+            <span className="hover:text-accent transition">
+              {product.category.name}
+            </span>
+            <span>/</span>
+          </>
+        )}
+        <span className="text-foreground font-bold truncate max-w-xs">
+          {product.title}
+        </span>
+      </nav>
+
+      {/* ── Main Product Display Grid ── */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
+        {/* 📸 LEFT COLUMN: Gallery & Interactive Zoom (6 cols) */}
+        <div className="lg:col-span-6 space-y-4">
+          <div
+            className="relative w-full h-[450px] sm:h-[520px] rounded-3xl overflow-hidden bg-background border border-border-theme shadow-lg group cursor-crosshair"
+            onMouseEnter={() => setIsZoomed(true)}
+            onMouseLeave={() => setIsZoomed(false)}
+            onMouseMove={handleMouseMoveZoom}
+          >
+            <img
+              src={galleryImages[activeImageIndex]}
+              alt={product.title}
+              className={`w-full h-full object-cover transition-transform duration-300 ${
+                isZoomed ? "scale-150" : "scale-100"
+              }`}
+              style={
+                isZoomed
+                  ? {
+                      transformOrigin: `${zoomPos.x}% ${zoomPos.y}%`,
+                    }
+                  : undefined
+              }
+            />
+
+            {/* Badges Overlay (Auto-Adjusting Width Discount Badge) */}
+            <div className="absolute top-4 left-4 flex flex-col gap-2 z-10 items-start max-w-[80%]">
+              {discountPercent > 0 && (
+                <span className="w-fit inline-flex items-center px-3.5 py-1.5 rounded-full bg-accent text-accent-content text-xs font-black tracking-wider uppercase shadow-md whitespace-nowrap">
+                  -{discountPercent}% OFF
+                </span>
+              )}
+              {selectedVariant && (
+                <span className="w-fit inline-flex items-center px-3 py-1 rounded-full bg-background/80 backdrop-blur border border-border-theme text-foreground text-[10px] font-extrabold uppercase shadow truncate max-w-full">
+                  Variant: {selectedVariant.name}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* 🖼️ Thumbnails Carousel (Shows ONLY Selected Variant / Color Photos) */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-extrabold uppercase text-foreground/50 tracking-wider">
+                {selectedVariant ? `Photos for ${selectedVariant.name}` : "Product Photos"} ({galleryImages.length})
+              </span>
+            </div>
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+              {galleryImages.map((imgUrl, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => setActiveImageIndex(idx)}
+                  className={`relative w-20 h-20 sm:w-22 sm:h-22 rounded-2xl overflow-hidden border-2 transition shrink-0 cursor-pointer ${
+                    activeImageIndex === idx
+                      ? "border-accent ring-4 ring-accent/20 scale-105 shadow-md"
+                      : "border-border-theme hover:border-foreground/40 opacity-70 hover:opacity-100"
+                  }`}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`Thumbnail ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                  />
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* 🛍️ RIGHT COLUMN: Product Specifications & Order Box (6 cols) */}
+        <div className="lg:col-span-6 space-y-8">
+          {/* Header Title & Badges */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-2">
+              {product.brand && (
+                <span className="px-3 py-1 rounded-lg bg-surface border border-border-theme text-foreground/80 font-bold text-xs">
+                  {product.brand.name}
+                </span>
+              )}
+              <span className="px-3 py-1 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold text-xs flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
+                In Stock ({currentStock} available)
+              </span>
+            </div>
+
+            <h1 className="text-2xl sm:text-3xl font-extrabold text-foreground tracking-tight leading-tight">
+              {selectedVariant?.name || product.title}
+            </h1>
+
+            {product.shortDescription && (
+              <p className="text-xs sm:text-sm text-foreground/70 leading-relaxed font-medium">
+                {product.shortDescription}
+              </p>
+            )}
+          </div>
+
+          {/* Price Card */}
+          <div className="bg-background border border-border-theme p-6 rounded-2xl space-y-3 shadow-sm">
+            <div className="flex items-baseline gap-3">
+              <span className="text-3xl sm:text-4xl font-extrabold text-accent">
+                ₹{currentPrice.toLocaleString()}
+              </span>
+              {originalPrice > currentPrice && (
+                <span className="text-sm font-semibold text-foreground/40 line-through">
+                  ₹{originalPrice.toLocaleString()}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-foreground/50 font-medium">
+              Inclusive of all taxes. Free shipping on orders over ₹999.
+            </p>
+          </div>
+
+          {/* Dynamic Attribute Selectors (COLOR ALWAYS FIRST, followed by Sizes) */}
+          {sortedAttributes.length > 0 && (
+            <div className="space-y-6 pt-2 border-t border-border-theme">
+              {sortedAttributes.map((attr, idx) => {
+                const attrName = attr.name || attr.key;
+                const options = attr.options || attr.values || [];
+                const activeVal = selectedAttributes[attrName] || (options.length > 0 ? options[0] : "");
+                const isColorAttr = attrName.toLowerCase().includes("color");
+
+                if (isColorAttr) {
+                  return (
+                    <div key={idx} className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-foreground uppercase tracking-wider">
+                          Select Color: <strong className="text-accent ml-1 uppercase">{activeVal}</strong>
+                        </span>
+                      </div>
+
+                      {/* 🖼️ Visual Image Thumbnail Swatches for Colors */}
+                      <div className="flex flex-wrap gap-3">
+                        {options.map((opt, oIdx) => {
+                          const isSelected =
+                            String(activeVal).toLowerCase() === String(opt).toLowerCase();
+
+                          // Find matching variant cover image for this color option (or sister variant with photos)
+                          const matchedVarForOpt = product.variants?.find((v) => {
+                            const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+                            const colorVal = String(vAttrs[attrName] || vAttrs["color"] || "").toLowerCase();
+                            const optLower = String(opt).toLowerCase();
+                            return (colorVal === optLower || v.name?.toLowerCase().includes(optLower)) && v.images?.length > 0;
+                          });
+
+                          const optImg =
+                            matchedVarForOpt?.images?.[0]?.url ||
+                            product.variants?.find((v) => v.name?.toLowerCase().includes(String(opt).toLowerCase()))?.images?.[0]?.url ||
+                            product.images?.[0]?.url;
+
+                          return (
+                            <button
+                              key={oIdx}
+                              type="button"
+                              onClick={() => handleSelectAttributeOption(attrName, opt)}
+                              className={`group relative flex flex-col items-center p-1.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                                isSelected
+                                  ? "border-accent ring-4 ring-accent/20 bg-accent/5 scale-105 shadow-md"
+                                  : "border-border-theme hover:border-accent/50 bg-background opacity-80 hover:opacity-100"
+                              }`}
+                            >
+                              <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-surface border border-border-theme/50">
+                                {optImg ? (
+                                  <img
+                                    src={optImg}
+                                    alt={opt}
+                                    className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center font-bold text-xs text-foreground/60">
+                                    {opt}
+                                  </div>
+                                )}
+                              </div>
+                              <span
+                                className={`text-[11px] font-extrabold mt-1.5 px-2 py-0.5 rounded-md uppercase ${
+                                  isSelected ? "text-accent" : "text-foreground/70"
+                                }`}
+                              >
+                                {opt}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                }
+
+                // Default Pill Badges for Sizes / Other Attributes
+                return (
+                  <div key={idx} className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-foreground uppercase tracking-wider">
+                        Select {attrName}: <strong className="text-accent ml-1 uppercase">{activeVal}</strong>
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2.5">
+                      {options.map((opt, oIdx) => {
+                        const isSelected =
+                          String(activeVal).toLowerCase() === String(opt).toLowerCase();
+                        return (
+                          <button
+                            key={oIdx}
+                            type="button"
+                            onClick={() => handleSelectAttributeOption(attrName, opt)}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                              isSelected
+                                ? "bg-accent text-accent-content border-accent shadow-md scale-105 ring-2 ring-accent/30"
+                                : "bg-background text-foreground/80 border-border-theme hover:border-accent/50 hover:text-foreground"
+                            }`}
+                          >
+                            {opt}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Quantity Stepper & Stock Warning */}
+          <div className="space-y-3 pt-2">
+            <span className="text-xs font-bold text-foreground uppercase tracking-wider">Quantity:</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  className="px-4 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
+                >
+                  -
+                </button>
+                <span className="px-5 py-2.5 font-extrabold text-sm text-foreground">
+                  {quantity}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
+                  disabled={quantity >= currentStock || isOutOfStock}
+                  className="px-4 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+
+              {currentStock > 0 && currentStock <= 5 && (
+                <span className="text-xs font-extrabold text-amber-400 animate-pulse">
+                  ⚡ Only {currentStock} left in stock - order soon!
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* ⚡ Action Buttons (Add to Cart & Buy Now) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+            <button
+              type="button"
+              onClick={handleAddToCart}
+              disabled={isOutOfStock}
+              className="w-full py-4 rounded-2xl bg-accent text-accent-content font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer"
+            >
+              🛒 Add to Cart
+            </button>
+            <button
+              type="button"
+              onClick={handleBuyNow}
+              disabled={isOutOfStock}
+              className="w-full py-4 rounded-2xl bg-foreground text-background font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer"
+            >
+              ⚡ Buy Now
+            </button>
+          </div>
+
+          {/* Seller Trust Badge */}
+          {product.seller && (
+            <div className="bg-surface border border-border-theme p-4 rounded-2xl flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/30 text-accent font-extrabold flex items-center justify-center text-sm">
+                  {product.seller.fullname?.charAt(0) || "S"}
+                </div>
+                <div>
+                  <p className="text-xs font-extrabold text-foreground">
+                    Sold by {product.seller.fullname || "Verified Seller"}
+                  </p>
+                  <p className="text-[10px] text-foreground/50">Verified Merchant • 98% Positive Feedback</p>
+                </div>
+              </div>
+              <span className="px-3 py-1 rounded-full bg-accent/10 text-accent text-[10px] font-extrabold">
+                Verified Seller
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Product Specifications & Details Tabs ── */}
+      <div className="bg-background border border-border-theme rounded-3xl p-6 sm:p-10 space-y-6 shadow-sm">
+        <div className="flex items-center space-x-4 border-b border-border-theme pb-4">
+          {[
+            { id: "description", label: "Product Description" },
+            { id: "specs", label: "Specifications & Details" },
+            { id: "shipping", label: "Shipping & Returns" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`pb-2 text-xs font-extrabold transition cursor-pointer border-b-2 ${
+                activeTab === tab.id
+                  ? "border-accent text-accent"
+                  : "border-transparent text-foreground/50 hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "description" && (
+          <div className="prose prose-invert max-w-none text-xs sm:text-sm text-foreground/80 leading-relaxed space-y-4 whitespace-pre-line">
+            {product.description || "No full description provided for this product."}
+          </div>
+        )}
+
+        {activeTab === "specs" && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+            <div className="bg-surface p-4 rounded-xl space-y-1">
+              <span className="text-foreground/50 font-medium">Product Type</span>
+              <p className="font-bold text-foreground capitalize">{product.productType || "Physical"}</p>
+            </div>
+            {product.weight && (
+              <div className="bg-surface p-4 rounded-xl space-y-1">
+                <span className="text-foreground/50 font-medium">Weight</span>
+                <p className="font-bold text-foreground">
+                  {product.weight} {product.weightUnit || "g"}
+                </p>
+              </div>
+            )}
+            {product.unit && (
+              <div className="bg-surface p-4 rounded-xl space-y-1">
+                <span className="text-foreground/50 font-medium">Unit of Measure</span>
+                <p className="font-bold text-foreground">{product.unit.name}</p>
+              </div>
+            )}
+            {product.sku && (
+              <div className="bg-surface p-4 rounded-xl space-y-1">
+                <span className="text-foreground/50 font-medium">Root SKU</span>
+                <p className="font-bold text-foreground">{product.sku}</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === "shipping" && (
+          <div className="space-y-3 text-xs text-foreground/80">
+            <p className="font-bold text-accent">🚚 Delivery & Return Guidelines</p>
+            <ul className="list-disc pl-5 space-y-1 text-foreground/70">
+              <li>Standard delivery within 3-5 business days across India.</li>
+              <li>7 days hassle-free replacement or return policy.</li>
+              <li>Cash on Delivery available on select postal codes.</li>
+            </ul>
+          </div>
+        )}
+      </div>
+
+      {/* ── 🤖 AI Similar / "You May Also Like" Vector Recommendation Slider ── */}
+      {similarProducts.length > 0 && (
+        <div className="space-y-6 pt-6">
+          <div className="flex items-center justify-between border-b border-border-theme pb-4">
+            <div>
+              <h2 className="text-xl font-extrabold text-foreground flex items-center gap-2">
+                <span>🤖</span> AI Visual & Similar Recommendations
+              </h2>
+              <p className="text-xs text-foreground/60">
+                Items matched using 512-dimensional visual CLIP vector embeddings.
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
+            {similarProducts.map((item) => (
+              <Link
+                key={item._id}
+                to={`/product/${item._id}`}
+                className="group bg-background border border-border-theme rounded-2xl overflow-hidden hover:border-accent/50 transition duration-300 shadow-sm flex flex-col justify-between"
+              >
+                <div className="w-full h-48 bg-surface overflow-hidden">
+                  <img
+                    src={item.images?.[0]?.url || "https://via.placeholder.com/300"}
+                    alt={item.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
+                  />
+                </div>
+                <div className="p-4 space-y-2">
+                  <h3 className="font-extrabold text-xs text-foreground group-hover:text-accent truncate">
+                    {item.title}
+                  </h3>
+                  <p className="text-xs font-black text-accent">
+                    ₹{(item.sellingPrice?.amount || item.maxPrice?.amount || 0).toLocaleString()}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SingleProduct;

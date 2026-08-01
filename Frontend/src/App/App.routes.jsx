@@ -8,10 +8,13 @@ import Protected from "../Features/auth/components/Protected.jsx";
 import SellerRoute from "../Features/auth/components/SellerRoute.jsx";
 import MainLayout from "./MainLayout.jsx";
 import SellerLayout from "../Components/SellerLayout.jsx";
+
+// Product & Seller Pages
 import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";
-import SellerDashboard from "../Features/Products/Pages/SellerDashboard.jsx";
-import SellerCatalog from "../Features/Products/Pages/SellerCatalog.jsx";
-import SellerMetadataManager from "../Features/Products/Pages/SellerMetadataManager.jsx";
+import SingleProduct from "../Features/Products/Pages/SingleProduct.jsx";
+import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
+import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
+import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
 
 export const routes = createBrowserRouter([
   {
@@ -49,6 +52,14 @@ export const routes = createBrowserRouter([
             <Profile />
           </Protected>
         ),
+      },
+      {
+        path: "product/:id",
+        element: <SingleProduct />,
+      },
+      {
+        path: "product/:id/variant/:variantId",
+        element: <SingleProduct />,
       },
       {
         path: "products/create",

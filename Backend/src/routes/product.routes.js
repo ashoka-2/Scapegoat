@@ -34,8 +34,13 @@ router.get("/search/ai", aiSearchProducts);
 // AI Visual Photo Search (Camera photo upload / Google Lens style)
 router.post("/search/visual", upload.array("images", 1), aiImageSearchProducts);
 
-// Get single product by ID or Slug
-router.get("/single/:identifier", getSingleProduct);
+// Get single product by ID or Slug (with optional token verification so sellers can edit drafts)
+router.get("/single/:identifier", (req, res, next) => {
+  if (req.cookies && req.cookies.token) {
+    return verifyToken(req, res, () => getSingleProduct(req, res, next));
+  }
+  return getSingleProduct(req, res, next);
+});
 
 // Get products by Category (ID or Slug)
 router.get("/category/:categoryIdentifier", getProductsByCategory);

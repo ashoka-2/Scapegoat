@@ -62,6 +62,14 @@ export async function deleteProductApi(id) {
 }
 
 /**
+ * Fetch similar AI recommended products
+ */
+export async function getSimilarProductsApi(id) {
+  const response = await productApiInstance.get(`/${id}/similar`);
+  return response.data;
+}
+
+/**
  * Restore product from trash
  */
 export async function restoreProductApi(id) {

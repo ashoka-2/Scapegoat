@@ -11,7 +11,10 @@ import { broadcastUpdate } from "../services/socket.service.js";
 const isOwnerOrAdmin = (product, user) => {
   if (!user) return false;
   if (user.role === "admin") return true;
-  return product.seller.toString() === user._id.toString();
+  const sellerId = product.seller?._id ? product.seller._id : product.seller;
+  const userId = user._id ? user._id : user.id;
+  if (!sellerId || !userId) return false;
+  return String(sellerId) === String(userId);
 };
 
 /**
@@ -597,12 +600,35 @@ export const getSingleProduct = async (req, res) => {
 
     const query = isMongoId ? { _id: identifier } : { slug: identifier.toLowerCase() };
 
-    const product = await productModel
+    let product = await productModel
       .findOne(query)
       .populate("category", "name slug description image")
       .populate("brand", "name slug description image")
       .populate("unit", "name abbreviation")
       .populate("seller", "fullname email profilePic contact role");
+
+    let matchedVariantId = null;
+
+    // If not found by main product ID or slug, check if identifier is a Variant ID or SKU!
+    if (!product) {
+      const variantQuery = isMongoId
+        ? { "variants._id": identifier }
+        : { "variants.sku": identifier };
+
+      product = await productModel
+        .findOne(variantQuery)
+        .populate("category", "name slug description image")
+        .populate("brand", "name slug description image")
+        .populate("unit", "name abbreviation")
+        .populate("seller", "fullname email profilePic contact role");
+
+      if (product && isMongoId) {
+        const foundVariant = product.variants?.find((v) => String(v._id) === identifier);
+        if (foundVariant) {
+          matchedVariantId = foundVariant._id;
+        }
+      }
+    }
 
     if (!product) {
       return res.status(404).json({
@@ -622,9 +648,14 @@ export const getSingleProduct = async (req, res) => {
       }
     }
 
+    const productObj = product.toObject ? product.toObject() : product;
+    if (matchedVariantId) {
+      productObj.selectedVariantId = matchedVariantId;
+    }
+
     return res.status(200).json({
       success: true,
-      data: product,
+      data: productObj,
     });
   } catch (error) {
     return res.status(500).json({
@@ -821,19 +852,19 @@ const cosineSimilarity = (vecA, vecB) => {
 export const getSimilarProducts = async (req, res) => {
   try {
     const { id } = req.params;
-    // Explicitly select embedding for AI vector similarity comparison
     const product = await productModel.findById(id).select("+embedding");
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
+      return res.status(404).json({ success: false, message: "Product not found" });
     }
 
+    // Hard filter: same category only. productType/subcategory are no longer
+    // part of an $or here — "physical" alone matched almost everything on the
+    // platform, which is why unrelated items (t-shirt vs. shoe) were showing up.
     const filter = {
       _id: { $ne: product._id },
       status: "published",
+      category: product.category,
     };
 
     let candidates = await productModel
@@ -844,29 +875,51 @@ export const getSimilarProducts = async (req, res) => {
       .populate("brand", "name slug image")
       .populate("seller", "fullname profilePic email contact");
 
-    // If target product has vector embeddings, rank candidates using Cosine Similarity
+    // If the category is thin, widen just enough to fill results — same
+    // productType as a secondary (not primary) signal, still ranked below.
+    if (candidates.length < 4) {
+      const excludeIds = [product._id, ...candidates.map((c) => c._id)];
+      const fallback = await productModel
+        .find({
+          _id: { $nin: excludeIds },
+          status: "published",
+          productType: product.productType,
+        })
+        .select("+embedding")
+        .limit(12)
+        .populate("category", "name slug")
+        .populate("subcategories", "name slug")
+        .populate("brand", "name slug image")
+        .populate("seller", "fullname profilePic email contact");
+      candidates = [...candidates, ...fallback];
+    }
+
+    // Rank by cosine similarity of text embeddings + category-match boost,
+    // then drop anything below a relevance floor instead of just sorting it low.
     if (product.embedding && product.embedding.length > 0) {
       const rankedCandidates = candidates.map((item) => {
         let similarityScore = 0;
         if (item.embedding && item.embedding.length === product.embedding.length) {
           similarityScore = cosineSimilarity(product.embedding, item.embedding);
-        } else if (item.category?.toString() === product.category?.toString()) {
-          similarityScore = 0.5;
         }
 
-        // Slight boost for other sellers
-        if (item.seller?._id.toString() !== product.seller.toString()) {
-          similarityScore += 0.05;
+        const itemCatId = item.category?._id ? item.category._id.toString() : item.category?.toString();
+        const prodCatId = product.category?.toString();
+
+        if (itemCatId && prodCatId && itemCatId === prodCatId) {
+          similarityScore += 0.4;
+        } else {
+          similarityScore -= 0.5;
         }
 
-        return {
-          product: item,
-          similarityScore,
-        };
+        return { product: item, similarityScore };
       });
 
       rankedCandidates.sort((a, b) => b.similarityScore - a.similarityScore);
-      candidates = rankedCandidates.map((c) => c.product);
+
+      // Relevance floor — cuts unrelated items rather than just ranking them last
+      const relevant = rankedCandidates.filter((c) => c.similarityScore > 0.15);
+      candidates = (relevant.length > 0 ? relevant : rankedCandidates).map((c) => c.product);
     }
 
     const result = candidates.slice(0, 8);
@@ -884,33 +937,21 @@ export const getSimilarProducts = async (req, res) => {
   }
 };
 
-/**
- * @desc    Get You May Also Like Products (Category, Subcategories, Brand, Tags & Multi-Seller Matching)
- * @route   GET /api/products/:id/you-may-also-like
- * @access  Public
- */
 export const getYouMayAlsoLikeProducts = async (req, res) => {
   try {
     const { id } = req.params;
     const product = await productModel.findById(id);
 
     if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
+      return res.status(404).json({ success: false, message: "Product not found" });
     }
 
-    // Match by category, subcategories, brand, or tags
+    // Same fix here: category is a hard requirement now. Brand/tags only
+    // widen the pool for products that ARE already in-category.
     const filter = {
       _id: { $ne: product._id },
       status: "published",
-      $or: [
-        { category: product.category },
-        { subcategories: { $in: product.subcategories || [] } },
-        { brand: product.brand },
-        { tags: { $in: product.tags || [] } },
-      ],
+      category: product.category,
     };
 
     let candidates = await productModel
@@ -920,7 +961,26 @@ export const getYouMayAlsoLikeProducts = async (req, res) => {
       .populate("brand", "name slug image")
       .populate("seller", "fullname profilePic email contact");
 
-    // Prioritize products from OTHER sellers so buyers see options from alternative sellers for similar items
+    if (candidates.length < 4) {
+      const excludeIds = [product._id, ...candidates.map((c) => c._id)];
+      const fallback = await productModel
+        .find({
+          _id: { $nin: excludeIds },
+          status: "published",
+          $or: [
+            { subcategories: { $in: product.subcategories || [] } },
+            { brand: product.brand },
+            { tags: { $in: product.tags || [] } },
+          ],
+        })
+        .limit(12)
+        .populate("category", "name slug")
+        .populate("subcategories", "name slug")
+        .populate("brand", "name slug image")
+        .populate("seller", "fullname profilePic email contact");
+      candidates = [...candidates, ...fallback];
+    }
+
     candidates.sort((a, b) => {
       const aOther = a.seller?._id.toString() !== product.seller.toString();
       const bOther = b.seller?._id.toString() !== product.seller.toString();

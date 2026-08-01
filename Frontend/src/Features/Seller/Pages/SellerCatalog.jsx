@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
-import { useProduct } from "../Hooks/useProduct";
-import SellerProductCard from "../Components/SellerProductCard";
+import { useProduct } from "../../Products/Hooks/useProduct";
+import SellerProductCard from "../../Products/Components/SellerProductCard";
 import Modal from "../../../Components/Modal";
 
 const SellerCatalog = () => {
