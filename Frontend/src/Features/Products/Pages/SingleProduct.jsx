@@ -5,7 +5,7 @@ import { getSimilarProductsApi } from "../Services/product.api";
 import { addToast } from "../../../utils/toast.slice";
 import { useDispatch } from "react-redux";
 
-// Helper to derive accurate attribute values from a variant (checks variant.attributes AND variant.name)
+// Helper to derive accurate attribute values from a variant (checks variant.attributes AND tokenized variant.name)
 const deriveVariantAttributes = (variant, productAttributes, currentSelections = {}) => {
   const derived = { ...currentSelections };
   if (!variant) return derived;
@@ -19,19 +19,28 @@ const deriveVariantAttributes = (variant, productAttributes, currentSelections =
     derived[k] = Array.isArray(v) ? v[0] : v;
   });
 
-  // For any missing product attribute, try to infer from variant.name or options match
+  // Tokenize variant name by spaces, slashes, dashes to prevent partial substring matches (e.g. "shirt" matching "s")
+  const vTokens = (variant.name || "").toLowerCase().split(/[\s/\-,_]+/);
+
+  // For any missing product attribute, try to infer from variant.name or options match using exact tokens
   if (productAttributes && Array.isArray(productAttributes)) {
     productAttributes.forEach((attr) => {
       const attrName = attr.name || attr.key;
       const options = attr.options || attr.values || [];
 
-      const vNameLower = (variant.name || "").toLowerCase();
-      const foundOpt = options.find((opt) => vNameLower.includes(String(opt).toLowerCase()));
+      // Find option matching exact word token in variant name
+      const foundOpt = options.find((opt) => {
+        const optLower = String(opt).toLowerCase();
+        return vTokens.some((token) => token === optLower);
+      });
 
       if (foundOpt) {
         derived[attrName] = foundOpt;
       } else if (!derived[attrName] && options.length > 0) {
-        derived[attrName] = options[0];
+        const rawVal = rawAttrs[attrName] || rawAttrs[attrName.toLowerCase()];
+        if (rawVal) {
+          derived[attrName] = Array.isArray(rawVal) ? rawVal[0] : rawVal;
+        }
       }
     });
   }
@@ -176,6 +185,36 @@ const SingleProduct = () => {
     setActiveImageIndex(0);
   }, [galleryImages, selectedVariant?._id]);
 
+  // Helper to check if an attribute option is available in any variant for the current selection
+  const isOptionAvailable = (attrName, optionValue) => {
+    if (!product?.variants || product.variants.length === 0) return true;
+
+    const optValLower = String(optionValue).toLowerCase();
+
+    return product.variants.some((v) => {
+      const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+      const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+
+      // Check if variant matches target option
+      const attrVal = String(vAttrs[attrName] || vAttrs[attrName.toLowerCase()] || "").toLowerCase();
+      const matchesTarget = attrVal === optValLower || vNameTokens.some((t) => t === optValLower);
+
+      if (!matchesTarget) return false;
+
+      // Check if variant ALSO matches active selections for other attributes (like active Color)
+      const activeColor = selectedAttributes["Color"] || selectedAttributes["color"];
+      if (attrName.toLowerCase() !== "color" && activeColor) {
+        const colorVal = String(vAttrs["Color"] || vAttrs["color"] || "").toLowerCase();
+        const colorMatches =
+          colorVal === String(activeColor).toLowerCase() ||
+          vNameTokens.some((t) => t === String(activeColor).toLowerCase());
+        return colorMatches;
+      }
+
+      return true;
+    });
+  };
+
   // 🔀 Handle Attribute Selection & Synchronize Variant & Photos
   const handleSelectAttributeOption = (attrName, optionValue) => {
     const newAttrs = { ...selectedAttributes, [attrName]: optionValue };
@@ -184,12 +223,13 @@ const SingleProduct = () => {
       // Find matching variant based on attributes
       let matched = product.variants.find((v) => {
         const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
+        const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+
         return Object.entries(newAttrs).every(([k, val]) => {
           if (!val) return true;
-          return (
-            String(vAttrs[k]).toLowerCase() === String(val).toLowerCase() ||
-            v.name?.toLowerCase().includes(String(val).toLowerCase())
-          );
+          const valLower = String(val).toLowerCase();
+          const attrVal = String(vAttrs[k] || vAttrs[k.toLowerCase()] || "").toLowerCase();
+          return attrVal === valLower || vNameTokens.some((t) => t === valLower);
         });
       });
 
@@ -197,10 +237,10 @@ const SingleProduct = () => {
       if (!matched) {
         matched = product.variants.find((v) => {
           const vAttrs = v.attributes instanceof Map ? Object.fromEntries(v.attributes) : (v.attributes || {});
-          return (
-            String(vAttrs[attrName]).toLowerCase() === String(optionValue).toLowerCase() ||
-            v.name?.toLowerCase().includes(String(optionValue).toLowerCase())
-          );
+          const vNameTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+          const valLower = String(optionValue).toLowerCase();
+          const attrVal = String(vAttrs[attrName] || vAttrs[attrName.toLowerCase()] || "").toLowerCase();
+          return attrVal === valLower || vNameTokens.some((t) => t === valLower);
         });
       }
 
@@ -448,7 +488,7 @@ const SingleProduct = () => {
             </p>
           </div>
 
-          {/* Dynamic Attribute Selectors (COLOR ALWAYS FIRST, followed by Sizes) */}
+          {/* Dynamic Attribute Selectors (COLOR ALWAYS FIRST, followed by Sizes & Attributes) */}
           {sortedAttributes.length > 0 && (
             <div className="space-y-6 pt-2 border-t border-border-theme">
               {sortedAttributes.map((attr, idx) => {
@@ -471,6 +511,7 @@ const SingleProduct = () => {
                         {options.map((opt, oIdx) => {
                           const isSelected =
                             String(activeVal).toLowerCase() === String(opt).toLowerCase();
+                          const available = isOptionAvailable(attrName, opt);
 
                           // Find matching variant cover image for this color option (or sister variant with photos)
                           const matchedVarForOpt = product.variants?.find((v) => {
@@ -489,11 +530,17 @@ const SingleProduct = () => {
                             <button
                               key={oIdx}
                               type="button"
-                              onClick={() => handleSelectAttributeOption(attrName, opt)}
-                              className={`group relative flex flex-col items-center p-1.5 rounded-2xl border-2 transition-all cursor-pointer ${
+                              onClick={() => {
+                                if (!available) return;
+                                handleSelectAttributeOption(attrName, opt);
+                              }}
+                              disabled={!available}
+                              className={`group relative flex flex-col items-center p-1.5 rounded-2xl border-2 transition-all ${
                                 isSelected
-                                  ? "border-accent ring-4 ring-accent/20 bg-accent/5 scale-105 shadow-md"
-                                  : "border-border-theme hover:border-accent/50 bg-background opacity-80 hover:opacity-100"
+                                  ? "border-accent ring-4 ring-accent/20 bg-accent/5 scale-105 shadow-md cursor-pointer"
+                                  : available
+                                  ? "border-border-theme hover:border-accent/50 bg-background opacity-80 hover:opacity-100 cursor-pointer"
+                                  : "border-border-theme/30 bg-surface/30 opacity-30 cursor-not-allowed grayscale"
                               }`}
                             >
                               <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-surface border border-border-theme/50">
@@ -524,7 +571,7 @@ const SingleProduct = () => {
                   );
                 }
 
-                // Default Pill Badges for Sizes / Other Attributes
+                // Default Pill Badges for Sizes / Other Attributes (With Disabled & Line-Through for Unavailable Options)
                 return (
                   <div key={idx} className="space-y-3">
                     <div className="flex items-center justify-between">
@@ -537,15 +584,23 @@ const SingleProduct = () => {
                       {options.map((opt, oIdx) => {
                         const isSelected =
                           String(activeVal).toLowerCase() === String(opt).toLowerCase();
+                        const available = isOptionAvailable(attrName, opt);
+
                         return (
                           <button
                             key={oIdx}
                             type="button"
-                            onClick={() => handleSelectAttributeOption(attrName, opt)}
-                            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all cursor-pointer ${
+                            onClick={() => {
+                              if (!available) return;
+                              handleSelectAttributeOption(attrName, opt);
+                            }}
+                            disabled={!available}
+                            className={`px-4 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
                               isSelected
-                                ? "bg-accent text-accent-content border-accent shadow-md scale-105 ring-2 ring-accent/30"
-                                : "bg-background text-foreground/80 border-border-theme hover:border-accent/50 hover:text-foreground"
+                                ? "bg-accent text-accent-content border-accent shadow-md scale-105 ring-2 ring-accent/30 cursor-pointer"
+                                : available
+                                ? "bg-background text-foreground/80 border-border-theme hover:border-accent/50 hover:text-foreground cursor-pointer"
+                                : "bg-surface/30 text-foreground/20 border-border-theme/30 opacity-30 cursor-not-allowed line-through relative"
                             }`}
                           >
                             {opt}
