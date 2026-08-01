@@ -625,20 +625,114 @@ const CreateProduct = () => {
     );
   };
 
+  // Helper to extract color attribute value from a variant object
+  const getVariantColorValue = (variant) => {
+    if (!variant) return null;
+
+    // 1. Check dynamicAttributes array (e.g. [{ key: "Color", values: ["Green"] }])
+    if (Array.isArray(variant.dynamicAttributes)) {
+      const colorAttr = variant.dynamicAttributes.find((attr) =>
+        (attr.key || "").toLowerCase().includes("color")
+      );
+      if (colorAttr && colorAttr.values?.length > 0) {
+        return String(colorAttr.values[0]).trim().toLowerCase();
+      }
+    }
+
+    // 2. Check attributes object or map
+    if (variant.attributes) {
+      const rawAttrs =
+        variant.attributes instanceof Map
+          ? Object.fromEntries(variant.attributes)
+          : (variant.attributes._doc || variant.attributes);
+      const colorEntry = Object.entries(rawAttrs).find(([k]) =>
+        k.toLowerCase().includes("color")
+      );
+      if (colorEntry && colorEntry[1]) {
+        const val = Array.isArray(colorEntry[1]) ? colorEntry[1][0] : colorEntry[1];
+        return String(val).trim().toLowerCase();
+      }
+    }
+
+    // 3. Fallback: Parse color from variant name (e.g., "Nike C1TY - Green / UK 6")
+    if (variant.name && typeof variant.name === "string") {
+      const nameParts = variant.name.split("-").map((p) => p.trim());
+      if (nameParts.length > 1) {
+        const attrString = nameParts[nameParts.length - 1];
+        const subParts = attrString.split("/").map((s) => s.trim());
+        if (subParts.length > 0) {
+          return subParts[0].toLowerCase();
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Helper to extract the primary grouping attribute (Color or primary attribute) from a variant
+  const getVariantGroupValue = (variant) => {
+    if (!variant) return null;
+
+    // 1. Color attribute priority
+    const colorVal = getVariantColorValue(variant);
+    if (colorVal) return `color:${colorVal}`;
+
+    // 2. Check dynamicAttributes for primary attribute
+    if (Array.isArray(variant.dynamicAttributes) && variant.dynamicAttributes.length > 0) {
+      const primaryAttr = variant.dynamicAttributes[0];
+      if (primaryAttr.key && primaryAttr.values?.length > 0) {
+        return `${primaryAttr.key.toLowerCase()}:${String(primaryAttr.values[0]).toLowerCase()}`;
+      }
+    }
+
+    // 3. Check attributes map/object
+    if (variant.attributes) {
+      const rawAttrs =
+        variant.attributes instanceof Map
+          ? Object.fromEntries(variant.attributes)
+          : (variant.attributes._doc || variant.attributes);
+      const entries = Object.entries(rawAttrs);
+      if (entries.length > 0) {
+        const [k, v] = entries[0];
+        const val = Array.isArray(v) ? v[0] : v;
+        return `${k.toLowerCase()}:${String(val).toLowerCase()}`;
+      }
+    }
+
+    return null;
+  };
+
+  // Smart Variant Image Change Handler (Syncs images to sister variants sharing the same Color / Attribute)
   const handleVariantImagesChange = (id, updaterOrImages) => {
-    setVariantsList((prev) =>
-      prev.map((v) => {
+    setVariantsList((prev) => {
+      const targetVariant = prev.find((v) => v.id === id);
+      if (!targetVariant) return prev;
+
+      const currentImages = targetVariant.images || [];
+      const updatedImages =
+        typeof updaterOrImages === "function"
+          ? updaterOrImages(currentImages)
+          : updaterOrImages;
+
+      const targetGroupKey = getVariantGroupValue(targetVariant);
+
+      return prev.map((v) => {
+        // Always update the target variant being edited
         if (v.id === id) {
-          const currentImages = v.images || [];
-          const updatedImages =
-            typeof updaterOrImages === "function"
-              ? updaterOrImages(currentImages)
-              : updaterOrImages;
           return { ...v, images: updatedImages };
         }
+
+        // If target variant has a grouping attribute (e.g. Color: Green), sync images to sister variants sharing the exact same group value!
+        if (targetGroupKey) {
+          const sisterGroupKey = getVariantGroupValue(v);
+          if (sisterGroupKey && sisterGroupKey === targetGroupKey) {
+            return { ...v, images: updatedImages };
+          }
+        }
+
         return v;
-      })
-    );
+      });
+    });
   };
 
   const removeVariant = (id) => {

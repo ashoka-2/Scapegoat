@@ -130,51 +130,8 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
     });
   };
 
-  // Global Clipboard Paste Listener (Ctrl + V / Cmd + V)
-  useEffect(() => {
-    const handlePaste = (e) => {
-      if (e.clipboardData && e.clipboardData.items) {
-        const items = e.clipboardData.items;
-        const pastedFiles = [];
-
-        for (let i = 0; i < items.length; i++) {
-          if (items[i].type.indexOf("image") !== -1) {
-            const blob = items[i].getAsFile();
-            if (blob) {
-              const filename = `pasted_image_${Date.now()}_${i}.png`;
-              const file = new File([blob], filename, { type: blob.type || "image/png" });
-              pastedFiles.push(file);
-            }
-          }
-        }
-
-        if (pastedFiles.length > 0) {
-          e.preventDefault();
-          addFilesToState(pastedFiles);
-          return;
-        }
-      }
-
-      if (e.clipboardData) {
-        const pastedText = e.clipboardData.getData("text");
-        if (
-          pastedText &&
-          (pastedText.startsWith("http://") ||
-            pastedText.startsWith("https://") ||
-            /\.(jpg|jpeg|png|webp|gif)/i.test(pastedText))
-        ) {
-          e.preventDefault();
-          addUrlToState(pastedText);
-        }
-      }
-    };
-
-    window.addEventListener("paste", handlePaste);
-    return () => window.removeEventListener("paste", handlePaste);
-  }, []);
-
   const handleAddFromUrl = (e) => {
-    e.preventDefault();
+    e?.preventDefault?.();
     if (!urlInput.trim()) return;
     addUrlToState(urlInput);
     setUrlInput("");
@@ -307,6 +264,19 @@ const ImageDropzone = ({ images = [], setImages, maxImages = 7 }) => {
               if (e.key === "Enter") {
                 e.preventDefault();
                 handleAddFromUrl(e);
+              }
+            }}
+            onPaste={(e) => {
+              const pastedText = e.clipboardData?.getData("text");
+              if (
+                pastedText &&
+                (pastedText.startsWith("http://") ||
+                  pastedText.startsWith("https://") ||
+                  /\.(jpg|jpeg|png|webp|gif)/i.test(pastedText))
+              ) {
+                e.preventDefault();
+                addUrlToState(pastedText);
+                setUrlInput("");
               }
             }}
             placeholder="Paste image URL (e.g. https://images.unsplash.com/photo-123.jpg)"
