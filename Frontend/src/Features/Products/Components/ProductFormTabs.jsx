@@ -7,6 +7,7 @@ const tabs = [
   { id: "variants", label: "Attributes & Variants", icon: "🔀" },
   { id: "shipping", label: "Shipping & Options", icon: "📦" },
   { id: "media", label: "Media & Filters", icon: "🖼️" },
+  { id: "seo", label: "SEO & Social", icon: "🔍" },
 ];
 
 /**

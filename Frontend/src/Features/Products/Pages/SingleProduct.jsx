@@ -34,25 +34,21 @@ const matchOptionInVariant = (variant, attrName, optionValue) => {
   const optLower = String(optionValue).trim().toLowerCase();
   const attrNameLower = String(attrName).trim().toLowerCase();
 
-  // 1. Check raw attributes map/object (e.g. { Color: "light blue", Size: "M" })
+  // 1. Check raw attributes map/object (e.g. { Color: "light blue", Size: ["UK 6", "UK 7", "UK 8"] })
   const rawAttrs = variant.attributes instanceof Map
     ? Object.fromEntries(variant.attributes)
     : (variant.attributes?._doc || variant.attributes || {});
 
-  let hasMatchingKey = false;
-  let attrValStr = "";
-
   for (const [k, v] of Object.entries(rawAttrs)) {
     if (String(k).trim().toLowerCase() === attrNameLower) {
-      hasMatchingKey = true;
-      attrValStr = String(Array.isArray(v) ? v[0] : v).trim().toLowerCase();
-      break;
+      const items = Array.isArray(v) ? v : [v];
+      const match = items.some((item) => {
+        if (!item) return false;
+        const parts = String(item).split(",");
+        return parts.some((p) => p.trim().toLowerCase() === optLower);
+      });
+      if (match) return true;
     }
-  }
-
-  // If attribute key exists in rawAttrs from MongoDB, use authoritative DB match!
-  if (hasMatchingKey) {
-    return attrValStr === optLower;
   }
 
   // 2. Check dynamicAttributes array if present on variant
@@ -61,7 +57,11 @@ const matchOptionInVariant = (variant, attrName, optionValue) => {
       const k = da.key || da.name;
       if (k && String(k).trim().toLowerCase() === attrNameLower) {
         const vals = da.values || da.options || (da.value ? [da.value] : []);
-        const match = vals.some((v) => String(v).trim().toLowerCase() === optLower);
+        const match = vals.some((v) => {
+          if (!v) return false;
+          const parts = String(v).split(",");
+          return parts.some((p) => p.trim().toLowerCase() === optLower);
+        });
         if (match) return true;
       }
     }
@@ -215,9 +215,63 @@ const SingleProduct = () => {
           }
         })
         .catch(() => {})
-        .finally(() => setLoadingSimilar(false));
     }
   }, [product?._id]);
+
+  // Dynamic SEO Meta Tags & Schema.org JSON-LD Generation for ScapeGoat
+  useEffect(() => {
+    if (product?.title) {
+      const pageTitle = product.seo?.metaTitle || `${product.title} | ScapeGoat`;
+      document.title = pageTitle;
+
+      // Update meta description
+      let metaDesc = document.querySelector('meta[name="description"]');
+      if (!metaDesc) {
+        metaDesc = document.createElement("meta");
+        metaDesc.name = "description";
+        document.head.appendChild(metaDesc);
+      }
+      metaDesc.content =
+        product.seo?.metaDescription ||
+        product.shortDescription ||
+        product.description?.slice(0, 160) ||
+        "Shop premium items on ScapeGoat.";
+
+      // Inject Schema.org JSON-LD Product Structured Data
+      const schemaData = {
+        "@context": "https://schema.org/",
+        "@type": "Product",
+        "name": product.title,
+        "image": product.images?.map((img) => img.url) || [],
+        "description": product.description || product.shortDescription,
+        "sku": product.sku || product._id,
+        "brand": {
+          "@type": "Brand",
+          "name": product.brand?.name || "ScapeGoat",
+        },
+        "offers": {
+          "@type": "Offer",
+          "url": window.location.href,
+          "priceCurrency": product.maxPrice?.currency || "INR",
+          "price": product.sellingPrice?.amount || product.maxPrice?.amount || 0,
+          "itemCondition": "https://schema.org/NewCondition",
+          "availability":
+            product.stockStatus === "instock"
+              ? "https://schema.org/InStock"
+              : "https://schema.org/OutOfStock",
+        },
+      };
+
+      let scriptTag = document.getElementById("scapegoat-jsonld-schema");
+      if (!scriptTag) {
+        scriptTag = document.createElement("script");
+        scriptTag.id = "scapegoat-jsonld-schema";
+        scriptTag.type = "application/ld+json";
+        document.head.appendChild(scriptTag);
+      }
+      scriptTag.text = JSON.stringify(schemaData);
+    }
+  }, [product]);
 
   // 🎨 Sort & Merge Attributes so COLOR is ALWAYS rendered FIRST (position 0), and options from all variants are harvested!
   const sortedAttributes = useMemo(() => {
@@ -225,39 +279,58 @@ const SingleProduct = () => {
 
     const attrMap = new Map();
 
+    const addOptionToAttrMap = (attrKey, rawVal) => {
+      if (!attrKey || !rawVal) return;
+      let existingKey = Array.from(attrMap.keys()).find(
+        (mk) => mk.toLowerCase() === attrKey.toLowerCase()
+      );
+      if (!existingKey) {
+        existingKey = attrKey;
+        attrMap.set(existingKey, new Set());
+      }
+
+      const items = Array.isArray(rawVal) ? rawVal : [rawVal];
+      items.forEach((item) => {
+        if (!item) return;
+        const parts = String(item).split(",");
+        parts.forEach((p) => {
+          const cleaned = p.trim();
+          if (cleaned) attrMap.get(existingKey).add(cleaned);
+        });
+      });
+    };
+
     // 1. Add root product attributes
     if (Array.isArray(product.attributes)) {
       product.attributes.forEach((attr) => {
         const name = attr.name || attr.key;
         if (!name) return;
         const options = Array.isArray(attr.options || attr.values) ? attr.options || attr.values : [];
-        attrMap.set(name, new Set(options));
+        options.forEach((opt) => addOptionToAttrMap(name, opt));
       });
     }
 
-    // 2. Harvest options from all variants' attributes map/object
+    // 2. Harvest options from all variants' attributes map/object & dynamicAttributes array
     if (Array.isArray(product.variants)) {
       product.variants.forEach((v) => {
+        // 2a. From raw attributes map/object
         const raw = v.attributes instanceof Map
           ? Object.fromEntries(v.attributes)
           : (v.attributes?._doc || v.attributes || {});
 
         Object.entries(raw).forEach(([k, val]) => {
-          if (!k || !val) return;
-          const valStr = Array.isArray(val) ? val[0] : val;
-          if (!valStr) return;
-
-          let existingKey = Array.from(attrMap.keys()).find(
-            (mk) => mk.toLowerCase() === k.toLowerCase()
-          );
-
-          if (!existingKey) {
-            existingKey = k;
-            attrMap.set(existingKey, new Set());
-          }
-
-          attrMap.get(existingKey).add(valStr);
+          addOptionToAttrMap(k, val);
         });
+
+        // 2b. From dynamicAttributes array
+        if (Array.isArray(v.dynamicAttributes)) {
+          v.dynamicAttributes.forEach((da) => {
+            const k = da.key || da.name;
+            if (!k) return;
+            const vals = da.values || da.options || (da.value ? [da.value] : []);
+            vals.forEach((vItem) => addOptionToAttrMap(k, vItem));
+          });
+        }
       });
     }
 

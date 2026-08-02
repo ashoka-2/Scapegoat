@@ -127,6 +127,10 @@ const CreateProduct = () => {
     enableReviews: true,
     showSizeChart: false,
     status: "published",
+    metaTitle: "",
+    metaDescription: "",
+    keywords: "",
+    canonicalUrl: "",
   };
 
   // Form State matching MongoDB Product Schema
@@ -263,6 +267,10 @@ const CreateProduct = () => {
             enableReviews: prod.enableReviews ?? true,
             showSizeChart: prod.showSizeChart ?? false,
             status: prod.status || "published",
+            metaTitle: prod.seo?.metaTitle || "",
+            metaDescription: prod.seo?.metaDescription || "",
+            keywords: Array.isArray(prod.seo?.keywords) ? prod.seo.keywords.join(", ") : prod.seo?.keywords || "",
+            canonicalUrl: prod.seo?.canonicalUrl || "",
           });
 
           if (prod.images && prod.images.length > 0) {
@@ -281,12 +289,36 @@ const CreateProduct = () => {
           }
 
           if (prod.attributes && prod.attributes.length > 0) {
-            setMainAttributes(
-              prod.attributes.map((attr) => ({
+            const variantAttrKeys = new Set();
+            (prod.variants || []).forEach((v) => {
+              (v.dynamicAttributes || []).forEach((da) => {
+                const k = da.key || da.name;
+                if (k) variantAttrKeys.add(String(k).trim().toLowerCase());
+              });
+              if (v.attributes) {
+                const raw =
+                  typeof v.attributes.forEach === "function"
+                    ? Object.fromEntries(v.attributes)
+                    : v.attributes instanceof Map
+                    ? Object.fromEntries(v.attributes)
+                    : v.attributes._doc || v.attributes;
+                if (raw && typeof raw === "object") {
+                  Object.keys(raw).forEach((k) => variantAttrKeys.add(String(k).trim().toLowerCase()));
+                }
+              }
+            });
+
+            const filteredMainAttrs = prod.attributes
+              .filter((attr) => {
+                const name = (attr.name || attr.key || "").trim().toLowerCase();
+                return !variantAttrKeys.has(name);
+              })
+              .map((attr) => ({
                 name: attr.name || attr.key || "",
-                options: attr.options || attr.values || [],
-              }))
-            );
+                options: Array.from(new Set(attr.options || attr.values || [])),
+              }));
+
+            setMainAttributes(filteredMainAttrs);
           }
 
           if (prod.variants && prod.variants.length > 0) {
@@ -308,7 +340,7 @@ const CreateProduct = () => {
                     Object.entries(raw).forEach(([k, val]) => {
                       if (val) {
                         const targetKey = productMainAttrs.find((a) => (a.name || a.key || "").toLowerCase() === k.toLowerCase())?.name || k;
-                        rawAttrs[targetKey] = Array.isArray(val) ? val[0] : val;
+                        rawAttrs[targetKey] = Array.isArray(val) ? (val.length > 1 ? val.join(", ") : val[0]) : val;
                       }
                     });
                   }
@@ -321,7 +353,7 @@ const CreateProduct = () => {
                     const vals = da.values || da.options || (da.value ? [da.value] : []);
                     if (k && vals.length > 0) {
                       const targetKey = productMainAttrs.find((a) => (a.name || a.key || "").toLowerCase() === k.toLowerCase())?.name || k;
-                      rawAttrs[targetKey] = vals[0];
+                      rawAttrs[targetKey] = vals.length > 1 ? vals.join(", ") : vals[0];
                     }
                   });
                 }
@@ -426,7 +458,8 @@ const CreateProduct = () => {
   const calculateSellingPrice = (mrp, discType, discVal) => {
     const p = Number(mrp);
     const d = Number(discVal);
-    if (!p || p <= 0 || !d || d <= 0) return "";
+    if (!p || p <= 0) return "";
+    if (discVal === "" || d === 0) return String(p);
 
     if (discType === "percentage") {
       const calculated = p - (p * d) / 100;
@@ -443,7 +476,7 @@ const CreateProduct = () => {
     setFormData((prev) => ({
       ...prev,
       maxPriceAmount: val,
-      sellingPriceAmount: computedSelling || prev.sellingPriceAmount,
+      sellingPriceAmount: computedSelling !== "" ? computedSelling : val,
     }));
   };
 
@@ -453,7 +486,7 @@ const CreateProduct = () => {
     setFormData((prev) => ({
       ...prev,
       discountType: type,
-      sellingPriceAmount: computedSelling || prev.sellingPriceAmount,
+      sellingPriceAmount: computedSelling !== "" ? computedSelling : prev.maxPriceAmount,
     }));
   };
 
@@ -463,7 +496,33 @@ const CreateProduct = () => {
     setFormData((prev) => ({
       ...prev,
       discountValue: val,
-      sellingPriceAmount: computedSelling || prev.sellingPriceAmount,
+      sellingPriceAmount: computedSelling !== "" ? computedSelling : prev.maxPriceAmount,
+    }));
+  };
+
+  const handleSellingPriceChange = (e) => {
+    const val = e.target.value;
+    const p = Number(formData.maxPriceAmount);
+    const s = Number(val);
+    let newDiscVal = formData.discountValue;
+
+    if (p > 0 && val !== "") {
+      if (s < p && s > 0) {
+        const diff = p - s;
+        if (formData.discountType === "percentage") {
+          newDiscVal = String(Math.round((diff / p) * 100));
+        } else {
+          newDiscVal = String(Math.round(diff));
+        }
+      } else if (s >= p) {
+        newDiscVal = "0";
+      }
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      sellingPriceAmount: val,
+      discountValue: newDiscVal,
     }));
   };
 
@@ -960,12 +1019,23 @@ const CreateProduct = () => {
       tagArray.forEach((tag, idx) => payload.append(`tags[${idx}]`, tag));
     }
 
-    // Main Attributes
+    // SEO Metadata
+    if (formData.metaTitle) payload.append("seo[metaTitle]", formData.metaTitle);
+    if (formData.metaDescription) payload.append("seo[metaDescription]", formData.metaDescription);
+    if (formData.canonicalUrl) payload.append("seo[canonicalUrl]", formData.canonicalUrl);
+    if (formData.keywords) {
+      const kwArray = formData.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+      kwArray.forEach((kw, idx) => payload.append(`seo[keywords][${idx}]`, kw));
+    }
+
+    // Top-Level Main Product Attributes (isolated from variant card attributes)
     if (mainAttributes.length > 0) {
       mainAttributes.forEach((attr, idx) => {
-        payload.append(`attributes[${idx}][name]`, attr.name || attr.key);
-        const optionsList = attr.options || attr.values || [];
-        optionsList.forEach((opt, oIdx) => {
+        const name = attr.name || attr.key;
+        if (!name) return;
+        const options = Array.from(new Set(attr.options || attr.values || []));
+        payload.append(`attributes[${idx}][name]`, name);
+        options.forEach((opt, oIdx) => {
           payload.append(`attributes[${idx}][options][${oIdx}]`, opt);
         });
       });
@@ -976,11 +1046,19 @@ const CreateProduct = () => {
       const formattedVariants = await Promise.all(
         variantsList.map(async (v) => {
           const attrMap = { ...(v.attributes || {}) };
+          const formattedDynamicAttrs = [];
+
           (v.dynamicAttributes || []).forEach((da) => {
             const k = da.key || da.name;
             const vals = da.values || da.options || (da.value ? [da.value] : []);
             if (k && vals.length > 0) {
-              attrMap[k] = vals[0];
+              attrMap[k] = vals.length > 1 ? vals : vals[0];
+              formattedDynamicAttrs.push({
+                key: k,
+                name: k,
+                values: vals,
+                options: vals,
+              });
             }
           });
 
@@ -1034,6 +1112,7 @@ const CreateProduct = () => {
           return {
             name: v.name || formData.title,
             attributes: attrMap,
+            dynamicAttributes: formattedDynamicAttrs,
             price: {
               amount: Number(v.priceAmount || formData.sellingPriceAmount || formData.maxPriceAmount),
               currency: formData.maxPriceCurrency,
@@ -1342,8 +1421,32 @@ const CreateProduct = () => {
                     type="number"
                     name="sellingPriceAmount"
                     value={formData.sellingPriceAmount}
-                    onChange={handleChange}
+                    onChange={handleSellingPriceChange}
                     placeholder="1999"
+                    className={inputClass}
+                    min={0}
+                  />
+                </FormField>
+
+                <FormField label="Discount Type">
+                  <select
+                    name="discountType"
+                    value={formData.discountType}
+                    onChange={handleDiscountTypeChange}
+                    className={selectClass}
+                  >
+                    <option value="percentage">% Percentage Discount</option>
+                    <option value="fixed">₹ Fixed Amount Discount</option>
+                  </select>
+                </FormField>
+
+                <FormField label={formData.discountType === "percentage" ? "Discount Value (%)" : "Discount Amount (₹)"}>
+                  <input
+                    type="number"
+                    name="discountValue"
+                    value={formData.discountValue}
+                    onChange={handleDiscountValueChange}
+                    placeholder={formData.discountType === "percentage" ? "e.g. 15 for 15% OFF" : "e.g. 500 for ₹500 OFF"}
                     className={inputClass}
                     min={0}
                   />
@@ -2022,6 +2125,75 @@ const CreateProduct = () => {
                 Upload up to 7 product images. Drag & drop, paste from clipboard, or enter image URLs.
               </p>
               <ImageDropzone images={mainImages} setImages={setMainImages} maxImages={7} />
+            </div>
+          )}
+
+          {/* ═══════ TAB 7: SEO & SOCIAL ═══════ */}
+          {activeTab === "seo" && (
+            <div className="space-y-6">
+              <div className="bg-surface border border-border-theme rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
+                <h2 className="text-lg font-bold text-foreground border-b border-border-theme pb-3">
+                  🔍 Search Engine Optimization (SEO) & Social Meta Tags
+                </h2>
+                <p className="text-xs text-foreground/50">
+                  Optimize how this product listing appears in Google Search results and social media shares.
+                </p>
+
+                <div className="space-y-4">
+                  <FormField label="Meta Title" helperText="Recommended length: 50-60 characters">
+                    <input
+                      type="text"
+                      name="metaTitle"
+                      value={formData.metaTitle}
+                      onChange={handleChange}
+                      placeholder={formData.title ? `${formData.title} | Official ScapeGoat Store` : "Product Meta Title"}
+                      className={inputClass}
+                      maxLength={70}
+                    />
+                  </FormField>
+
+                  <FormField label="Meta Description" helperText="Recommended length: 150-160 characters">
+                    <textarea
+                      name="metaDescription"
+                      rows={3}
+                      value={formData.metaDescription}
+                      onChange={handleChange}
+                      placeholder={formData.shortDescription || formData.description?.substring(0, 150) || "Comprehensive description for search engines."}
+                      className={`${inputClass} resize-y`}
+                      maxLength={200}
+                    />
+                  </FormField>
+
+                  <FormField label="Canonical URL (Optional)" helperText="Use if this product page is duplicated across multiple URLs">
+                    <input
+                      type="url"
+                      name="canonicalUrl"
+                      value={formData.canonicalUrl}
+                      onChange={handleChange}
+                      placeholder="https://scapegoat.com/product/nike-c1ty"
+                      className={inputClass}
+                    />
+                  </FormField>
+                </div>
+
+                {/* Live Google Search Results Snippet Preview */}
+                <div className="pt-4 border-t border-border-theme">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-foreground/60 mb-3">
+                    🌐 Google Search Result Snippet Preview
+                  </h3>
+                  <div className="bg-background border border-border-theme p-4 rounded-xl space-y-1 font-sans">
+                    <div className="text-xs text-emerald-500 truncate flex items-center space-x-1">
+                      <span>https://scapegoat.com › product › {formData.title ? formData.title.toLowerCase().replace(/\s+/g, "-") : "product-slug"}</span>
+                    </div>
+                    <div className="text-sm font-semibold text-blue-400 hover:underline cursor-pointer truncate">
+                      {formData.metaTitle || formData.title || "Product Title - ScapeGoat Online Store"}
+                    </div>
+                    <div className="text-xs text-foreground/70 line-clamp-2">
+                      {formData.metaDescription || formData.shortDescription || formData.description?.substring(0, 150) || "Discover premium products on ScapeGoat with express shipping and secure checkout."}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </form>

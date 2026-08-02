@@ -295,7 +295,14 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
 
       if (raw && typeof raw === "object") {
         Object.entries(raw).forEach(([k, val]) => {
-          if (val) attrMap[k] = Array.isArray(val) ? val[0] : val;
+          if (val) {
+            const cleanVals = Array.isArray(val)
+              ? val
+              : typeof val === "string" && val.includes(",")
+              ? val.split(",").map((s) => s.trim()).filter(Boolean)
+              : [val];
+            attrMap[k] = cleanVals.length > 1 ? cleanVals : cleanVals[0];
+          }
         });
       }
     }
@@ -306,7 +313,8 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
         const k = da.key || da.name;
         const vals = da.values || da.options || (da.value ? [da.value] : []);
         if (k && vals.length > 0) {
-          attrMap[k] = vals[0];
+          const cleanVals = vals.flatMap((vItem) => typeof vItem === "string" ? vItem.split(",").map((s) => s.trim()) : vItem).filter(Boolean);
+          attrMap[k] = cleanVals.length > 1 ? cleanVals : cleanVals[0];
         }
       });
     }
@@ -343,6 +351,7 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
     return {
       ...v,
       attributes: attrMap,
+      dynamicAttributes: v.dynamicAttributes || [],
     };
   });
 };
@@ -408,6 +417,12 @@ export const createProduct = async (req, res) => {
     if (typeof productData.bulkDiscountRules === "string") {
       try {
         productData.bulkDiscountRules = JSON.parse(productData.bulkDiscountRules);
+      } catch (e) {}
+    }
+
+    if (typeof productData.seo === "string") {
+      try {
+        productData.seo = JSON.parse(productData.seo);
       } catch (e) {}
     }
 
@@ -510,6 +525,9 @@ export const updateProduct = async (req, res) => {
     }
     if (typeof updateData.bulkDiscountRules === "string") {
       try { updateData.bulkDiscountRules = JSON.parse(updateData.bulkDiscountRules); } catch (e) {}
+    }
+    if (typeof updateData.seo === "string") {
+      try { updateData.seo = JSON.parse(updateData.seo); } catch (e) {}
     }
 
     // Process & upload any variant base64/external image links in parallel to ImageKit
@@ -725,6 +743,35 @@ export const getSingleProduct = async (req, res) => {
     const productObj = product.toObject ? product.toObject() : product;
     if (matchedVariantId) {
       productObj.selectedVariantId = matchedVariantId;
+    }
+
+    // Clean top-level attributes: exclude variant-specific attributes and deduplicate options
+    if (Array.isArray(productObj.attributes)) {
+      const variantAttrKeys = new Set();
+      if (Array.isArray(productObj.variants)) {
+        productObj.variants.forEach((v) => {
+          (v.dynamicAttributes || []).forEach((da) => {
+            const k = da.key || da.name;
+            if (k) variantAttrKeys.add(String(k).trim().toLowerCase());
+          });
+          if (v.attributes) {
+            const raw = typeof v.attributes.forEach === "function" ? Object.fromEntries(v.attributes) : (v.attributes._doc || v.attributes);
+            if (raw && typeof raw === "object") {
+              Object.keys(raw).forEach((k) => variantAttrKeys.add(String(k).trim().toLowerCase()));
+            }
+          }
+        });
+      }
+
+      productObj.attributes = productObj.attributes
+        .filter((attr) => {
+          const name = String(attr.name || attr.key || "").trim().toLowerCase();
+          return !variantAttrKeys.has(name);
+        })
+        .map((attr) => ({
+          ...attr,
+          options: Array.from(new Set((attr.options || attr.values || []).map((o) => String(o).trim()))).filter(Boolean),
+        }));
     }
 
     return res.status(200).json({

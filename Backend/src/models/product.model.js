@@ -32,6 +32,35 @@ const downloadableFileSchema = new Schema(
   { _id: false }
 );
 
+// ── Inventory Pool Schema (For Shared & Independent Inventory Pools) ────────
+
+const inventoryPoolSchema = new Schema({
+  name: { type: String, required: true, trim: true },
+  sku: { type: String, trim: true },
+  barcode: { type: String, trim: true },
+  quantity: { type: Number, required: true, default: 0, min: 0 },
+  reservedQuantity: { type: Number, default: 0, min: 0 },
+  lowStockThreshold: { type: Number, default: 5, min: 0 },
+  stockStatus: {
+    type: String,
+    enum: ["instock", "outofstock", "onbackorder"],
+    default: "instock",
+  },
+}, { timestamps: true });
+
+// ── Dynamic Attribute Schema ────────────────────────────────────────────────
+
+const dynamicAttributeSchema = new Schema(
+  {
+    key: { type: String, required: true, trim: true },
+    name: { type: String, trim: true },
+    values: [{ type: String, trim: true }],
+    options: [{ type: String, trim: true }],
+    value: { type: String, trim: true },
+  },
+  { _id: false }
+);
+
 // ── Variant schema ──────────────────────────────────────────────────────────
 
 const variantSchema = new Schema({
@@ -51,6 +80,15 @@ const variantSchema = new Schema({
     type: Map,
     of: Schema.Types.Mixed,
     default: {},
+  },
+  dynamicAttributes: [dynamicAttributeSchema],
+  inventoryPoolId: {
+    type: Schema.Types.ObjectId,
+    default: null,
+  },
+  barcode: {
+    type: String,
+    trim: true,
   },
   price: {
     type: priceSchema,
@@ -94,6 +132,13 @@ const productSchema = new Schema(
       maxlength: [500, "Short description cannot exceed 500 characters"],
     },
 
+    // ── SEO Metadata ──────────────────────────────────────────────────────
+    seo: {
+      metaTitle: { type: String, trim: true },
+      metaDescription: { type: String, trim: true },
+      canonicalUrl: { type: String, trim: true },
+    },
+
     // ── Relationships ─────────────────────────────────────────────────────
     seller: {
       type: Schema.Types.ObjectId,
@@ -128,13 +173,25 @@ const productSchema = new Schema(
       },
     ],
 
-    // ── Product Type ──────────────────────────────────────────────────────
-    // "physical" = shipped to customer, "downloadable" = digital file delivered via download link
+    // ── Product Type Architecture ──────────────────────────────────────────
     productType: {
       type: String,
-      enum: ["physical", "downloadable"],
+      enum: [
+        "physical",
+        "downloadable",
+        "simple",
+        "independent_variant",
+        "shared_inventory",
+        "bundle",
+        "subscription",
+        "rental",
+        "made_to_order",
+      ],
       default: "physical",
     },
+
+    // ── Shared & Independent Inventory Pools ─────────────────────────────
+    inventoryPools: [inventoryPoolSchema],
 
     // ── Downloadable Product Fields ───────────────────────────────────────
     // Only used when productType is "downloadable"
