@@ -1,9 +1,12 @@
-import React from 'react'
+import React from "react";
+import Hero from "../Components/Hero";
 
 const Home = () => {
   return (
-    <div>Home</div>
-  )
-}
+    <div className="w-full min-h-screen bg-background">
+      <Hero />
+    </div>
+  );
+};
 
-export default Home
+export default Home;

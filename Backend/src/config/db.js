@@ -3,13 +3,12 @@ import { config } from './config.js';
 
 const connectMongoDB = async () => {
     try{
-        await mongoose.connect(config.MONGO_URI,{
-            maxPoolSize:100,
-            minPoolSize:10,
-            serverSelectionTimeoutMS:5000,
-            socketTimeoutMS:45000,
-        });
-        console.log("Connected to MongoDB");
+        await mongoose.connect(config.MONGO_URI)
+         .then(()=>{
+            console.log("Connected to database");
+            
+        })
+        
         
     }
     catch(error){
