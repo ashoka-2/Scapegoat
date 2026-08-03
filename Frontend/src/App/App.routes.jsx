@@ -12,6 +12,7 @@ import SellerLayout from "../Components/SellerLayout.jsx";
 // Product & Seller Pages
 import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";
 import SingleProduct from "../Features/Products/Pages/SingleProduct.jsx";
+import Shop from "../Features/Products/Pages/Shop.jsx";
 import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
 import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
@@ -44,6 +45,10 @@ export const routes = createBrowserRouter([
       {
         index: true,
         element: <Home />,
+      },
+      {
+        path: "shop",
+        element: <Shop />,
       },
       {
         path: "profile",
