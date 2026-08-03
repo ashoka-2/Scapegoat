@@ -19,14 +19,14 @@ const SellerNavbar = () => {
   const isActive = (path) => location.pathname === path;
 
   return (
-    <aside className="w-full lg:w-64 bg-surface border border-border-theme rounded-[24px] p-6 shrink-0 flex flex-col gap-6 sticky top-24 z-40 backdrop-blur-md shadow-lg">
+    <aside className="w-full lg:w-64 bg-surface border border-border-theme rounded-[24px] p-6 shrink-1 flex flex-col gap-6 lg:sticky top-24 z-40 backdrop-blur-md shadow-lg">
       {/* Brand Header */}
-      <div className="flex items-center space-x-3 px-2">
+      {/* <div className="flex items-center space-x-3 px-2">
         <span className="w-3 h-3 bg-accent rounded-full animate-pulse" />
         <span className="text-base font-extrabold tracking-[0.2em] text-foreground uppercase">
-          SELLER HUB
+          SCAPEGOAT
         </span>
-      </div>
+      </div> */}
 
       {/* Seller Profile Widget */}
       <div className="flex items-center justify-between p-3.5 bg-background/60 border border-border-theme rounded-2xl">
@@ -59,10 +59,10 @@ const SellerNavbar = () => {
           <Link
             key={item.path}
             to={item.path}
-            className={`flex items-center space-x-3 px-4 py-3 rounded-xl text-xs font-bold uppercase tracking-wider transition-all duration-300 ${
+            className={`flex items-center space-x-3 px-3 py-2 rounded-xl text-xs font-semibold capitalize tracking-wider transition-all duration-300 ${
               isActive(item.path)
                 ? "bg-accent text-accent-content shadow-md shadow-accent/20 scale-[1.02]"
-                : "text-foreground/60 hover:text-foreground hover:bg-background/80 hover:translate-x-1"
+                : "text-foreground/70 hover:text-foreground hover:bg-background/80 hover:translate-x-1"
             }`}
           >
             <span className="text-sm">{item.icon}</span>

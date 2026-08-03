@@ -13,6 +13,7 @@ import {
   getAllProducts,
   aiSearchProducts,
   aiImageSearchProducts,
+  suggestProductDescription,
 } from "../controllers/product.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
@@ -27,6 +28,9 @@ const router = express.Router();
 
 // Get all published products (search, filter, sort, paginate)
 router.get("/", getAllProducts);
+
+// Suggest catalog description based on title, category, and shortDescription
+router.post("/suggest-description", suggestProductDescription);
 
 // AI Smart Hybrid Search (Natural text prompt & keyword matching)
 router.get("/search/ai", aiSearchProducts);

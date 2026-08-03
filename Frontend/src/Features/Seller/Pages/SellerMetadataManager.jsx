@@ -4,6 +4,8 @@ import { useBrand } from "../../Brands/Hooks/useBrand";
 import { useUnit } from "../../Units/Hooks/useUnit";
 import Modal from "../../../Components/Modal";
 
+
+
 const SellerMetadataManager = () => {
   const { categories, handleFetchCategories, handleCreateCategory, handleUpdateCategory, handleDeleteCategory } = useCategory();
   const { brands, handleFetchBrands, handleCreateBrand, handleUpdateBrand, handleDeleteBrand } = useBrand();
@@ -171,7 +173,7 @@ const SellerMetadataManager = () => {
         <div className="space-y-6">
           <form onSubmit={handleCategorySubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-              {editingCatId ? "✏️ Edit Category" : "+ Add New Category / Subcategory"}
+              {editingCatId ? "Edit Category" : "+ Add New Category / Subcategory"}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <input
@@ -220,7 +222,7 @@ const SellerMetadataManager = () => {
           </form>
 
           <div className="space-y-3">
-            <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-foreground/70 uppercase">
               Existing Categories List
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
@@ -242,9 +244,9 @@ const SellerMetadataManager = () => {
                         setEditingCatId(cat._id);
                         setCatName(cat.name);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
-                      ✏️ Edit
+                    
                     </button>
                     <button
                       type="button"
@@ -256,9 +258,9 @@ const SellerMetadataManager = () => {
                           onConfirm: () => handleDeleteCategory(cat._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
-                      🗑️ Delete
+                      
                     </button>
                   </div>
                 </div>
@@ -273,7 +275,7 @@ const SellerMetadataManager = () => {
         <div className="space-y-6">
           <form onSubmit={handleBrandSubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-              {editingBrandId ? "✏️ Edit Brand" : "+ Add New Brand"}
+              {editingBrandId ? "Edit Brand" : "+ Add New Brand"}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <input
@@ -325,9 +327,9 @@ const SellerMetadataManager = () => {
                         setEditingBrandId(b._id);
                         setBrandName(b.name);
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
-                      ✏️ Edit
+                      
                     </button>
                     <button
                       type="button"
@@ -339,9 +341,9 @@ const SellerMetadataManager = () => {
                           onConfirm: () => handleDeleteBrand(b._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
-                      🗑️ Delete
+                      
                     </button>
                   </div>
                 </div>
@@ -356,7 +358,7 @@ const SellerMetadataManager = () => {
         <div className="space-y-6">
           <form onSubmit={handleUnitSubmit} className="bg-background border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-              {editingUnitId ? "✏️ Edit Unit" : "+ Add New Unit of Measurement"}
+              {editingUnitId ? "Edit Unit" : "+ Add New Unit of Measurement"}
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <input
@@ -421,9 +423,9 @@ const SellerMetadataManager = () => {
                         setUnitName(u.name);
                         setUnitAbbr(u.abbreviation || "");
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                     >
-                      ✏️ Edit
+                      
                     </button>
                     <button
                       type="button"
@@ -431,13 +433,13 @@ const SellerMetadataManager = () => {
                         openConfirmModal({
                           title: "Delete Unit",
                           description: `Are you sure you want to delete unit "${u.name}"?`,
-                          confirmText: "Delete Unit",
+                          confirmText: " Delete Unit",
                           onConfirm: () => handleDeleteUnit(u._id),
                         });
                       }}
-                      className="px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
                     >
-                      🗑️ Delete
+                    
                     </button>
                   </div>
                 </div>
@@ -446,6 +448,7 @@ const SellerMetadataManager = () => {
           </div>
         </div>
       )}
+
 
       {/* Reusable Confirmation Modal */}
       {confirmModal.isOpen && (

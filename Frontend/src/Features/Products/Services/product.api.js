@@ -96,3 +96,11 @@ export async function aiVisualSearchProductsApi(formData) {
   });
   return response.data;
 }
+
+/**
+ * Suggest catalog description matching title, category, and shortDescription
+ */
+export async function suggestProductDescriptionApi(payload) {
+  const response = await productApiInstance.post("/suggest-description", payload);
+  return response.data;
+}

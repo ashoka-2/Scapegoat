@@ -307,19 +307,7 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
       }
     }
 
-    // 2. Check existing dynamicAttributes array
-    if (Array.isArray(v.dynamicAttributes)) {
-      v.dynamicAttributes.forEach((da) => {
-        const k = da.key || da.name;
-        const vals = da.values || da.options || (da.value ? [da.value] : []);
-        if (k && vals.length > 0) {
-          const cleanVals = vals.flatMap((vItem) => typeof vItem === "string" ? vItem.split(",").map((s) => s.trim()) : vItem).filter(Boolean);
-          attrMap[k] = cleanVals.length > 1 ? cleanVals : cleanVals[0];
-        }
-      });
-    }
-
-    // 3. Infer missing attributes from variant.name against mainAttributes
+    // 2. Infer missing attributes from variant.name against mainAttributes
     if (Array.isArray(mainAttributes) && mainAttributes.length > 0) {
       const vTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
 
@@ -351,7 +339,6 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
     return {
       ...v,
       attributes: attrMap,
-      dynamicAttributes: v.dynamicAttributes || [],
     };
   });
 };
@@ -1384,6 +1371,80 @@ export const aiImageSearchProducts = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Visual image search failed",
+    });
+  }
+};
+
+/**
+ * @desc    Suggest catalog description based on title, category, and shortDescription
+ * @route   POST /api/products/suggest-description
+ * @access  Public / Private
+ */
+export const suggestProductDescription = async (req, res) => {
+  try {
+    const { title, category, shortDescription } = req.body;
+    if (!title || !title.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: "Product title is required to suggest a description",
+      });
+    }
+
+    const titleTrim = title.trim();
+    const titleWords = titleTrim.toLowerCase().split(/\s+/).filter((w) => w.length > 2);
+
+    // 1. Search products in database with description
+    const candidates = await productModel
+      .find({
+        description: { $exists: true, $ne: "" },
+      })
+      .populate("category", "name")
+      .lean();
+
+    // 2. Find best matching product based on title/category alignment
+    let bestMatch = null;
+    let maxScore = 0;
+
+    for (const prod of candidates) {
+      if (!prod.description || prod.description.length < 20) continue;
+      if (prod.title?.toLowerCase() === titleTrim.toLowerCase()) continue;
+
+      const candidateTitle = (prod.title || "").toLowerCase();
+      const candidateCat = (prod.category?.name || "").toLowerCase();
+      const candidateShort = (prod.shortDescription || "").toLowerCase();
+
+      let score = 0;
+      titleWords.forEach((w) => {
+        if (candidateTitle.includes(w)) score += 3;
+        if (candidateCat.includes(w)) score += 2;
+        if (candidateShort.includes(w)) score += 1;
+      });
+
+      if (score > maxScore) {
+        maxScore = score;
+        bestMatch = prod;
+      }
+    }
+
+    if (bestMatch && maxScore >= 2) {
+      return res.status(200).json({
+        success: true,
+        matchedProductTitle: bestMatch.title,
+        matchedCategory: bestMatch.category?.name || "",
+        description: bestMatch.description,
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      matchedProductTitle: null,
+      description: null,
+      message: "No matching catalog description found for this title/category",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to suggest description",
     });
   }
 };

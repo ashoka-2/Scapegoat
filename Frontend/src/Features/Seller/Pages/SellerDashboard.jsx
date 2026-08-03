@@ -6,6 +6,18 @@ import { useCategory } from "../../Categories/Hooks/useCategory";
 import { useBrand } from "../../Brands/Hooks/useBrand";
 import { useUnit } from "../../Units/Hooks/useUnit";
 import Modal from "../../../Components/Modal";
+import SellerMetadataManager from "./SellerMetadataManager";
+
+
+// Cards showing in the seller dashboard
+const GridCard = (name,count) =>{
+  return <div className="bg-background border border-border-theme p-4 rounded-2xl space-y-1 shadow-sm">
+          <span className="text-xs font-semibold text-foreground/70 ">{name}</span>
+          <p className="text-3xl font-extrabold text-accent">{count}</p>
+        </div>
+}
+
+
 
 const SellerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
@@ -156,27 +168,17 @@ const SellerDashboard = () => {
           to="/products/create"
           className="px-5 py-3 rounded-xl bg-accent text-accent-content font-bold text-xs shadow-md hover:opacity-90 transition cursor-pointer"
         >
-          🚀 Create New Product
+          Create New Product
         </Link>
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-        <div className="bg-background border border-border-theme p-6 rounded-2xl space-y-1 shadow-sm">
-          <span className="text-xs font-bold text-foreground/60 uppercase tracking-wider">Total Products</span>
-          <p className="text-3xl font-extrabold text-accent">{totalProducts}</p>
-        </div>
-
-        <div className="bg-background border border-border-theme p-6 rounded-2xl space-y-1 shadow-sm">
-          <span className="text-xs font-bold text-foreground/60 uppercase tracking-wider">Published Listings</span>
-          <p className="text-3xl font-extrabold text-emerald-400">{publishedProducts}</p>
-        </div>
-
-        <div className="bg-background border border-border-theme p-6 rounded-2xl space-y-1 shadow-sm">
-          <span className="text-xs font-bold text-foreground/60 uppercase tracking-wider">Drafts</span>
-          <p className="text-3xl font-extrabold text-amber-400">{draftProducts}</p>
-        </div>
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-3">
+        {GridCard("Total Products",totalProducts)}
+        {GridCard("Published Products",publishedProducts)}
+        {GridCard("Drafts",draftProducts)}
       </div>
+
 
       {/* Seller Products Table / List */}
       <div className="bg-background border border-border-theme rounded-2xl p-6 space-y-4 shadow-sm">
@@ -232,344 +234,7 @@ const SellerDashboard = () => {
         )}
       </div>
 
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* ⚙️ CATALOG METADATA MANAGER (Categories, Brands & Units) Section   */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      <div className="bg-background border border-border-theme rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
-          <div>
-            <h2 className="text-lg font-bold text-foreground flex items-center gap-2">
-              <span>⚙️</span> Catalog Metadata Manager
-            </h2>
-            <p className="text-xs text-foreground/60 mt-0.5">
-              Create, update, or delete Categories, Subcategories, Brands, and Units of Measurement.
-            </p>
-          </div>
-
-          {/* Sub-tabs */}
-          <div className="flex items-center space-x-2 bg-surface border border-border-theme p-1 rounded-xl">
-            {[
-              { id: "categories", label: `Categories (${categories.length})` },
-              { id: "brands", label: `Brands (${brands.length})` },
-              { id: "units", label: `Units (${units.length})` },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                onClick={() => setMgmtTab(tab.id)}
-                className={`px-4 py-2 rounded-lg font-bold text-xs transition cursor-pointer ${
-                  mgmtTab === tab.id
-                    ? "bg-accent text-accent-content shadow"
-                    : "text-foreground/70 hover:text-foreground hover:bg-background"
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── TAB 1: CATEGORIES & SUBCATEGORIES MANAGEMENT ── */}
-        {mgmtTab === "categories" && (
-          <div className="space-y-6">
-            <form onSubmit={handleCategorySubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-                {editingCatId ? "✏️ Edit Category" : "+ Add New Category / Subcategory"}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="Category Name (e.g. Footwear)"
-                  value={catName}
-                  onChange={(e) => setCatName(e.target.value)}
-                  className={inputStyle}
-                  required
-                />
-                {!editingCatId && (
-                  <select
-                    value={parentCatId}
-                    onChange={(e) => setParentCatId(e.target.value)}
-                    className={selectStyle}
-                  >
-                    <option value="">None (Top-Level Category)</option>
-                    {parentCategories.map((pCat) => (
-                      <option key={pCat._id} value={pCat._id}>
-                        Parent: {pCat.name}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer"
-                  >
-                    {editingCatId ? "Update Category" : "Save Category"}
-                  </button>
-                  {editingCatId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingCatId(null);
-                        setCatName("");
-                      }}
-                      className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            </form>
-
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-                Existing Categories List
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {categories.map((cat) => (
-                  <div
-                    key={cat._id}
-                    className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <p className="font-bold text-foreground truncate">{cat.name}</p>
-                      <p className="text-[10px] text-foreground/50">
-                        {cat.parentCategory ? "Subcategory" : "Main Category"}
-                      </p>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingCatId(cat._id);
-                          setCatName(cat.name);
-                        }}
-                        className="px-2 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openConfirmModal({
-                            title: "Delete Category",
-                            description: `Are you sure you want to delete category "${cat.name}"?`,
-                            confirmText: "Delete Category",
-                            onConfirm: () => handleDeleteCategory(cat._id),
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 2: BRANDS MANAGEMENT ── */}
-        {mgmtTab === "brands" && (
-          <div className="space-y-6">
-            <form onSubmit={handleBrandSubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-                {editingBrandId ? "✏️ Edit Brand" : "+ Add New Brand"}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <input
-                  type="text"
-                  placeholder="Brand Name (e.g. Nike, Adidas, Apple)"
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  className={inputStyle}
-                  required
-                />
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer"
-                  >
-                    {editingBrandId ? "Update Brand" : "Save Brand"}
-                  </button>
-                  {editingBrandId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingBrandId(null);
-                        setBrandName("");
-                      }}
-                      className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            </form>
-
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-                Existing Brands List
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {brands.map((b) => (
-                  <div
-                    key={b._id}
-                    className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
-                  >
-                    <p className="font-bold text-foreground truncate pr-2">{b.name}</p>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingBrandId(b._id);
-                          setBrandName(b.name);
-                        }}
-                        className="px-2 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openConfirmModal({
-                            title: "Delete Brand",
-                            description: `Are you sure you want to delete brand "${b.name}"?`,
-                            confirmText: "Delete Brand",
-                            onConfirm: () => handleDeleteBrand(b._id),
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ── TAB 3: UNITS MANAGEMENT ── */}
-        {mgmtTab === "units" && (
-          <div className="space-y-6">
-            <form onSubmit={handleUnitSubmit} className="bg-surface border border-border-theme p-5 rounded-xl space-y-4">
-              <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
-                {editingUnitId ? "✏️ Edit Unit" : "+ Add New Unit of Measurement"}
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <input
-                  type="text"
-                  placeholder="Unit Name (e.g. Pieces)"
-                  value={unitName}
-                  onChange={(e) => setUnitName(e.target.value)}
-                  className={inputStyle}
-                  required
-                />
-                <input
-                  type="text"
-                  placeholder="Abbreviation (e.g. pcs)"
-                  value={unitAbbr}
-                  onChange={(e) => setUnitAbbr(e.target.value)}
-                  className={inputStyle}
-                  required
-                />
-                <div className="flex items-center space-x-2">
-                  <button
-                    type="submit"
-                    className="flex-1 px-4 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer"
-                  >
-                    {editingUnitId ? "Update Unit" : "Save Unit"}
-                  </button>
-                  {editingUnitId && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingUnitId(null);
-                        setUnitName("");
-                        setUnitAbbr("");
-                      }}
-                      className="px-3 py-2.5 rounded-xl bg-background border border-border-theme text-foreground text-xs font-bold"
-                    >
-                      Cancel
-                    </button>
-                  )}
-                </div>
-              </div>
-            </form>
-
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-foreground/70 uppercase tracking-wider">
-                Existing Units List
-              </h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                {units.map((u) => (
-                  <div
-                    key={u._id}
-                    className="flex items-center justify-between bg-surface border border-border-theme/70 p-3.5 rounded-xl text-xs"
-                  >
-                    <div className="min-w-0 pr-2">
-                      <p className="font-bold text-foreground truncate">{u.name}</p>
-                      <p className="text-[10px] text-foreground/50">Symbol: {u.abbreviation}</p>
-                    </div>
-                    <div className="flex items-center space-x-2 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingUnitId(u._id);
-                          setUnitName(u.name);
-                          setUnitAbbr(u.abbreviation || "");
-                        }}
-                        className="px-2 py-1 rounded bg-accent/10 text-accent font-bold text-[11px] hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                      >
-                        ✏️ Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          openConfirmModal({
-                            title: "Delete Unit",
-                            description: `Are you sure you want to delete unit "${u.name}"?`,
-                            confirmText: "Delete Unit",
-                            onConfirm: () => handleDeleteUnit(u._id),
-                          });
-                        }}
-                        className="px-2 py-1 rounded bg-red-500/10 text-red-500 font-bold text-[11px] hover:bg-red-500 hover:text-white transition cursor-pointer"
-                      >
-                        🗑️ Delete
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Reusable Confirmation Modal */}
-      {confirmModal.isOpen && (
-        <Modal
-          isOpen={confirmModal.isOpen}
-          onClose={closeConfirmModal}
-          onSubmit={() => {
-            if (confirmModal.onConfirm) confirmModal.onConfirm();
-            closeConfirmModal();
-          }}
-          title={confirmModal.title}
-          confirmText={confirmModal.confirmText}
-          cancelText="Cancel"
-          showFooterActions={true}
-        >
-          <p className="text-sm text-foreground/80 font-medium py-1">
-            {confirmModal.description}
-          </p>
-        </Modal>
-      )}
+      {/* <SellerMetadataManager/> */}
     </div>
   );
 };

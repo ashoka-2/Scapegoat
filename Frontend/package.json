@@ -12,6 +12,7 @@
   "dependencies": {
     "@gsap/react": "^2.1.2",
     "@reduxjs/toolkit": "^2.11.2",
+    "@remixicon/react": "^4.9.0",
     "@tailwindcss/vite": "^4.2.2",
     "axios": "^1.18.1",
     "gsap": "^3.15.0",
