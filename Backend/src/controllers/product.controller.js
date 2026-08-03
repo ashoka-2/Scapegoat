@@ -141,11 +141,7 @@ const processImageUploadsParallel = async (files = [], rawUrls = []) => {
 
       tasks.push(
         (async () => {
-          // If already ImageKit URL, return immediately without re-uploading!
-          if (cleanUrl.includes("imagekit.io")) {
-            return { url: cleanUrl };
-          }
-
+          // Base64 data URLs -> Upload to ImageKit
           if (cleanUrl.startsWith("data:image")) {
             try {
               const uploadRes = await Promise.race([
@@ -163,20 +159,8 @@ const processImageUploadsParallel = async (files = [], rawUrls = []) => {
             return null;
           }
 
+          // Existing HTTP/HTTPS URLs (ImageKit, Unsplash, external) -> Keep URL directly
           if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-            try {
-              const uploadRes = await Promise.race([
-                uploadFile({
-                  file: cleanUrl,
-                  filename: `product_ext_${Date.now()}_${i}.jpg`,
-                  folder: "/products",
-                }),
-                new Promise((_, reject) => setTimeout(() => reject(new Error("External URL upload timeout")), 4000)),
-              ]);
-              if (uploadRes && uploadRes.url) return { url: uploadRes.url };
-            } catch (err) {
-              console.warn(`[ImageKit External URL Upload Warning]: ${err.message} - Using original URL.`);
-            }
             return { url: cleanUrl };
           }
 
@@ -355,17 +339,31 @@ export const createProduct = async (req, res) => {
       seller: req.user._id,
     };
 
-    // Extract rawUrls from request body
+    // Extract rawUrls from request body (supports array, JSON string, or indexed keys)
     let rawUrls = [];
     if (req.body.imageUrls) {
-      rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
-    } else {
-      Object.keys(req.body).forEach((key) => {
-        if (key.startsWith("imageUrls")) {
-          rawUrls.push(req.body[key]);
+      if (Array.isArray(req.body.imageUrls)) {
+        rawUrls = req.body.imageUrls;
+      } else if (typeof req.body.imageUrls === "string") {
+        if (req.body.imageUrls.startsWith("[")) {
+          try {
+            rawUrls = JSON.parse(req.body.imageUrls);
+          } catch (e) {
+            rawUrls = [req.body.imageUrls];
+          }
+        } else {
+          rawUrls = [req.body.imageUrls];
         }
-      });
+      }
     }
+
+    Object.keys(req.body).forEach((key) => {
+      if (key.startsWith("imageUrls") && key !== "imageUrls") {
+        const val = req.body[key];
+        if (Array.isArray(val)) rawUrls.push(...val);
+        else if (val) rawUrls.push(val);
+      }
+    });
 
     // Process all file uploads and external image URLs in PARALLEL (<1-2s total!)
     const uploadedImages = await processImageUploadsParallel(req.files || [], rawUrls);
@@ -487,14 +485,28 @@ export const updateProduct = async (req, res) => {
 
     let rawUrls = [];
     if (req.body.imageUrls) {
-      rawUrls = Array.isArray(req.body.imageUrls) ? req.body.imageUrls : [req.body.imageUrls];
-    } else {
-      Object.keys(req.body).forEach((key) => {
-        if (key.startsWith("imageUrls")) {
-          rawUrls.push(req.body[key]);
+      if (Array.isArray(req.body.imageUrls)) {
+        rawUrls = req.body.imageUrls;
+      } else if (typeof req.body.imageUrls === "string") {
+        if (req.body.imageUrls.startsWith("[")) {
+          try {
+            rawUrls = JSON.parse(req.body.imageUrls);
+          } catch (e) {
+            rawUrls = [req.body.imageUrls];
+          }
+        } else {
+          rawUrls = [req.body.imageUrls];
         }
-      });
+      }
     }
+
+    Object.keys(req.body).forEach((key) => {
+      if (key.startsWith("imageUrls") && key !== "imageUrls") {
+        const val = req.body[key];
+        if (Array.isArray(val)) rawUrls.push(...val);
+        else if (val) rawUrls.push(val);
+      }
+    });
 
     // Process all file uploads and external image URLs in PARALLEL (<1-2s total!)
     const updatedUploadedImages = await processImageUploadsParallel(req.files || [], rawUrls);

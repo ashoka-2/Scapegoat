@@ -1,24 +1,10 @@
 import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useSelector } from "react-redux";
+import { useSearchParams } from "react-router-dom";
 import { useProduct } from "../Hooks/useProduct";
 import ProductCard from "../Components/ProductCard";
 import { useDebounce } from "../../../utils/timingUtils";
 import { aiSearchProductsApi } from "../Services/product.api";
-
-// ── Semantic Concept Synonyms Map for AI Matching ────────────────────────────
-const SEMANTIC_CONCEPTS = {
-  shoes: ["footwear", "sneakers", "kicks", "running", "trainers", "air", "c1ty", "boots"],
-  sneakers: ["shoes", "footwear", "kicks", "nike", "running", "air"],
-  footwear: ["shoes", "sneakers", "kicks", "nike", "boots", "sandals"],
-  clothing: ["apparel", "wear", "shirt", "t-shirt", "jacket", "hoodie", "top", "pants"],
-  shirts: ["t-shirt", "top", "polo", "tee", "apparel", "clothing"],
-  jacket: ["outerwear", "coat", "hoodie", "fleece", "winter", "warm"],
-  winter: ["jacket", "hoodie", "fleece", "warm", "coat"],
-  summer: ["cotton", "t-shirt", "breathable", "shorts", "mesh"],
-  black: ["dark", "ebony", "noir"],
-  white: ["clean", "light", "ivory", "snow"],
-  nike: ["footwear", "sneakers", "apparel", "air", "c1ty"],
-};
 
 function calculateProductMatchScore(product, query) {
   if (!query || !query.trim()) return { score: 0, tag: null };
@@ -30,6 +16,7 @@ function calculateProductMatchScore(product, query) {
   const descLower = (product.description || "" + " " + (product.shortDescription || "")).toLowerCase();
   const catLower = (product.category?.name || "").toLowerCase();
   const brandLower = (product.brand?.name || "").toLowerCase();
+  const tagsLower = Array.isArray(product.tags) ? product.tags.join(" ").toLowerCase() : (product.tags || "").toLowerCase();
 
   // Variant Attributes String
   let attrText = "";
@@ -52,36 +39,28 @@ function calculateProductMatchScore(product, query) {
   else if (titleLower.includes(q)) score += 100;
   else if (titleLower.startsWith(q)) score += 60;
 
-  // 2. Direct Category & Brand Match
+  // 2. Direct Category, Brand & Tags Match
   if (catLower.includes(q)) score += 85;
   if (brandLower.includes(q)) score += 85;
+  if (tagsLower.includes(q)) score += 80;
 
   // 3. Variant Attributes Match
   if (attrLower.includes(q)) score += 70;
 
-  // 4. Token & Semantic Matching
+  // 4. Token Keyword Matching
   words.forEach((w) => {
     if (titleLower.includes(w)) score += 35;
     if (catLower.includes(w)) score += 30;
     if (brandLower.includes(w)) score += 30;
+    if (tagsLower.includes(w)) score += 25;
     if (attrLower.includes(w)) score += 25;
     if (descLower.includes(w)) score += 15;
-
-    // Semantic Synonym Expansion
-    const synonyms = SEMANTIC_CONCEPTS[w] || [];
-    synonyms.forEach((syn) => {
-      if (titleLower.includes(syn)) score += 30;
-      if (catLower.includes(syn)) score += 25;
-      if (brandLower.includes(syn)) score += 25;
-      if (attrLower.includes(syn)) score += 20;
-      if (descLower.includes(syn)) score += 10;
-    });
   });
 
   let tag = null;
   if (score >= 120) tag = "✨ Exact Match";
   else if (score >= 60) tag = "✨ High Relevance";
-  else if (score > 0) tag = "✨ Similar Match";
+  else if (score > 0) tag = "✨ Match";
 
   return { score, tag };
 }
@@ -168,11 +147,21 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
 };
 
 const Shop = () => {
+  const [searchParams] = useSearchParams();
+  const initialQuery = searchParams.get("q") || "";
+
   const { handleFetchAllProducts } = useProduct();
   const { products: allProducts, loading } = useSelector((state) => state.product);
 
   // Raw search input state & debounced 300ms search state
-  const [rawSearchQuery, setRawSearchQuery] = useState("");
+  const [rawSearchQuery, setRawSearchQuery] = useState(initialQuery);
+
+  useEffect(() => {
+    const q = searchParams.get("q");
+    if (q !== null && q !== undefined) {
+      setRawSearchQuery(q);
+    }
+  }, [searchParams]);
   const debouncedSearchQuery = useDebounce(rawSearchQuery, 300);
   const [aiVectorResults, setAiVectorResults] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
@@ -436,6 +425,29 @@ const Shop = () => {
         </div>
       </div>
 
+      {/* Small Compact Searchbar */}
+      <div>
+        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-2">Search Shop</h3>
+        <div className="relative flex items-center">
+          <i className="ri-search-line absolute left-3 text-foreground/40 text-xs pointer-events-none" />
+          <input
+            type="text"
+            placeholder="Search products..."
+            value={rawSearchQuery}
+            onChange={(e) => setRawSearchQuery(e.target.value)}
+            className="w-full bg-surface border border-border-theme/50 rounded-xl pl-8 pr-7 py-2 text-xs font-medium text-foreground focus:outline-none focus:border-accent placeholder:text-foreground/40 transition"
+          />
+          {rawSearchQuery && (
+            <button
+              onClick={() => setRawSearchQuery("")}
+              className="absolute right-2 text-foreground/40 hover:text-foreground text-xs cursor-pointer"
+            >
+              <i className="ri-close-line" />
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* Sort By (Desktop & Mobile) */}
       <div>
         <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">Sort By</h3>
@@ -444,7 +456,7 @@ const Shop = () => {
           onChange={(e) => setSortBy(e.target.value)}
           className="w-full bg-surface border border-border-theme/50 rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-accent"
         >
-          {debouncedSearchQuery && <option value="relevance">✨ AI Best Match</option>}
+          {debouncedSearchQuery && <option value="relevance">✨ Best Match</option>}
           <option value="newest">Newest Arrivals</option>
           <option value="price-asc">Price: Low to High</option>
           <option value="price-desc">Price: High to Low</option>
@@ -507,84 +519,38 @@ const Shop = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground py-10 px-4 max-w-[1400px] mx-auto">
-      {/* Header Banner & Prominent AI Smart Search Bar */}
-      <div className="flex flex-col gap-6 mb-10 pb-6 border-b border-border-theme/40">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
-          <div>
-            <span className="text-[10px] font-black tracking-[0.4em] uppercase text-accent mb-1 block">
-              ScapeGoat Store
-            </span>
-            <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase">The Shop</h1>
-          </div>
-
-          <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
-            <p className="text-xs font-bold uppercase tracking-widest text-foreground/50">
-              Showing <span className="text-foreground font-black">{filteredProductsWithScores.length}</span> Drops
-            </p>
-            <button
-              onClick={() => setIsMobileFilterOpen(true)}
-              className="md:hidden bg-surface border border-border-theme px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 cursor-pointer"
-            >
-              <i className="ri-filter-3-line"></i> Filters
-              {activeFilterCount > 0 && (
-                <span className="bg-accent text-accent-content text-[9px] font-black px-1.5 py-0.5 rounded-full">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-          </div>
+      {/* Header Banner */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8 pb-6 border-b border-border-theme/40">
+        <div>
+          <span className="text-[10px] font-black tracking-[0.4em] uppercase text-accent mb-1 block">
+            ScapeGoat Store
+          </span>
+          <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase">The Shop</h1>
         </div>
 
-        {/* ✨ AI Smart Search Bar */}
-        <div className="relative w-full max-w-3xl mx-auto">
-          <div className="relative flex items-center bg-surface border-2 border-accent/40 hover:border-accent rounded-2xl p-2 shadow-lg transition-all group focus-within:border-accent focus-within:ring-4 focus-within:ring-accent/20">
-            <div className="flex items-center gap-2 pl-3 pr-2 text-accent font-black text-xs uppercase tracking-widest pointer-events-none select-none">
-              <span className="animate-pulse text-base">✨</span>
-              <span className="hidden sm:inline">AI Search</span>
-            </div>
-
-            <input
-              type="text"
-              placeholder="Search exact drops, colors, sneakers, warm hoodies..."
-              value={rawSearchQuery}
-              onChange={(e) => setRawSearchQuery(e.target.value)}
-              className="w-full bg-transparent px-2 py-2 text-sm font-semibold text-foreground focus:outline-none placeholder:text-foreground/40"
-            />
-
-            {/* Indicator / Spinner / Clear Button */}
-            <div className="flex items-center gap-2 pr-3">
-              {isSearching && (
-                <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
-              )}
-              {rawSearchQuery && (
-                <button
-                  onClick={() => setRawSearchQuery("")}
-                  className="text-foreground/50 hover:text-foreground text-lg cursor-pointer"
-                  title="Clear search"
-                >
-                  <i className="ri-close-circle-fill"></i>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* AI Search Active Query Badge */}
+        <div className="flex items-center gap-4 w-full md:w-auto justify-between md:justify-end">
           {debouncedSearchQuery && (
-            <div className="mt-2 flex items-center justify-between px-2 text-xs font-bold text-foreground/60">
-              <div className="flex items-center gap-2">
-                <span className="text-accent font-black">✨ Concept Matches for:</span>
-                <span className="bg-accent/10 border border-accent/20 px-2 py-0.5 rounded-lg text-accent font-mono">
-                  "{debouncedSearchQuery}"
-                </span>
-              </div>
-              <button
-                onClick={() => setRawSearchQuery("")}
-                className="text-[10px] text-accent uppercase font-black hover:underline cursor-pointer"
-              >
-                Clear Search
+            <div className="flex items-center gap-2 bg-accent/10 border border-accent/20 px-3 py-1 rounded-full text-xs text-accent font-bold">
+              <span>Results for "{debouncedSearchQuery}"</span>
+              <button onClick={() => setRawSearchQuery("")} className="hover:text-foreground cursor-pointer">
+                <i className="ri-close-line" />
               </button>
             </div>
           )}
+          <p className="text-xs font-bold uppercase tracking-widest text-foreground/50">
+            Showing <span className="text-foreground font-black">{filteredProductsWithScores.length}</span> Drops
+          </p>
+          <button
+            onClick={() => setIsMobileFilterOpen(true)}
+            className="md:hidden bg-surface border border-border-theme px-4 py-2 rounded-full text-xs font-bold flex items-center gap-2 cursor-pointer"
+          >
+            <i className="ri-filter-3-line"></i> Filters
+            {activeFilterCount > 0 && (
+              <span className="bg-accent text-accent-content text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                {activeFilterCount}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 

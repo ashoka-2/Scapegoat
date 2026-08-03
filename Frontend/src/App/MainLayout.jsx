@@ -6,6 +6,8 @@ import { useSelector } from "react-redux";
 import Footer from "../Components/Footer.jsx";
 import { createAnimation, TRANSITION_CONFIG } from "../utils/themeTransition.js";
 
+import CartDrawer from "../Components/CartDrawer.jsx";
+
 const STYLE_ID = "theme-transition-style";
 
 const MainLayout = () => {
@@ -84,6 +86,7 @@ const MainLayout = () => {
         </main>
       </div>
       <Footer />
+      <CartDrawer />
     </div>
   );
 };

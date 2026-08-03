@@ -288,6 +288,9 @@ const CreateProduct = () => {
               }))
             );
           }
+          if (prod.bulkDiscountRules && Array.isArray(prod.bulkDiscountRules) && prod.bulkDiscountRules.length > 0) {
+            setBulkDiscountRules(prod.bulkDiscountRules);
+          }
         } catch (err) {
           console.error("Error prepopulating product form:", err);
         }
@@ -676,6 +679,10 @@ const CreateProduct = () => {
     if (formData.metaDescription) payload.append("seo[metaDescription]", formData.metaDescription);
     if (formData.canonicalUrl) payload.append("seo[canonicalUrl]", formData.canonicalUrl);
 
+    if (bulkDiscountRules && bulkDiscountRules.length > 0) {
+      payload.append("bulkDiscountRules", JSON.stringify(bulkDiscountRules));
+    }
+
     if (mainAttributes.length > 0) {
       mainAttributes.forEach((attr, idx) => {
         const name = attr.name || attr.key;
@@ -730,10 +737,12 @@ const CreateProduct = () => {
     }
 
     const rawFiles = allImages.filter((img) => !img.isUrl).map((img) => img.file);
-    const rawUrls = allImages.filter((img) => img.isUrl).map((img) => img.url);
+    const rawUrls = allImages.filter((img) => img.isUrl).map((img) => img.url || img.preview);
 
     rawFiles.forEach((file) => payload.append("images", file));
-    rawUrls.forEach((url) => payload.append("imageUrls", url));
+    if (rawUrls.length > 0) {
+      payload.append("imageUrls", JSON.stringify(rawUrls));
+    }
 
     let res;
     if (editId) {
@@ -821,9 +830,9 @@ const CreateProduct = () => {
                   <button
                     type="button"
                     onClick={handleGenerateMainBarcode}
-                    className="px-3 py-2 bg-accent/10 border border-accent/30 text-accent rounded-xl text-xs font-bold whitespace-nowrap hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1"
+                    className="px-3 py-2 bg-accent/10 border border-accent/30 text-accent rounded-xl text-xs whitespace-nowrap hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1"
                   >
-                    <i className="ri-barcode-box-line" />
+                    <i className="ri-barcode-line" />
                   </button>
                 </div>
               </FormField>
@@ -1288,12 +1297,49 @@ const CreateProduct = () => {
                         <button
                           type="button"
                           onClick={handleAddBulkRule}
-                          className="w-full px-3 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs"
+                          className="w-full px-3 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-1"
                         >
-                          + Add Rule
+                          <i className="ri-add-line" />
+                          <span>+ Add Rule</span>
                         </button>
                       </div>
                     </div>
+
+                    {/* Active Bulk Discount Tiers List */}
+                    {bulkDiscountRules.length > 0 ? (
+                      <div className="space-y-2 pt-2 border-t border-border-theme/40">
+                        <label className="text-xs font-bold text-accent uppercase tracking-wider block">
+                          ⚡ Active Bulk Discount Tiers ({bulkDiscountRules.length}):
+                        </label>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          {bulkDiscountRules.map((rule, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-background border border-border-theme p-3 rounded-xl flex items-center justify-between shadow-sm"
+                            >
+                              <div className="space-x-2 text-xs">
+                                <span className="font-extrabold text-accent">Buy {rule.minQty}+ items:</span>
+                                <span className="font-bold text-foreground font-mono">
+                                  {rule.discType === "percentage" ? `${rule.discValue}% OFF` : `₹${rule.discValue} OFF`}
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => removeBulkRule(idx)}
+                                className="text-red-400 hover:text-red-600 font-bold text-xs cursor-pointer p-1 transition"
+                                title="Remove tier rule"
+                              >
+                                <i className="ri-delete-bin-line" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-xs text-foreground/40 italic">
+                        No bulk discount rules added yet. Enter min quantity and discount value above, then click "+ Add Rule".
+                      </p>
+                    )}
                   </div>
                 )}
 

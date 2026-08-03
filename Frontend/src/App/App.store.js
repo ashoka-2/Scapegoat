@@ -5,6 +5,7 @@ import productReducer from "../Features/Products/State/product.slice";
 import categoryReducer from "../Features/Categories/State/category.slice";
 import brandReducer from "../Features/Brands/State/brand.slice";
 import unitReducer from "../Features/Units/State/unit.slice";
+import cartReducer from "../Features/Cart/State/cart.slice";
 
 export const store = configureStore({
   reducer: {
@@ -14,5 +15,6 @@ export const store = configureStore({
     category: categoryReducer,
     brand: brandReducer,
     unit: unitReducer,
+    cart: cartReducer,
   },
 });

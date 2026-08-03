@@ -86,10 +86,19 @@ export const addToCart = async (req, res) => {
       });
     }
 
-    if (product.manageStock && product.stock < parsedQty) {
+    // Rule: Seller cannot buy their own product
+    if (product.seller && product.seller.toString() === req.user._id.toString()) {
       return res.status(400).json({
         success: false,
-        message: `Only ${product.stock} items available in stock`,
+        message: "Sellers cannot purchase their own listed products",
+      });
+    }
+
+    // Rule: Cannot add out-of-stock items
+    if (product.manageStock && (product.stock < parsedQty || product.stockStatus === "outofstock")) {
+      return res.status(400).json({
+        success: false,
+        message: product.stock <= 0 ? "Product is currently out of stock" : `Only ${product.stock} items available in stock`,
       });
     }
 

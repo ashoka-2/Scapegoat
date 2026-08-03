@@ -4,6 +4,7 @@ import { useProduct } from "../Hooks/useProduct";
 import { getSimilarProductsApi } from "../Services/product.api";
 import { addToast } from "../../../utils/toast.slice";
 import { useDispatch } from "react-redux";
+import { useCart } from "../../Cart/Hooks/useCart";
 
 // Color name to Hex map for fallback swatches
 const getColorHex = (colorName) => {
@@ -546,26 +547,19 @@ const SingleProduct = () => {
     setZoomPos({ x, y });
   };
 
+  const { handleAddToCart: addToCartFn } = useCart();
+
   // Add to Cart Action
-  const handleAddToCart = () => {
+  const handleAddToCart = async () => {
     if (isOutOfStock) return;
-    dispatch(
-      addToast({
-        message: `🛒 Added ${quantity}x "${product?.title || selectedVariant?.name}" to cart!`,
-        type: "success",
-      })
-    );
+    await addToCartFn(product, quantity, selectedVariant?._id, selectedAttributes);
   };
 
   // Buy Now Action
-  const handleBuyNow = () => {
+  const handleBuyNow = async () => {
     if (isOutOfStock) return;
-    dispatch(
-      addToast({
-        message: `⚡ Proceeding to checkout for "${product?.title || selectedVariant?.name}"`,
-        type: "info",
-      })
-    );
+    await addToCartFn(product, quantity, selectedVariant?._id, selectedAttributes);
+    navigate("/cart");
   };
 
   // Loading Skeleton State

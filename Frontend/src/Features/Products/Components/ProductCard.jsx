@@ -6,6 +6,7 @@ import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { motion, useAnimation } from "framer-motion";
 import { addToast } from "../../../utils/toast.slice";
+import { useCart } from "../../Cart/Hooks/useCart";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -50,6 +51,8 @@ const ProductCard = ({ product }) => {
     { scope: cardRef }
   );
 
+  const { handleAddToCart: addToCartFn } = useCart();
+
   const handleAddToCart = async () => {
     if (!user) {
       dispatch(addToast({ message: "Please log in to add items to your cart", type: "info" }));
@@ -58,23 +61,16 @@ const ProductCard = ({ product }) => {
     }
 
     if (!isDragged && product) {
-      setIsDragged(true);
       try {
-        dispatch(
-          addToast({
-            message: `🛒 ${product?.title || "Product"} added to your cart!`,
-            type: "success",
-          })
-        );
+        await addToCartFn(product);
+        setIsDragged(true);
+        setTimeout(() => {
+          setIsDragged(false);
+          controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
+        }, 2000);
       } catch (error) {
         console.error("Cart error", error);
       }
-
-      // Reset after 2 seconds
-      setTimeout(() => {
-        setIsDragged(false);
-        controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
-      }, 2000);
     }
   };
 
