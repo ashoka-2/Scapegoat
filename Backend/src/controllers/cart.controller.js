@@ -32,7 +32,7 @@ export const getCart = async (req, res) => {
   try {
     let cart = await cartModel.findOne({ user: req.user._id }).populate({
       path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock category brand",
+      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock category brand attributes variants",
       populate: [
         { path: "category", select: "name slug" },
         { path: "brand", select: "name slug image" },
@@ -137,7 +137,7 @@ export const addToCart = async (req, res) => {
     // Re-populate and return updated cart
     const updatedCart = await cartModel.findById(cart._id).populate({
       path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock",
+      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock attributes variants",
     });
 
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);
@@ -304,13 +304,16 @@ export const updateQuantity = async (req, res) => {
         });
       }
       item.quantity = parsedQty;
+      if (req.body.selectedAttributes) {
+        item.selectedAttributes = req.body.selectedAttributes;
+      }
     }
 
     await cart.save();
 
     const updatedCart = await cartModel.findById(cart._id).populate({
       path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock",
+      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock attributes variants",
     });
 
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);

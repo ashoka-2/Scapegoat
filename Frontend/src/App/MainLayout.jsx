@@ -8,11 +8,39 @@ import { createAnimation, TRANSITION_CONFIG } from "../utils/themeTransition.js"
 
 import CartDrawer from "../Components/CartDrawer.jsx";
 
+import socket from "../utils/socket.js";
+import { useDispatch } from "react-redux";
+import { getAllProductsApi } from "../Features/Products/Services/product.api.js";
+import { setProducts } from "../Features/Products/State/product.slice.js";
+
 const STYLE_ID = "theme-transition-style";
 
 const MainLayout = () => {
+  const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleLiveProductUpdate = async (data) => {
+      console.log("⚡ Live Socket Event Received:", data);
+      try {
+        const res = await getAllProductsApi();
+        if (res) dispatch(setProducts(res));
+      } catch (e) {
+        console.error("Socket product sync error:", e);
+      }
+    };
+
+    socket.on("product_published", handleLiveProductUpdate);
+    socket.on("product_updated", handleLiveProductUpdate);
+    socket.on("product_deleted", handleLiveProductUpdate);
+
+    return () => {
+      socket.off("product_published", handleLiveProductUpdate);
+      socket.off("product_updated", handleLiveProductUpdate);
+      socket.off("product_deleted", handleLiveProductUpdate);
+    };
+  }, [dispatch]);
 
   const [isDarkMode, setIsDarkMode] = useState(() => {
     const saved = localStorage.getItem("theme");

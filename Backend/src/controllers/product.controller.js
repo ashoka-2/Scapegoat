@@ -214,7 +214,7 @@ const processVariantImagesUpload = async (variants = []) => {
                     filename: `variant_${vIdx}_${Date.now()}_${imgIdx}.jpg`,
                     folder: "/products/variants",
                   }),
-                  new Promise((_, reject) => setTimeout(() => reject(new Error("Base64 upload timeout")), 5000)),
+                  new Promise((_, reject) => setTimeout(() => reject(new Error("Base64 upload timeout")), 15000)),
                 ]);
                 if (uploadRes && uploadRes.url) return { url: uploadRes.url };
               } catch (err) {
@@ -224,19 +224,6 @@ const processVariantImagesUpload = async (variants = []) => {
             }
 
             if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
-              try {
-                const uploadRes = await Promise.race([
-                  uploadFile({
-                    file: cleanUrl,
-                    filename: `variant_${vIdx}_${Date.now()}_${imgIdx}.jpg`,
-                    folder: "/products/variants",
-                  }),
-                  new Promise((_, reject) => setTimeout(() => reject(new Error("External URL upload timeout")), 4000)),
-                ]);
-                if (uploadRes && uploadRes.url) return { url: uploadRes.url };
-              } catch (err) {
-                console.warn(`[ImageKit Variant External URL Upload Warning]: ${err.message} - Using original URL.`);
-              }
               return { url: cleanUrl };
             }
 
@@ -260,7 +247,84 @@ const processVariantImagesUpload = async (variants = []) => {
 };
 
 /**
+ * Normalize a single string to Title Case.
+ * Short all-upper tokens (e.g. "UK", "XL") are kept as-is.
+ */
+const toTitleCase = (str) => {
+  if (!str) return "";
+  return String(str)
+    .trim()
+    .split(/\s+/)
+    .map((token) => {
+      if (/^[A-Z0-9]+$/.test(token) && token.length <= 4) return token;
+      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
+    })
+    .join(" ");
+};
+
+/**
+ * Normalize an attributes array:
+ * - Title Case all attribute names and option values
+ * - Merge duplicate attribute names (case-insensitive)
+ * - Deduplicate option values (case-insensitive)
+ */
+const normalizeAttributes = (attrs = []) => {
+  if (!Array.isArray(attrs)) return [];
+  const result = [];
+
+  attrs.forEach((attr) => {
+    if (!attr) return;
+    let normName = toTitleCase(attr.name || attr.key);
+    if (!normName) return;
+    // Unify Colour → Color
+    if (/^colou?r$/i.test(normName)) normName = "Color";
+
+    const rawOptions = attr.options || attr.values || [];
+    const normOptions = [];
+    const seenLower = new Set();
+    rawOptions.forEach((opt) => {
+      if (!opt) return;
+      const normOpt = toTitleCase(String(opt));
+      const lower = normOpt.toLowerCase();
+      if (!seenLower.has(lower)) {
+        seenLower.add(lower);
+        normOptions.push(normOpt);
+      }
+    });
+
+    const existingIdx = result.findIndex(
+      (r) => r.name.toLowerCase() === normName.toLowerCase()
+    );
+
+    if (existingIdx !== -1) {
+      const existing = result[existingIdx];
+      const existingLower = new Set(existing.options.map((o) => o.toLowerCase()));
+      normOptions.forEach((o) => {
+        if (!existingLower.has(o.toLowerCase())) {
+          existing.options.push(o);
+          existingLower.add(o.toLowerCase());
+        }
+      });
+    } else {
+      result.push({ name: normName, options: normOptions });
+    }
+  });
+
+  // Sort: Color always first
+  result.sort((a, b) => {
+    const aIsColor = /^colou?r$/i.test(a.name);
+    const bIsColor = /^colou?r$/i.test(b.name);
+    if (aIsColor && !bIsColor) return -1;
+    if (!aIsColor && bIsColor) return 1;
+    return 0;
+  });
+
+  return result;
+};
+
+/**
  * Helper to ensure every variant has an explicitly populated attributes map (e.g. { Size: "S", Color: "Pink" })
+ * Also infers missing attributes from variant name/SKU tokens when mainAttributes are provided.
  */
 const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
   if (!Array.isArray(variants) || variants.length === 0) return variants;
@@ -279,7 +343,7 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
 
       if (raw && typeof raw === "object") {
         Object.entries(raw).forEach(([k, val]) => {
-          if (val) {
+          if (val !== undefined && val !== null && val !== "") {
             const cleanVals = Array.isArray(val)
               ? val
               : typeof val === "string" && val.includes(",")
@@ -291,9 +355,11 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
       }
     }
 
-    // 2. Infer missing attributes from variant.name against mainAttributes
+    // 2. Infer missing attributes from variant.name AND variant.sku against mainAttributes
     if (Array.isArray(mainAttributes) && mainAttributes.length > 0) {
-      const vTokens = (v.name || "").toLowerCase().split(/[\s/\-,_]+/);
+      // Combine name + SKU for broader token matching
+      const combinedText = `${v.name || ""} ${v.sku || ""}`.toLowerCase();
+      const vTokens = combinedText.split(/[\s/\-,_.]+/).filter(Boolean);
 
       mainAttributes.forEach((attr) => {
         const attrName = attr.name || attr.key;
@@ -308,8 +374,10 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
             const optLower = String(opt).trim().toLowerCase();
             const optWords = optLower.split(/\s+/).filter(Boolean);
             if (optWords.length > 1) {
-              return optWords.every((w) => (v.name || "").toLowerCase().includes(w));
+              // Multi-word option (e.g. "UK 10") — check if all words appear in name/SKU
+              return optWords.every((w) => combinedText.includes(w));
             }
+            // Single word — exact token match
             return vTokens.some((t) => t === optLower);
           });
 
@@ -326,6 +394,7 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
     };
   });
 };
+
 
 /**
  * @desc    Create a new product
@@ -391,6 +460,9 @@ export const createProduct = async (req, res) => {
       try {
         productData.attributes = JSON.parse(productData.attributes);
       } catch (e) {}
+    }
+    if (Array.isArray(productData.attributes)) {
+      productData.attributes = normalizeAttributes(productData.attributes);
     }
 
     if (typeof productData.downloadableFiles === "string") {
@@ -518,6 +590,9 @@ export const updateProduct = async (req, res) => {
     }
     if (typeof updateData.attributes === "string") {
       try { updateData.attributes = JSON.parse(updateData.attributes); } catch (e) {}
+    }
+    if (Array.isArray(updateData.attributes)) {
+      updateData.attributes = normalizeAttributes(updateData.attributes);
     }
     if (typeof updateData.downloadableFiles === "string") {
       try { updateData.downloadableFiles = JSON.parse(updateData.downloadableFiles); } catch (e) {}
@@ -767,10 +842,84 @@ export const getSingleProduct = async (req, res) => {
           const name = String(attr.name || attr.key || "").trim().toLowerCase();
           return !variantAttrKeys.has(name);
         })
-        .map((attr) => ({
-          ...attr,
-          options: Array.from(new Set((attr.options || attr.values || []).map((o) => String(o).trim()))).filter(Boolean),
+        .map((attr) => {
+          // Case-insensitive deduplication: keep first occurrence of each value
+          const seen = new Map(); // lowercase -> first-seen original
+          (attr.options || attr.values || []).forEach((o) => {
+            const cleaned = String(o).trim();
+            const lower = cleaned.toLowerCase();
+            if (cleaned && !seen.has(lower)) seen.set(lower, cleaned);
+          });
+          return {
+            ...attr,
+            options: Array.from(seen.values()),
+          };
+        });
+    }
+
+    // ── On-the-fly attribute inference when DB attributes are empty ──
+    // If root attributes array is empty but we have variants, infer attributes from variant names/SKUs
+    if ((!productObj.attributes || productObj.attributes.length === 0) && Array.isArray(productObj.variants) && productObj.variants.length > 0) {
+      const inferredAttrMap = new Map(); // attrName -> Map<lowercase, originalCase>
+
+      const addToInferred = (key, val) => {
+        if (!key || !val) return;
+        // Normalize "colour" → "Color"
+        const normKey = /^colou?r$/i.test(key.trim()) ? "Color" : toTitleCase(key);
+        if (!inferredAttrMap.has(normKey)) inferredAttrMap.set(normKey, new Map());
+        const valStr = String(val).trim();
+        const valLower = valStr.toLowerCase();
+        if (valStr && !inferredAttrMap.get(normKey).has(valLower)) {
+          inferredAttrMap.get(normKey).set(valLower, toTitleCase(valStr));
+        }
+      };
+
+      productObj.variants.forEach((v) => {
+        let hasPopulatedAttrs = false;
+
+        // 1. From existing variant attributes map
+        if (v.attributes && typeof v.attributes === "object") {
+          const raw = typeof v.attributes.forEach === "function" ? Object.fromEntries(v.attributes) : (v.attributes._doc || v.attributes || {});
+          const entries = Object.entries(raw);
+          if (entries.length > 0 && entries.some(([, val]) => val !== undefined && val !== null && val !== "")) {
+            hasPopulatedAttrs = true;
+            entries.forEach(([k, val]) => {
+              if (!val) return;
+              const vals = Array.isArray(val) ? val : [val];
+              vals.forEach((vv) => addToInferred(k, vv));
+            });
+          }
+        }
+
+        // 2. Only fallback to name/SKU parsing if variant has no populated attributes
+        if (!hasPopulatedAttrs) {
+          const nameParts = (v.name || "").split(" - ");
+          if (nameParts.length >= 2) {
+            const attrPart = nameParts.slice(1).join(" - ");
+            const segments = attrPart.split(/\s*\/\s*/);
+            if (segments.length >= 1) addToInferred("Color", segments[0]);
+            if (segments.length >= 2) addToInferred("Size", segments[1]);
+          }
+        }
+      });
+
+      if (inferredAttrMap.size > 0) {
+        // Build attributes array, sorted: Color/Colour always first
+        const attrArr = Array.from(inferredAttrMap.entries()).map(([name, valMap]) => ({
+          name,
+          options: Array.from(valMap.values()),
         }));
+        attrArr.sort((a, b) => {
+          const aIsColor = /^colou?r$/i.test(a.name);
+          const bIsColor = /^colou?r$/i.test(b.name);
+          if (aIsColor && !bIsColor) return -1;
+          if (!aIsColor && bIsColor) return 1;
+          return 0;
+        });
+
+        productObj.attributes = attrArr;
+        productObj.variants = ensureVariantAttributesMap(productObj.variants, productObj.attributes);
+      }
     }
 
     return res.status(200).json({

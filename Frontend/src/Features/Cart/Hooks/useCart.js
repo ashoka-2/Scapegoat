@@ -6,6 +6,8 @@ import {
   setCartDrawerOpen,
   setLoading,
   setError,
+  optimisticUpdateQuantity,
+  optimisticRemoveItem,
 } from "../State/cart.slice";
 import * as api from "../Services/cart.api";
 
@@ -32,6 +34,31 @@ export const useCart = () => {
     } finally {
       dispatch(setLoading(false));
     }
+  };
+
+  const deriveDefaultAttributes = (product) => {
+    if (!product) return null;
+    const derived = {};
+    if (product.variants && product.variants.length > 0 && product.variants[0]?.attributes) {
+      const raw = typeof product.variants[0].attributes.forEach === "function"
+        ? Object.fromEntries(product.variants[0].attributes)
+        : (product.variants[0].attributes._doc || product.variants[0].attributes);
+      if (raw && typeof raw === "object") {
+        Object.entries(raw).forEach(([k, v]) => {
+          derived[k] = Array.isArray(v) ? v[0] : v;
+        });
+      }
+    }
+    if (product.attributes && Array.isArray(product.attributes)) {
+      product.attributes.forEach((attr) => {
+        const name = attr.name || attr.key;
+        const opts = attr.options || attr.values || [];
+        if (name && opts.length > 0 && !derived[name]) {
+          derived[name] = opts[0];
+        }
+      });
+    }
+    return Object.keys(derived).length > 0 ? derived : null;
   };
 
   // Add To Cart with Stock & Seller Restrictions
@@ -61,13 +88,20 @@ export const useCart = () => {
       return;
     }
 
+    // Derive default base attributes if none selected (e.g. from ProductCard slide to cart)
+    const finalAttributes = (selectedAttributes && Object.keys(selectedAttributes).length > 0)
+      ? selectedAttributes
+      : deriveDefaultAttributes(product);
+
+    const finalVariantId = variantId || (product.variants?.length > 0 ? product.variants[0]?._id : null);
+
     dispatch(setLoading(true));
     try {
       const productId = product._id || product;
       const data = await api.addItemToCartApi({
         productId,
-        variantId,
-        selectedAttributes,
+        variantId: finalVariantId,
+        selectedAttributes: finalAttributes,
         quantity,
       });
       dispatch(setCart(data));
@@ -82,22 +116,30 @@ export const useCart = () => {
     }
   };
 
-  // Update Item Quantity
-  const handleUpdateQuantity = async (itemId, quantity) => {
+  // Update Item Quantity or Attributes with Optimistic UX (Instant UI, async backend)
+  const handleUpdateQuantity = async (itemId, quantity, selectedAttributes = null) => {
     if (quantity < 1) {
       return handleRemoveFromCart(itemId);
     }
+
+    // ⚡ Optimistic update immediately on frontend (0ms latency!)
+    dispatch(optimisticUpdateQuantity({ itemId, quantity, selectedAttributes }));
+
     try {
-      const data = await api.updateCartItemQuantityApi(itemId, quantity);
+      const data = await api.updateCartItemQuantityApi(itemId, quantity, selectedAttributes);
       dispatch(setCart(data));
       return data.data;
     } catch (e) {
       toast(errMsg(e), "error");
+      handleGetCart();
     }
   };
 
-  // Remove Item
+  // Remove Item with Optimistic UX (Instant UI, async backend)
   const handleRemoveFromCart = async (itemId) => {
+    // ⚡ Optimistic remove immediately on frontend (0ms latency!)
+    dispatch(optimisticRemoveItem({ itemId }));
+
     try {
       const data = await api.deleteCartItemApi(itemId);
       dispatch(setCart(data));
@@ -105,6 +147,7 @@ export const useCart = () => {
       return data.data;
     } catch (e) {
       toast(errMsg(e), "error");
+      handleGetCart();
     }
   };
 

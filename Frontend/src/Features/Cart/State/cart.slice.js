@@ -28,8 +28,56 @@ const cartSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
+    optimisticUpdateQuantity: (state, action) => {
+      const { itemId, quantity, selectedAttributes } = action.payload;
+      if (!state.cart || !Array.isArray(state.cart.items)) return;
+
+      const itemIdx = state.cart.items.findIndex(
+        (i) => (i._id || i.id) === itemId
+      );
+
+      if (itemIdx !== -1) {
+        if (quantity <= 0) {
+          state.cart.items.splice(itemIdx, 1);
+        } else {
+          state.cart.items[itemIdx].quantity = quantity;
+          if (selectedAttributes) {
+            state.cart.items[itemIdx].selectedAttributes = selectedAttributes;
+          }
+        }
+
+        // Recalculate totalItems and subtotal immediately on frontend
+        state.totalItems = state.cart.items.reduce((acc, i) => acc + (i.quantity || 0), 0);
+        state.subtotal = state.cart.items.reduce((acc, i) => {
+          const price = i.product?.sellingPrice?.amount || i.product?.maxPrice?.amount || i.variant?.priceAmount || 0;
+          return acc + price * (i.quantity || 0);
+        }, 0);
+      }
+    },
+    optimisticRemoveItem: (state, action) => {
+      const { itemId } = action.payload;
+      if (!state.cart || !Array.isArray(state.cart.items)) return;
+
+      state.cart.items = state.cart.items.filter(
+        (i) => (i._id || i.id) !== itemId
+      );
+
+      state.totalItems = state.cart.items.reduce((acc, i) => acc + (i.quantity || 0), 0);
+      state.subtotal = state.cart.items.reduce((acc, i) => {
+        const price = i.product?.sellingPrice?.amount || i.product?.maxPrice?.amount || i.variant?.priceAmount || 0;
+        return acc + price * (i.quantity || 0);
+      }, 0);
+    },
   },
 });
 
-export const { setCart, toggleCartDrawer, setCartDrawerOpen, setLoading, setError } = cartSlice.actions;
+export const {
+  setCart,
+  toggleCartDrawer,
+  setCartDrawerOpen,
+  setLoading,
+  setError,
+  optimisticUpdateQuantity,
+  optimisticRemoveItem,
+} = cartSlice.actions;
 export default cartSlice.reducer;

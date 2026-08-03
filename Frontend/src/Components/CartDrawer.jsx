@@ -31,6 +31,38 @@ const CartDrawer = () => {
 
   const items = cart?.items || [];
 
+const getItemVariantImage = (item) => {
+  const prod = item.product || {};
+  const selectedAttrs = typeof item.selectedAttributes?.forEach === "function"
+    ? Object.fromEntries(item.selectedAttributes)
+    : (item.selectedAttributes || {});
+
+  if (item.variant && item.variant.images && item.variant.images.length > 0) {
+    const vImg = item.variant.images[0]?.url || item.variant.images[0];
+    if (vImg) return vImg;
+  }
+
+  if (prod.variants && prod.variants.length > 0 && selectedAttrs && Object.keys(selectedAttrs).length > 0) {
+    const matchedVar = prod.variants.find((v) => {
+      const vAttrs = typeof v.attributes?.forEach === "function"
+        ? Object.fromEntries(v.attributes)
+        : (v.attributes?._doc || v.attributes || {});
+      return Object.entries(selectedAttrs).every(([k, val]) => {
+        if (!val) return true;
+        const vVal = vAttrs[k];
+        if (!vVal) return true;
+        return String(vVal).trim().toLowerCase() === String(val).trim().toLowerCase();
+      });
+    });
+    if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
+      const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
+      if (vImg) return vImg;
+    }
+  }
+
+  return prod.images?.[0]?.url || (typeof prod.images?.[0] === "string" ? prod.images[0] : null) || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
+};
+
   return (
     <AnimatePresence>
       {isDrawerOpen && (
@@ -80,7 +112,7 @@ const CartDrawer = () => {
                 items.map((item, idx) => {
                   const prod = item.product || {};
                   const price = prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
-                  const img = prod.images?.[0]?.url || prod.images?.[0] || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
+                  const img = getItemVariantImage(item);
 
                   return (
                     <div
@@ -117,6 +149,56 @@ const CartDrawer = () => {
                           <p className="text-[11px] font-mono font-bold text-accent mt-0.5">
                             ₹{Number(price).toLocaleString("en-IN")}
                           </p>
+
+                          {/* Interactive Selected Attributes */}
+                          {prod.attributes && Array.isArray(prod.attributes) && prod.attributes.length > 0 ? (
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                              {prod.attributes.map((attr) => {
+                                const attrName = attr.name || attr.key;
+                                const options = attr.options || attr.values || [];
+                                if (!attrName || options.length === 0) return null;
+                                const currentSelectedMap = typeof item.selectedAttributes?.forEach === "function"
+                                  ? Object.fromEntries(item.selectedAttributes)
+                                  : (item.selectedAttributes || {});
+                                const activeVal = currentSelectedMap[attrName] || options[0];
+
+                                return (
+                                  <div key={attrName} className="flex items-center gap-1 text-[10px] bg-surface border border-border-theme/70 px-1.5 py-0.5 rounded-md">
+                                    <span className="text-foreground/50">{attrName}:</span>
+                                    <select
+                                      value={activeVal}
+                                      onChange={(e) => {
+                                        const newSelected = { ...currentSelectedMap, [attrName]: e.target.value };
+                                        handleUpdateQuantity(item._id, item.quantity, newSelected);
+                                      }}
+                                      className="bg-transparent font-extrabold text-accent focus:outline-none cursor-pointer"
+                                    >
+                                      {options.map((opt) => (
+                                        <option key={opt} value={opt} className="bg-surface text-foreground font-bold">
+                                          {opt}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : item.selectedAttributes ? (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {Object.entries(
+                                typeof item.selectedAttributes.forEach === "function"
+                                  ? Object.fromEntries(item.selectedAttributes)
+                                  : item.selectedAttributes
+                              ).map(([attrKey, attrVal]) => (
+                                <span
+                                  key={attrKey}
+                                  className="text-[10px] font-bold text-foreground/70 bg-background border border-border-theme/60 px-1.5 py-0.5 rounded-md"
+                                >
+                                  {attrKey}: <strong className="text-accent">{String(attrVal)}</strong>
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
 
                         {/* Quantity Controls & Remove */}

@@ -11,7 +11,7 @@ import VariantItemCard from "../Components/VariantItemCard";
 import LiveProductPreview from "../Components/LiveProductPreview";
 import ProductHistoryTimeline from "../Components/ProductHistoryTimeline";
 import Modal from "../../../Components/Modal";
-import { mergeAttributeItem } from "../../../utils/attributeUtils";
+import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/attributeUtils";
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
 
@@ -298,6 +298,58 @@ const CreateProduct = () => {
     }
   }, [editId, duplicateId, handleFetchSingleProduct]);
 
+  // ── Apply Pricing / Inventory Strategy immediately when changed ──
+  useEffect(() => {
+    if (variantsList.length === 0) return;
+
+    setVariantsList((prev) => {
+      return prev.map((v) => {
+        let updated = { ...v };
+
+        // Pricing
+        if (pricingStrategy === "same_product") {
+          const basePrice = formData.sellingPriceAmount || formData.maxPriceAmount;
+          if (basePrice) updated.priceAmount = basePrice;
+        } else if (pricingStrategy === "same_attribute") {
+          const rawAttrs = v.attributes || {};
+          const targetKey = pricingSelectedAttr || mainAttributes[0]?.name || mainAttributes[0]?.key || Object.keys(rawAttrs)[0];
+          const targetVal = targetKey ? rawAttrs[targetKey] : null;
+          if (targetVal) {
+            const groupLeader = prev.find((other) => {
+              const oAttrs = other.attributes || {};
+              return oAttrs[targetKey] === targetVal && other.priceAmount;
+            });
+            if (groupLeader && groupLeader.id !== v.id) {
+              updated.priceAmount = groupLeader.priceAmount;
+            }
+          }
+        }
+
+        // Inventory
+        if (inventoryStrategy === "shared_product") {
+          const baseStock = prev[0]?.stock ?? 10;
+          updated.stock = baseStock;
+        } else if (inventoryStrategy === "shared_attribute") {
+          const rawAttrs = v.attributes || {};
+          const targetKey = inventorySelectedAttr || mainAttributes[0]?.name || mainAttributes[0]?.key || Object.keys(rawAttrs)[0];
+          const targetVal = targetKey ? rawAttrs[targetKey] : null;
+          if (targetVal) {
+            const groupLeader = prev.find((other) => {
+              const oAttrs = other.attributes || {};
+              return oAttrs[targetKey] === targetVal && other.stock !== undefined;
+            });
+            if (groupLeader && groupLeader.id !== v.id) {
+              updated.stock = groupLeader.stock;
+            }
+          }
+        }
+
+        return updated;
+      });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pricingStrategy, pricingSelectedAttr, inventoryStrategy, inventorySelectedAttr]);
+
   // Form Field Change Handler
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -513,6 +565,62 @@ const CreateProduct = () => {
     setVariantsList((prev) => prev.filter((v) => v.id !== id));
   };
 
+  // Add a blank new variant with first available attribute combo not already used
+  const addNewVariant = () => {
+    if (!mainAttributes || mainAttributes.length === 0) {
+      alert("Please define Main Attributes first (under the Attributes tab).");
+      return;
+    }
+
+    // Build all possible combos as { AttrName: optionValue } objects
+    const cartesian = (arrays) =>
+      arrays.reduce((acc, curr) => acc.flatMap((d) => curr.map((e) => ({ ...d, ...e }))), [{}]);
+
+    const attrArrays = mainAttributes.map((attr) => {
+      const key = attr.name || attr.key;
+      const opts = attr.options || attr.values || [];
+      return opts.map((opt) => ({ [key]: opt }));
+    });
+
+    const allCombos = cartesian(attrArrays);
+
+    // Find a combo not already in variantsList
+    const usedCombos = variantsList.map((v) => {
+      const raw = typeof v.attributes?.forEach === "function" ? Object.fromEntries(v.attributes) : v.attributes || {};
+      return JSON.stringify(Object.entries(raw).sort().map(([k, val]) => `${k.toLowerCase()}=${String(val).toLowerCase()}`));
+    });
+
+    const availableCombo = allCombos.find((combo) => {
+      const comboKey = JSON.stringify(
+        Object.entries(combo).sort().map(([k, val]) => `${k.toLowerCase()}=${String(val).toLowerCase()}`)
+      );
+      return !usedCombos.includes(comboKey);
+    });
+
+    if (!availableCombo) {
+      alert("All possible variations already exist!");
+      return;
+    }
+
+    const comboNameStr = Object.values(availableCombo).join(" / ");
+    const variantTitle = formData.title ? `${formData.title} - ${comboNameStr}` : comboNameStr;
+    const skuSlug = Object.values(availableCombo).map((v) => v.replace(/\s+/g, "").toUpperCase()).join("-");
+
+    setVariantsList((prev) => [
+      ...prev,
+      {
+        id: Math.random().toString(36).substring(2, 9),
+        name: variantTitle,
+        priceAmount: formData.sellingPriceAmount || formData.maxPriceAmount || "",
+        stock: 10,
+        sku: formData.title ? `${formData.title.substring(0, 4).toUpperCase()}-${skuSlug}` : `SKU-${skuSlug}`,
+        barcode: generateEAN13Barcode(),
+        attributes: availableCombo,
+        images: [],
+      },
+    ]);
+  };
+
   // Bulk Variant Actions
   const handleBulkSetPrice = () => {
     const p = prompt("Enter price (₹) to set across ALL variations:");
@@ -684,15 +792,9 @@ const CreateProduct = () => {
     }
 
     if (mainAttributes.length > 0) {
-      mainAttributes.forEach((attr, idx) => {
-        const name = attr.name || attr.key;
-        if (!name) return;
-        const options = Array.from(new Set(attr.options || attr.values || []));
-        payload.append(`attributes[${idx}][name]`, name);
-        options.forEach((opt, oIdx) => {
-          payload.append(`attributes[${idx}][options][${oIdx}]`, opt);
-        });
-      });
+      // Normalize: merge duplicates + Title Case all names and values before saving
+      const formattedAttributes = normalizeAttributesArray(mainAttributes);
+      payload.append("attributes", JSON.stringify(formattedAttributes));
     }
 
     if (variantsList.length > 0) {
@@ -1204,29 +1306,69 @@ const CreateProduct = () => {
                           ⚡ Variation Strategies
                         </label>
                         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                          <FormField label="Pricing Strategy">
-                            <select
-                              value={pricingStrategy}
-                              onChange={(e) => setPricingStrategy(e.target.value)}
-                              className={selectClass}
-                            >
-                              <option value="same_product">Same for Entire Product</option>
-                              <option value="same_attribute">Same for each Attribute</option>
-                              <option value="different_variant">Different for Every Variant</option>
-                            </select>
-                          </FormField>
+                          <div className="space-y-2">
+                            <FormField label="Pricing Strategy">
+                              <select
+                                value={pricingStrategy}
+                                onChange={(e) => setPricingStrategy(e.target.value)}
+                                className={selectClass}
+                              >
+                                <option value="same_product">Same for Entire Product</option>
+                                <option value="same_attribute">Same by Attribute</option>
+                                <option value="different_variant">Different for Every Variant</option>
+                              </select>
+                            </FormField>
+                            {pricingStrategy === "same_attribute" && mainAttributes.length > 0 && (
+                              <FormField label="Select Target Attribute for Price">
+                                <select
+                                  value={pricingSelectedAttr || mainAttributes[0]?.name || mainAttributes[0]?.key || ""}
+                                  onChange={(e) => setPricingSelectedAttr(e.target.value)}
+                                  className={selectClass}
+                                >
+                                  {mainAttributes.map((attr, aIdx) => {
+                                    const keyName = attr.name || attr.key;
+                                    return (
+                                      <option key={aIdx} value={keyName}>
+                                        Group price by {keyName}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </FormField>
+                            )}
+                          </div>
 
-                          <FormField label="Inventory Strategy">
-                            <select
-                              value={inventoryStrategy}
-                              onChange={(e) => setInventoryStrategy(e.target.value)}
-                              className={selectClass}
-                            >
-                              <option value="shared_product">Shared across Entire Product</option>
-                              <option value="shared_attribute">Shared for each Attribute</option>
-                              <option value="different_variant">Different for Every Variant</option>
-                            </select>
-                          </FormField>
+                          <div className="space-y-2">
+                            <FormField label="Inventory Strategy">
+                              <select
+                                value={inventoryStrategy}
+                                onChange={(e) => setInventoryStrategy(e.target.value)}
+                                className={selectClass}
+                              >
+                                <option value="shared_product">Shared across Entire Product</option>
+                                <option value="shared_attribute">Shared by Attribute</option>
+                                <option value="different_variant">Different for Every Variant</option>
+                              </select>
+                            </FormField>
+                            {inventoryStrategy === "shared_attribute" && mainAttributes.length > 0 && (
+                              <FormField label="Select Target Attribute for Stock">
+                                <select
+                                  value={inventorySelectedAttr || mainAttributes[0]?.name || mainAttributes[0]?.key || ""}
+                                  onChange={(e) => setInventorySelectedAttr(e.target.value)}
+                                  className={selectClass}
+                                >
+                                  {mainAttributes.map((attr, aIdx) => {
+                                    const keyName = attr.name || attr.key;
+                                    return (
+                                      <option key={aIdx} value={keyName}>
+                                        Group stock by {keyName}
+                                      </option>
+                                    );
+                                  })}
+                                </select>
+                              </FormField>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )}
@@ -1247,12 +1389,25 @@ const CreateProduct = () => {
                             variant={vItem}
                             vIdx={vIdx}
                             mainAttributes={mainAttributes}
+                            variantsList={variantsList}
                             handleVariantChange={handleVariantChange}
                             handleVariantImagesChange={handleVariantImagesChange}
                             removeVariant={removeVariant}
                             manageStock={formData.manageStock}
                           />
                         ))}
+
+                        {/* Add New Variant Button */}
+                        {mainAttributes.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={addNewVariant}
+                            className="w-full py-3 border-2 border-dashed border-accent/40 hover:border-accent rounded-2xl text-xs font-extrabold text-accent/70 hover:text-accent flex items-center justify-center gap-2 transition cursor-pointer"
+                          >
+                            <i className="ri-add-circle-line text-base" />
+                            Add New Variant
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

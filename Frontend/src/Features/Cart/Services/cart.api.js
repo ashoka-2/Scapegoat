@@ -29,8 +29,8 @@ export async function addItemToCartApi({ productId, variantId, selectedAttribute
 /**
  * Update item quantity (manually typed or changed)
  */
-export async function updateCartItemQuantityApi(itemId, quantity) {
-  const response = await cartApiInstance.put(`/item/${itemId}`, { quantity });
+export async function updateCartItemQuantityApi(itemId, quantity, selectedAttributes = null) {
+  const response = await cartApiInstance.put(`/item/${itemId}`, { quantity, selectedAttributes });
   return response.data;
 }
 
