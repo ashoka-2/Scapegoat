@@ -8,6 +8,7 @@ import { useCart } from "../../Cart/Hooks/useCart";
 import { isColorAttribute } from "../../../utils/attributeUtils";
 import { useUserActivity, useDwellTracker } from "../Hooks/useUserActivity";
 import ProductCarousel from "../Components/ProductCarousel";
+import ProductCard from "../Components/ProductCard";
 import { motion } from "framer-motion";
 
 // Color name to Hex map for fallback swatches
@@ -136,6 +137,15 @@ const deriveVariantAttributes = (variant, productAttributes, prioritySelections 
   }
 
   return derived;
+};
+
+// Helper to adapt description HTML text colors dynamically so hardcoded white/black text adapts to active theme
+const adaptDescriptionHtmlToTheme = (rawHtml) => {
+  if (!rawHtml) return "";
+  return String(rawHtml)
+    .replace(/<font([^>]*)\scolor=["']?(#ffffff|#000000|#fff|#000|white|black|#131313|#0a0a0a|#18181b|#e5e2e1)["']?([^>]*)>/gi, '<font$1$3>')
+    .replace(/color:\s*(#ffffff|#000000|#fff|#000|white|black|rgb\(255,\s*255,\s*255\)|rgb\(0,\s*0,\s*0\)|#131313|#0a0a0a|#18181b|#e5e2e1);?/gi, "color: inherit;")
+    .replace(/background-color:\s*(#ffffff|#000000|#fff|#000|white|black|rgb\(255,\s*255,\s*255\)|rgb\(0,\s*0,\s*0\));?/gi, "");
 };
 
 const SingleProduct = () => {
@@ -833,8 +843,9 @@ const SingleProduct = () => {
               </div>
 
               {currentStock > 0 && currentStock <= 5 && (
-                <span className="text-xs font-extrabold text-amber-400 animate-pulse">
-                  ⚡ Only {currentStock} left in stock - order soon!
+                <span className="text-xs font-extrabold text-amber-400 animate-pulse flex items-center gap-1">
+                  <i className="ri-flashlight-fill text-amber-400" />
+                  <span>Only {currentStock} left in stock - order soon!</span>
                 </span>
               )}
             </div>
@@ -1040,9 +1051,10 @@ const SingleProduct = () => {
               type="button"
               onClick={handleBuyNow}
               disabled={isOutOfStock}
-              className="w-full py-4 rounded-2xl bg-foreground text-background font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer"
+              className="w-full py-4 rounded-2xl bg-foreground text-background font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
             >
-              ⚡ Buy Now
+              <i className="ri-flashlight-line text-sm" />
+              <span>Buy Now</span>
             </button>
           </div>
 
@@ -1092,8 +1104,8 @@ const SingleProduct = () => {
 
         {activeTab === "description" && (
           <div
-            dangerouslySetInnerHTML={{ __html: product.description || "No full description provided for this product." }}
-            className="prose prose-invert max-w-none text-xs sm:text-sm text-foreground/80 leading-relaxed space-y-4"
+            dangerouslySetInnerHTML={{ __html: adaptDescriptionHtmlToTheme(product.description || "No full description provided for this product.") }}
+            className="rich-description-render max-w-none text-xs sm:text-sm leading-relaxed space-y-4"
           />
         )}
 
@@ -1151,15 +1163,20 @@ const SingleProduct = () => {
         </div>
       )}
 
-      {/* ── 🤖 AI Similar / "You May Also Like" Vector Recommendation Slider ── */}
+      {/* ── AI Similar / "You May Also Like" Vector Recommendation Grid ── */}
       {similarProducts.length > 0 && (
         <div className="space-y-6 pt-6">
           <div className="flex items-center justify-between border-b border-border-theme pb-4">
             <div>
-              <h2 className="text-xl font-extrabold text-foreground flex items-center gap-2">
-                <span>🤖</span> AI Visual & Similar Recommendations
+              <span className="text-[10px] font-black tracking-[0.35em] uppercase text-accent mb-1 flex items-center gap-1.5">
+                <i className="ri-cpu-line text-sm text-accent" />
+                512-D VECTOR EMBEDDINGS
+              </span>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground flex items-center gap-2">
+                <i className="ri-sparkling-fill text-accent" />
+                AI Visual & Similar Recommendations
               </h2>
-              <p className="text-xs text-foreground/60">
+              <p className="text-xs text-foreground/60 mt-1 font-medium leading-relaxed">
                 Items matched using 512-dimensional visual CLIP vector embeddings.
               </p>
             </div>
@@ -1167,27 +1184,7 @@ const SingleProduct = () => {
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-6">
             {similarProducts.map((item) => (
-              <Link
-                key={item._id}
-                to={`/product/${item._id}`}
-                className="group bg-background border border-border-theme rounded-2xl overflow-hidden hover:border-accent/50 transition duration-300 shadow-sm flex flex-col justify-between"
-              >
-                <div className="w-full h-48 bg-surface overflow-hidden">
-                  <img
-                    src={item.images?.[0]?.url || "https://via.placeholder.com/300"}
-                    alt={item.title}
-                    className="w-full h-full object-cover group-hover:scale-105 transition duration-500"
-                  />
-                </div>
-                <div className="p-4 space-y-2">
-                  <h3 className="font-extrabold text-xs text-foreground group-hover:text-accent truncate">
-                    {item.title}
-                  </h3>
-                  <p className="text-xs font-black text-accent">
-                    ₹{(item.sellingPrice?.amount || item.maxPrice?.amount || 0).toLocaleString()}
-                  </p>
-                </div>
-              </Link>
+              <ProductCard key={item._id} product={item} />
             ))}
           </div>
         </div>

@@ -73,3 +73,22 @@ html, body {
   -ms-overflow-style: none;
   scrollbar-width: none;
 }
+
+/* Theme-Adaptive Rich Description Formatting */
+.rich-description-render {
+  color: var(--color-text) !important;
+}
+
+.rich-description-render p,
+.rich-description-render div,
+.rich-description-render span,
+.rich-description-render h1,
+.rich-description-render h2,
+.rich-description-render h3,
+.rich-description-render h4,
+.rich-description-render h5,
+.rich-description-render h6,
+.rich-description-render li,
+.rich-description-render font {
+  color: inherit;
+}

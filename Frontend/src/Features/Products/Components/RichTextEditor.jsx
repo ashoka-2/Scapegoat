@@ -140,8 +140,9 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
     applyInlineStyle("fontWeight", weight);
   };
 
-  // Default color options including White & Black
+  // Default color options including Auto (Theme Adaptive), White & Black
   const defaultColors = [
+    { color: "inherit", title: "Auto (Theme Adaptive)" },
     { color: "#ffffff", title: "White" },
     { color: "#000000", title: "Black" },
     { color: "#eab308", title: "Yellow" },
@@ -314,11 +315,24 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
             <button
               key={c.color}
               type="button"
-              onClick={() => execCmd("foreColor", c.color)}
+              onClick={() => {
+                if (c.color === "inherit") {
+                  applyInlineStyle("color", "inherit");
+                } else {
+                  execCmd("foreColor", c.color);
+                }
+              }}
               title={`Text Color: ${c.title}`}
-              className="w-3.5 h-3.5 rounded-full border border-border-theme hover:scale-125 transition cursor-pointer shadow-sm"
-              style={{ backgroundColor: c.color }}
-            />
+              className="w-3.5 h-3.5 rounded-full border border-border-theme hover:scale-125 transition cursor-pointer shadow-sm relative flex items-center justify-center overflow-hidden shrink-0"
+              style={{ backgroundColor: c.color === "inherit" ? "transparent" : c.color }}
+            >
+              {c.color === "inherit" && (
+                <div className="w-full h-full flex">
+                  <div className="w-1/2 h-full bg-white" />
+                  <div className="w-1/2 h-full bg-black" />
+                </div>
+              )}
+            </button>
           ))}
           {/* Custom Text Color Picker */}
           <label title="Pick Custom Text Color" className="w-4 h-4 rounded-full border border-border-theme overflow-hidden cursor-pointer relative flex items-center justify-center bg-gradient-to-tr from-indigo-500 via-pink-500 to-yellow-400 hover:scale-110 transition">
@@ -403,7 +417,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
           onBlur={handleInput}
           onPaste={handlePaste}
           placeholder={placeholder}
-          className="w-full min-h-[160px] max-h-[400px] overflow-y-auto p-4 bg-surface text-foreground text-sm outline-none focus:outline-none prose prose-invert max-w-none leading-relaxed"
+          className="w-full min-h-[160px] max-h-[400px] overflow-y-auto p-4 bg-surface text-foreground text-sm outline-none focus:outline-none rich-description-render max-w-none leading-relaxed"
           style={{ minHeight: "160px" }}
         />
       )}

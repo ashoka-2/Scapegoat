@@ -171,8 +171,13 @@ const LiveProductPreview = ({ formData, mainImages, mainAttributes, variantsList
                 Description & Story
               </h3>
               <div
-                dangerouslySetInnerHTML={{ __html: formData.description }}
-                className="text-xs text-foreground/80 leading-relaxed prose prose-invert max-w-none"
+                dangerouslySetInnerHTML={{
+                  __html: String(formData.description)
+                    .replace(/<font([^>]*)\scolor=["']?(#ffffff|#000000|#fff|#000|white|black|#131313|#0a0a0a|#18181b|#e5e2e1)["']?([^>]*)>/gi, '<font$1$3>')
+                    .replace(/color:\s*(#ffffff|#000000|#fff|#000|white|black|rgb\(255,\s*255,\s*255\)|rgb\(0,\s*0,\s*0\)|#131313|#0a0a0a|#18181b|#e5e2e1);?/gi, "color: inherit;")
+                    .replace(/background-color:\s*(#ffffff|#000000|#fff|#000|white|black|rgb\(255,\s*255,\s*255\)|rgb\(0,\s*0,\s*0\));?/gi, "")
+                }}
+                className="text-xs leading-relaxed rich-description-render max-w-none"
               />
             </div>
           )}
