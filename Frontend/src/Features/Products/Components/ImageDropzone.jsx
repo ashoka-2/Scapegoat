@@ -1,10 +1,13 @@
 import React, { useRef, useState } from "react";
+import { useDispatch } from "react-redux";
+import { addToast } from "../../../utils/toast.slice";
 
 /**
  * ImageDropzone Component (Remixicon Edition)
  * Drag & Drop photo uploader with HTML5 tile drag reordering and Remixicons.
  */
 const ImageDropzone = ({ images = [], setImages: setImagesProp, onImagesChange, maxImages = 7 }) => {
+  const dispatch = useDispatch();
   const fileInputRef = useRef(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadMode, setUploadMode] = useState("file"); // 'file' | 'url'
@@ -25,7 +28,7 @@ const ImageDropzone = ({ images = [], setImages: setImagesProp, onImagesChange, 
 
     updateImages((prev) => {
       if (prev.length >= maxImages) {
-        alert(`Maximum ${maxImages} images allowed per product.`);
+        dispatch(addToast({ message: `Maximum ${maxImages} images allowed per product.`, type: "warning" }));
         return prev;
       }
 
@@ -61,7 +64,7 @@ const ImageDropzone = ({ images = [], setImages: setImagesProp, onImagesChange, 
     updateImages((prev) => {
       if (prev.some((img) => (img.url || img.preview) === cleanUrl)) return prev;
       if (prev.length >= maxImages) {
-        alert(`Maximum ${maxImages} images allowed per product.`);
+        dispatch(addToast({ message: `Maximum ${maxImages} images allowed per product.`, type: "warning" }));
         return prev;
       }
       const newImage = {

@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
-import { useProduct } from "../../Products/Hooks/useProduct";
+import { useDispatch } from "react-redux";
+import { addToast } from "../../../utils/toast.slice";
 import Modal from "../../../Components/Modal";
+import { useProduct } from "../../Products/Hooks/useProduct";
 
 /**
  * SellerCatalog Component (WooCommerce Table Style + Apple/Shopify Polish)
  * Multi-select bulk actions, filters, quick edit, duplicate, trash, restore, and table grid.
  */
 const SellerCatalog = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const { sellerProducts, loading, handleFetchSellerProducts, handleDeleteProduct, handleUpdateProduct } = useProduct();
@@ -81,11 +84,11 @@ const SellerCatalog = () => {
   // Bulk Actions Apply Handler
   const handleApplyBulkAction = async () => {
     if (!bulkAction) {
-      alert("Please select a bulk action from the dropdown.");
+      dispatch(addToast({ message: "Please select a bulk action from the dropdown.", type: "info" }));
       return;
     }
     if (selectedProductIds.length === 0) {
-      alert("Please select at least one product using the checkboxes.");
+      dispatch(addToast({ message: "Please select at least one product using the checkboxes.", type: "info" }));
       return;
     }
 

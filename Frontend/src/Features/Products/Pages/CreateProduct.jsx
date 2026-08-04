@@ -15,6 +15,8 @@ import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/att
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
 import RichTextEditor from "../Components/RichTextEditor";
+import { useDispatch } from "react-redux";
+import { addToast } from "../../../utils/toast.slice";
 
 const inputClass =
   "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-2.5 text-xs text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25 font-medium";
@@ -23,6 +25,7 @@ const selectClass =
   "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-2.5 text-xs text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 cursor-pointer font-medium";
 
 const CreateProduct = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const { id: routeId } = useParams();
   const [searchParams] = useSearchParams();
@@ -451,7 +454,7 @@ const CreateProduct = () => {
   // Explicit Button Action: Generate Variations from Main Product Attributes
   const handleGenerateVariationsClick = () => {
     if (!mainAttributes || mainAttributes.length === 0) {
-      alert("Please define at least 1 Main Attribute (e.g., Color: Red, Blue or Size: S, M) before generating variations!");
+      dispatch(addToast({ message: "Please define at least 1 Main Attribute before generating variations!", type: "warning" }));
       return;
     }
 
@@ -495,7 +498,7 @@ const CreateProduct = () => {
 
     setVariantsList(generated);
     logAuditAction("Generated Variations", `Generated ${generated.length} variation combinations`);
-    alert(`🎉 Successfully generated ${generated.length} variations!`);
+    dispatch(addToast({ message: `🎉 Successfully generated ${generated.length} variations!`, type: "success" }));
   };
 
   // Apply Attribute-Specific Price Changes
@@ -569,7 +572,7 @@ const CreateProduct = () => {
   // Add a blank new variant with first available attribute combo not already used
   const addNewVariant = () => {
     if (!mainAttributes || mainAttributes.length === 0) {
-      alert("Please define Main Attributes first (under the Attributes tab).");
+      dispatch(addToast({ message: "Please define Main Attributes first (under the Attributes tab).", type: "warning" }));
       return;
     }
 
@@ -599,7 +602,7 @@ const CreateProduct = () => {
     });
 
     if (!availableCombo) {
-      alert("All possible variations already exist!");
+      dispatch(addToast({ message: "All possible variations already exist!", type: "info" }));
       return;
     }
 
@@ -673,7 +676,7 @@ const CreateProduct = () => {
   const handleSuggestCatalogDescription = async () => {
     const title = formData.title.trim();
     if (!title) {
-      alert("Please enter a Product Title first!");
+      dispatch(addToast({ message: "Please enter a Product Title first!", type: "warning" }));
       return;
     }
 
@@ -694,11 +697,11 @@ const CreateProduct = () => {
       } else {
         setAiSuggestion("");
         setMatchedCatalogTitle("");
-        alert("No catalog description match found for this title/category in database.");
+        dispatch(addToast({ message: "No catalog description match found for this title/category in database.", type: "info" }));
       }
     } catch (err) {
       console.warn("Backend suggest description error:", err?.message);
-      alert("Failed to search catalog description. Please check server connection.");
+      dispatch(addToast({ message: "Failed to search catalog description. Please check server connection.", type: "error" }));
     } finally {
       setIsAiLoading(false);
     }
@@ -729,7 +732,7 @@ const CreateProduct = () => {
     const allImages = [...mainImages, ...galleryImages];
 
     if (finalStatus === "published" && allImages.length === 0) {
-      alert("At least 1 product image is required to publish.");
+      dispatch(addToast({ message: "At least 1 product image is required to publish.", type: "warning" }));
       return;
     }
 

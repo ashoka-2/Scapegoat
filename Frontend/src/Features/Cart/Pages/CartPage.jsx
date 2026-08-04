@@ -2,6 +2,8 @@ import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../Hooks/useCart";
+import { useDispatch } from "react-redux";
+import { addToast } from "../../../utils/toast.slice";
 import { getCartItemImage } from "../State/cart.slice";
 import { useUserActivity } from "../../Products/Hooks/useUserActivity";
 import ProductCarousel from "../../Products/Components/ProductCarousel";
@@ -12,6 +14,7 @@ import { DeleteBtn } from "../../../Components/Buttons";
  * Order item table/cards, bulk clear, summary card, coupon promo code, and checkout.
  */
 const CartPage = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
   const {
@@ -324,7 +327,7 @@ const getItemVariantImage = (item) => {
                   />
                   <button
                     type="button"
-                    onClick={() => alert("Promo code feature applied at final step.")}
+                    onClick={() => dispatch(addToast({ message: "Promo code feature applied at checkout.", type: "info" }))}
                     className="px-4 py-2 rounded-xl bg-accent/10 border border-accent/30 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                   >
                     Apply
@@ -370,7 +373,7 @@ const getItemVariantImage = (item) => {
                   <button
                     type="button"
                     disabled={hasOutOfStock}
-                    onClick={() => alert("Checkout initiated!")}
+                    onClick={() => dispatch(addToast({ message: "Checkout process initiated!", type: "success" }))}
                     className={`w-full py-3.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-1.5 ${
                       hasOutOfStock
                         ? "bg-foreground/10 text-foreground/40 border border-border-theme cursor-not-allowed"

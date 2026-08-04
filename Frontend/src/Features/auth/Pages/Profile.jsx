@@ -2,12 +2,15 @@ import React, { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../Hooks/useAuth";
+import { useDispatch } from "react-redux";
+import { addToast } from "../../../utils/toast.slice";
 import Modal from "../../../Components/Modal";
 
 const inputClass =
   "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 text-sm";
 
 const Profile = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useSelector((state) => state.auth);
   const { handleLogout, handleUpdateProfile, handleChangePassword } = useAuth();
@@ -73,7 +76,7 @@ const Profile = () => {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (passData.newPassword !== passData.confirmPassword) {
-      alert("New password and confirm password do not match!");
+      dispatch(addToast({ message: "New password and confirm password do not match!", type: "error" }));
       return;
     }
     const res = await handleChangePassword({
