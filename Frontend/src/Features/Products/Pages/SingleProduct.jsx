@@ -1091,9 +1091,10 @@ const SingleProduct = () => {
         </div>
 
         {activeTab === "description" && (
-          <div className="prose prose-invert max-w-none text-xs sm:text-sm text-foreground/80 leading-relaxed space-y-4 whitespace-pre-line">
-            {product.description || "No full description provided for this product."}
-          </div>
+          <div
+            dangerouslySetInnerHTML={{ __html: product.description || "No full description provided for this product." }}
+            className="prose prose-invert max-w-none text-xs sm:text-sm text-foreground/80 leading-relaxed space-y-4"
+          />
         )}
 
         {activeTab === "specs" && (

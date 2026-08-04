@@ -14,6 +14,7 @@ import Modal from "../../../Components/Modal";
 import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/attributeUtils";
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
+import RichTextEditor from "../Components/RichTextEditor";
 
 const inputClass =
   "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-2.5 text-xs text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25 font-medium";
@@ -972,13 +973,10 @@ const CreateProduct = () => {
             </FormField>
 
             <FormField label="Full Detailed Description" required error={formErrors.description}>
-              <textarea
-                name="description"
-                rows={6}
+              <RichTextEditor
                 value={formData.description}
-                onChange={handleChange}
+                onChange={(newVal) => setFormData((prev) => ({ ...prev, description: newVal }))}
                 placeholder="Enter detailed product description, specifications, washing instructions, features..."
-                className={`${inputClass} resize-y font-sans`}
               />
             </FormField>
 

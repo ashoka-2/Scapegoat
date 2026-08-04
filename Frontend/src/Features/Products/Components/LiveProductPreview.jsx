@@ -170,9 +170,10 @@ const LiveProductPreview = ({ formData, mainImages, mainAttributes, variantsList
               <h3 className="text-xs font-bold uppercase tracking-wider text-foreground/70">
                 Description & Story
               </h3>
-              <p className="text-xs text-foreground/80 leading-relaxed whitespace-pre-line">
-                {formData.description}
-              </p>
+              <div
+                dangerouslySetInnerHTML={{ __html: formData.description }}
+                className="text-xs text-foreground/80 leading-relaxed prose prose-invert max-w-none"
+              />
             </div>
           )}
         </div>
