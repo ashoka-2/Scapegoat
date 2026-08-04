@@ -67,13 +67,40 @@ export const useCart = () => {
     if (!product) return;
 
     const prodId = product._id || product.id || product;
-    const finalVariantId = variantId || (product.variants?.length > 0 ? product.variants[0]?._id : null);
-    const targetVariant = finalVariantId ? product.variants?.find((v) => String(v._id) === String(finalVariantId)) : null;
+
+    // Resolve target variant by variantId or by matching selectedAttributes
+    let targetVariant = null;
+    if (variantId && product.variants?.length > 0) {
+      targetVariant = product.variants.find((v) => String(v._id) === String(variantId));
+    } else if (selectedAttributes && product.variants?.length > 0) {
+      targetVariant = product.variants.find((v) => {
+        const rawAttrs = v.attributes instanceof Map
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+        return Object.entries(selectedAttributes).every(([k, val]) => {
+          const vVal = rawAttrs[k] || rawAttrs[k.toLowerCase()];
+          if (!vVal) return true;
+          return String(vVal).trim().toLowerCase() === String(val).trim().toLowerCase();
+        });
+      }) || product.variants[0];
+    }
+
+    const finalVariantId = targetVariant?._id || variantId || null;
     const maxStock = targetVariant?.stock ?? product?.stock ?? 999;
+
+    const targetAttrsStr = JSON.stringify(selectedAttributes || {});
 
     const existingItem = items.find((item) => {
       const itemProdId = item.product?._id || item.product?.id || item.product;
-      return String(itemProdId) === String(prodId);
+      if (String(itemProdId) !== String(prodId)) return false;
+
+      const itemVarId = item.variant?._id || item.variantId;
+      if (finalVariantId || itemVarId) {
+        if (String(itemVarId) !== String(finalVariantId)) return false;
+      }
+
+      const itemAttrsStr = JSON.stringify(item.selectedAttributes || {});
+      return itemAttrsStr === targetAttrsStr;
     });
 
     const currentQtyInCart = existingItem?.quantity || 0;

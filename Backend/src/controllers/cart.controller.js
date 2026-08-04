@@ -108,12 +108,19 @@ export const addToCart = async (req, res) => {
       cart = await cartModel.create({ user: req.user._id, items: [] });
     }
 
-    // Check if matching item is already in cart
-    const itemIndex = cart.items.findIndex(
-      (item) =>
-        item.product.toString() === productId &&
-        (variantId ? item.variantId?.toString() === variantId : !item.variantId)
-    );
+    // Check if matching item is already in cart with same product, variant, and attributes
+    const targetVarId = variantId ? String(variantId) : null;
+    const targetAttrsStr = JSON.stringify(selectedAttributes || {});
+
+    const itemIndex = cart.items.findIndex((item) => {
+      const sameProduct = String(item.product) === String(productId);
+      const itemVarId = item.variantId ? String(item.variantId) : null;
+      const sameVariant = itemVarId === targetVarId;
+      const itemAttrsStr = JSON.stringify(item.selectedAttributes || {});
+      const sameAttrs = itemAttrsStr === targetAttrsStr;
+
+      return sameProduct && sameVariant && sameAttrs;
+    });
 
     if (itemIndex > -1) {
       const newQty = cart.items[itemIndex].quantity + parsedQty;

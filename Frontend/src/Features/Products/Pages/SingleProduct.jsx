@@ -8,6 +8,7 @@ import { useCart } from "../../Cart/Hooks/useCart";
 import { isColorAttribute } from "../../../utils/attributeUtils";
 import { useUserActivity, useDwellTracker } from "../Hooks/useUserActivity";
 import ProductCarousel from "../Components/ProductCarousel";
+import { motion } from "framer-motion";
 
 // Color name to Hex map for fallback swatches
 const getColorHex = (colorName) => {
@@ -195,6 +196,11 @@ const SingleProduct = () => {
   useEffect(() => {
     let isMounted = true;
     if (targetIdentifier) {
+      // Reset state immediately on new product load to avoid stale data from previous product
+      setSelectedVariant(null);
+      setSelectedAttributes({});
+      setQuantity(1);
+
       handleFetchSingleProduct(targetIdentifier).then((res) => {
         if (isMounted && res) {
           setProduct(res);
@@ -217,10 +223,24 @@ const SingleProduct = () => {
             }
           }
 
+          setSelectedVariant(matchedVar);
+
           if (matchedVar) {
-            setSelectedVariant(matchedVar);
             const derivedAttrs = deriveVariantAttributes(matchedVar, res.attributes);
             setSelectedAttributes(derivedAttrs);
+          } else {
+            // Product has no variants: set default selected attributes from product.attributes
+            const defaultAttrs = {};
+            if (Array.isArray(res.attributes)) {
+              res.attributes.forEach((attr) => {
+                const name = attr.name || attr.key;
+                const opts = attr.options || attr.values || [];
+                if (name && opts.length > 0) {
+                  defaultAttrs[name] = opts[0];
+                }
+              });
+            }
+            setSelectedAttributes(defaultAttrs);
           }
         }
       });
@@ -556,10 +576,10 @@ const SingleProduct = () => {
 
   // Stock Calculation
   const currentStock = useMemo(() => {
-    if (selectedVariant && selectedVariant.stock !== undefined) {
+    if (selectedVariant && typeof selectedVariant.stock === "number") {
       return selectedVariant.stock;
     }
-    return product?.stock !== undefined ? product.stock : 10;
+    return typeof product?.stock === "number" ? product.stock : 0;
   }, [selectedVariant, product]);
 
   const isOutOfStock = currentStock <= 0 || product?.stockStatus === "outofstock";
@@ -573,11 +593,16 @@ const SingleProduct = () => {
   };
 
   const { handleAddToCart: addToCartFn } = useCart();
+  const [isAddingToCart, setIsAddingToCart] = useState(false);
 
-  // Add to Cart Action
+  // Add to Cart Action with Product Drop Animation
   const handleAddToCart = async () => {
-    if (isOutOfStock) return;
+    if (isOutOfStock || isAddingToCart) return;
+    setIsAddingToCart(true);
     await addToCartFn(product, quantity, selectedVariant?._id, selectedAttributes);
+    setTimeout(() => {
+      setIsAddingToCart(false);
+    }, 1600);
   };
 
   // Buy Now Action
@@ -957,14 +982,60 @@ const SingleProduct = () => {
 
           {/* ⚡ Action Buttons (Add to Cart & Buy Now) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
-            <button
+            <motion.button
               type="button"
               onClick={handleAddToCart}
               disabled={isOutOfStock}
-              className="w-full py-4 rounded-2xl bg-accent text-accent-content font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer"
+              whileHover={!isOutOfStock && !isAddingToCart ? { scale: 1.02 } : {}}
+              whileTap={!isOutOfStock && !isAddingToCart ? { scale: 0.98 } : {}}
+              className={`relative w-full py-4 rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-lg transition overflow-hidden cursor-pointer flex items-center justify-center ${
+                isOutOfStock
+                  ? "bg-foreground/20 text-foreground/40 border border-border-theme cursor-not-allowed shadow-none"
+                  : isAddingToCart
+                  ? "bg-emerald-500 text-white shadow-emerald-500/25"
+                  : "bg-accent text-accent-content shadow-accent/25 hover:opacity-95"
+              }`}
             >
-              🛒 Add to Cart
-            </button>
+              {isAddingToCart ? (
+                <div className="flex items-center gap-2.5 z-10">
+                  <div className="relative w-6 h-6 flex items-center justify-center">
+                    <motion.i
+                      initial={{ scale: 1 }}
+                      animate={{ scale: [1, 1.3, 0.9, 1.1, 1], rotate: [0, -10, 10, -5, 0] }}
+                      transition={{ duration: 0.6, delay: 0.3, ease: "easeOut" }}
+                      className="ri-shopping-bag-3-fill text-lg text-white"
+                    />
+                    <motion.div
+                      initial={{ y: -26, x: -10, opacity: 0, scale: 0.7, rotate: -20 }}
+                      animate={{
+                        y: [-26, -8, 2],
+                        x: [-10, -3, 0],
+                        opacity: [0, 1, 0],
+                        scale: [0.7, 1, 0.4],
+                        rotate: [-20, 0, 15],
+                      }}
+                      transition={{ duration: 0.45, ease: "easeIn" }}
+                      className="absolute text-xs"
+                    >
+                      👟
+                    </motion.div>
+                  </div>
+                  <motion.span
+                    initial={{ opacity: 0, y: 6 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="font-black text-xs tracking-wider text-white"
+                  >
+                    ✓ Added to Bag!
+                  </motion.span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 z-10">
+                  <i className="ri-shopping-bag-line text-base" />
+                  <span>{isOutOfStock ? "Out of Stock" : "Add to Cart"}</span>
+                </div>
+              )}
+            </motion.button>
             <button
               type="button"
               onClick={handleBuyNow}
