@@ -7,6 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { motion, useAnimation } from "framer-motion";
 import { addToast } from "../../../utils/toast.slice";
 import { useCart } from "../../Cart/Hooks/useCart";
+import { useWishlist } from "../../Wishlist/Hooks/useWishlist";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -19,7 +20,6 @@ const ProductCard = ({ product }) => {
 
   // States for the Draggable Cart
   const [isDragged, setIsDragged] = useState(false);
-  const [isWishlisted, setIsWishlisted] = useState(false);
   const controls = useAnimation();
 
   // Ensure arrow starts at left: 0 on mount
@@ -74,21 +74,23 @@ const ProductCard = ({ product }) => {
     }
   };
 
-  const handleToggleWishlist = (e) => {
+  const { toggleWishlist } = useWishlist();
+  const wishlist = useSelector((state) => state.wishlist?.wishlist);
+  const isWishlisted = Boolean(
+    wishlist?.products?.some((p) => {
+      const id = typeof p === "object" ? p?._id || p?.id : p;
+      return String(id) === String(product?._id);
+    })
+  );
+
+  const handleToggleWishlist = async (e) => {
     e.stopPropagation();
     if (!user) {
       dispatch(addToast({ message: "Please log in to save to wishlist", type: "info" }));
       navigate("/login");
       return;
     }
-    const nextState = !isWishlisted;
-    setIsWishlisted(nextState);
-    dispatch(
-      addToast({
-        message: nextState ? "❤️ Saved to wishlist!" : "Removed from wishlist",
-        type: nextState ? "success" : "info",
-      })
-    );
+    await toggleWishlist(product._id);
   };
 
   const handleDragEnd = (event, info) => {
@@ -168,9 +170,13 @@ const ProductCard = ({ product }) => {
 
           <button
             onClick={handleToggleWishlist}
-            className="w-7 h-7 rounded-full bg-background/80 hover:bg-background backdrop-blur-md flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all text-red-500"
+            className={`w-7 h-7 rounded-full backdrop-blur-md flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all ${
+              isWishlisted
+                ? "bg-red-500/15 text-red-500 border border-red-500/30"
+                : "bg-background/80 hover:bg-background text-foreground/45"
+            }`}
           >
-            <i className={isWishlisted ? "ri-heart-fill text-xs" : "ri-heart-line text-xs text-foreground/45"} />
+            <i className={isWishlisted ? "ri-heart-fill text-xs text-red-500" : "ri-heart-line text-xs"} />
           </button>
         </div>
       </div>

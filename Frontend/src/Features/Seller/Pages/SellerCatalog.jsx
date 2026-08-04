@@ -5,6 +5,7 @@ import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 import Modal from "../../../Components/Modal";
 import { useProduct } from "../../Products/Hooks/useProduct";
+import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
 
 /**
  * SellerCatalog Component (WooCommerce Table Style + Apple/Shopify Polish)
@@ -278,11 +279,7 @@ const SellerCatalog = () => {
 
       {/* Products Table */}
       <div className="bg-surface border border-border-theme rounded-2xl overflow-hidden shadow-sm">
-        {loading ? (
-          <div className="p-12 text-center text-xs font-bold text-foreground/50 animate-pulse">
-            Loading catalog products...
-          </div>
-        ) : filteredProducts.length === 0 ? (
+        {filteredProducts.length === 0 && !loading ? (
           <div className="p-12 text-center space-y-3">
             <p className="text-sm font-semibold text-foreground/60">No products match your filter.</p>
             <Link
@@ -312,11 +309,13 @@ const SellerCatalog = () => {
                   <th className="p-4">Price</th>
                   <th className="p-4">Categories</th>
                   <th className="p-4">Tags</th>
-                  <th className="p-4 text-right">Date</th>
                 </tr>
               </thead>
 
-              <tbody className="divide-y divide-border-theme/40">
+              {loading ? (
+                <SellerTableSkeleton rows={6} />
+              ) : (
+                <tbody className="divide-y divide-border-theme/40">
                 {filteredProducts.map((prod) => {
                   const isChecked = selectedProductIds.includes(prod._id);
                   const imgUrl = prod.images?.[0]?.url || prod.images?.[0] || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
@@ -464,6 +463,7 @@ const SellerCatalog = () => {
                   );
                 })}
               </tbody>
+              )}
             </table>
           </div>
         )}

@@ -156,13 +156,23 @@ export const toggleWishlist = async (req, res) => {
 
     await wishlist.save();
 
+    const populatedWishlist = await wishlistModel.findById(wishlist._id).populate({
+      path: "products",
+      select: "title slug maxPrice sellingPrice images stockStatus averageRating category brand",
+      populate: [
+        { path: "category", select: "name slug" },
+        { path: "brand", select: "name slug image" },
+      ],
+    });
+
     emitToUser(req.user._id, "wishlist_updated", { isWishlisted, productId });
 
     return res.status(200).json({
       success: true,
       isWishlisted,
       message: isWishlisted ? "Added to wishlist" : "Removed from wishlist",
-      count: wishlist.products.length,
+      count: populatedWishlist.products.length,
+      data: populatedWishlist,
     });
   } catch (error) {
     return res.status(500).json({

@@ -12,6 +12,7 @@ import socket from "../utils/socket.js";
 import { useDispatch } from "react-redux";
 import { getAllProductsApi } from "../Features/Products/Services/product.api.js";
 import { setProducts } from "../Features/Products/State/product.slice.js";
+import { useWishlist } from "../Features/Wishlist/Hooks/useWishlist.js";
 
 const STYLE_ID = "theme-transition-style";
 
@@ -19,6 +20,13 @@ const MainLayout = () => {
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
+  const { getWishlist } = useWishlist();
+
+  useEffect(() => {
+    if (user) {
+      getWishlist();
+    }
+  }, [user]);
 
   useEffect(() => {
     const handleLiveProductUpdate = async (data) => {

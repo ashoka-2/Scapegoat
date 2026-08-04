@@ -7,6 +7,7 @@ import { addToast } from "../../../utils/toast.slice";
 import { getCartItemImage } from "../State/cart.slice";
 import { useUserActivity } from "../../Products/Hooks/useUserActivity";
 import ProductCarousel from "../../Products/Components/ProductCarousel";
+import CartItemSkeleton from "../Components/Skeletons/CartItemSkeleton";
 import { DeleteBtn } from "../../../Components/Buttons";
 
 /**
@@ -151,9 +152,7 @@ const getItemVariantImage = (item) => {
       </div>
 
       {loading && !cart ? (
-        <div className="py-16 text-center text-xs font-bold text-foreground/50 animate-pulse">
-          Loading your shopping cart...
-        </div>
+        <CartItemSkeleton count={3} />
       ) : items.length === 0 ? (
         <div className="py-16 text-center bg-surface border border-border-theme rounded-2xl p-8 space-y-4">
           <div className="w-20 h-20 rounded-full bg-accent/10 text-accent flex items-center justify-center text-4xl mx-auto">

@@ -32,6 +32,8 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const profileDropdownRef = useRef();
 
   const { user } = useSelector((state) => state.auth);
+  const wishlist = useSelector((state) => state.wishlist?.wishlist);
+  const wishlistCount = wishlist?.products?.length || 0;
   const { handleLogout } = useAuth();
   const { totalItems, handleToggleDrawer } = useCart();
 
@@ -332,6 +334,20 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
           >
             {isDarkMode ? <i className="ri-sun-fill text-xl"></i> : <i className="ri-moon-fill text-xl"></i>}
           </button>
+
+          {/* Wishlist Link Button */}
+          <Link
+            to="/wishlist"
+            className="relative hidden md:flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30 text-foreground hover:text-accent transition-all cursor-pointer"
+            title="My Wishlist"
+          >
+            <i className="ri-heart-line text-xl" />
+            {wishlistCount > 0 && (
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
+                {wishlistCount}
+              </span>
+            )}
+          </Link>
 
           {/* User Profile Menu */}
           {user ? (

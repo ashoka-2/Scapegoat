@@ -4,6 +4,7 @@ import { useSearchParams } from "react-router-dom";
 import { useProduct } from "../Hooks/useProduct";
 import { useUserActivity } from "../Hooks/useUserActivity";
 import ProductCard from "../Components/ProductCard";
+import ProductGridSkeleton from "../Components/Skeletons/ProductGridSkeleton";
 import { useDebounce } from "../../../utils/timingUtils";
 import { useInfiniteScroll } from "../../../utils/useInfiniteScroll";
 import { aiSearchProductsApi } from "../Services/product.api";
@@ -634,14 +635,7 @@ const Shop = () => {
         {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">
           {loading && (!allProducts || allProducts.length === 0) ? (
-            <div className="min-h-[400px] flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-                <p className="text-xs font-bold tracking-[0.3em] uppercase text-foreground/50">
-                  Loading Products...
-                </p>
-              </div>
-            </div>
+            <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">

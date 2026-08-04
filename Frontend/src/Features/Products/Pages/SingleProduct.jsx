@@ -3,12 +3,14 @@ import { useParams, useSearchParams, useNavigate, Link } from "react-router-dom"
 import { useProduct } from "../Hooks/useProduct";
 import { getSimilarProductsApi } from "../Services/product.api";
 import { addToast } from "../../../utils/toast.slice";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useCart } from "../../Cart/Hooks/useCart";
+import { useWishlist } from "../../Wishlist/Hooks/useWishlist";
 import { isColorAttribute } from "../../../utils/attributeUtils";
 import { useUserActivity, useDwellTracker } from "../Hooks/useUserActivity";
 import ProductCarousel from "../Components/ProductCarousel";
 import ProductCard from "../Components/ProductCard";
+import SingleProductSkeleton from "../Components/Skeletons/SingleProductSkeleton";
 import { motion } from "framer-motion";
 
 // Color name to Hex map for fallback swatches
@@ -622,22 +624,32 @@ const SingleProduct = () => {
     navigate("/cart");
   };
 
+  // Wishlist Action
+  const user = useSelector((state) => state.auth?.user);
+  const { toggleWishlist } = useWishlist();
+  const wishlist = useSelector((state) => state.wishlist?.wishlist);
+  const isWishlisted = Boolean(
+    wishlist?.products?.some((p) => {
+      const id = typeof p === "object" ? p?._id || p?.id : p;
+      return String(id) === String(product?._id);
+    })
+  );
+
+  const handleToggleWishlist = async (e) => {
+    e?.stopPropagation?.();
+    if (!user) {
+      dispatch(addToast({ message: "Please log in to save to wishlist", type: "info" }));
+      navigate("/login");
+      return;
+    }
+    if (product?._id) {
+      await toggleWishlist(product._id);
+    }
+  };
+
   // Loading Skeleton State
   if (loading && !product) {
-    return (
-      <div className="max-w-7xl mx-auto px-4 py-12 space-y-8 animate-pulse">
-        <div className="h-6 bg-surface rounded-xl w-1/4"></div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-          <div className="h-[480px] bg-surface rounded-3xl"></div>
-          <div className="space-y-6">
-            <div className="h-10 bg-surface rounded-xl w-3/4"></div>
-            <div className="h-6 bg-surface rounded-xl w-1/3"></div>
-            <div className="h-24 bg-surface rounded-2xl w-full"></div>
-            <div className="h-12 bg-surface rounded-xl w-1/2"></div>
-          </div>
-        </div>
-      </div>
-    );
+    return <SingleProductSkeleton />;
   }
 
   if (error || (!loading && !product)) {
@@ -706,18 +718,29 @@ const SingleProduct = () => {
               }
             />
 
-            {/* Badges Overlay (Auto-Adjusting Width Discount Badge) */}
-            <div className="absolute top-4 left-4 flex flex-col gap-2 z-10 items-start max-w-[80%]">
-              {discountPercent > 0 && (
-                <span className="w-fit inline-flex items-center px-3.5 py-1.5 rounded-full bg-accent text-accent-content text-xs font-black tracking-wider uppercase shadow-md whitespace-nowrap">
-                  -{discountPercent}% OFF
-                </span>
-              )}
-              {/* {selectedAttributes && (
-                <span className="w-fit inline-flex items-center px-3 py-1 rounded-full bg-background/80 backdrop-blur border border-border-theme text-foreground text-[10px] font-extrabold uppercase shadow truncate max-w-full">
-                  {Object.entries(selectedAttributes).map(([k, v]) => `${k}: ${v}`).join(" • ")}
-                </span>
-              )} */}
+            {/* Badges & Wishlist Overlay */}
+            <div className="absolute top-4 left-4 right-4 flex justify-between items-start z-10 pointer-events-none">
+              <div className="flex flex-col gap-2 items-start max-w-[80%] pointer-events-auto">
+                {discountPercent > 0 && (
+                  <span className="w-fit inline-flex items-center px-3.5 py-1.5 rounded-full bg-accent text-accent-content text-xs font-black tracking-wider uppercase shadow-md whitespace-nowrap">
+                    -{discountPercent}% OFF
+                  </span>
+                )}
+              </div>
+
+              {/* Wishlist Heart Button Overlay */}
+              <button
+                type="button"
+                onClick={handleToggleWishlist}
+                className={`w-10 h-10 rounded-full backdrop-blur-md flex items-center justify-center shadow-lg hover:scale-110 active:scale-95 transition-all pointer-events-auto cursor-pointer ${
+                  isWishlisted
+                    ? "bg-red-500/20 text-red-500 border border-red-500/40"
+                    : "bg-background/80 hover:bg-background text-foreground/60"
+                }`}
+                title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+              >
+                <i className={isWishlisted ? "ri-heart-fill text-lg text-red-500" : "ri-heart-line text-lg"} />
+              </button>
             </div>
           </div>
 
@@ -991,15 +1014,15 @@ const SingleProduct = () => {
 
 
 
-          {/* ⚡ Action Buttons (Add to Cart & Buy Now) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">
+          {/* ⚡ Action Buttons (Add to Cart, Buy Now & Wishlist) */}
+          <div className="flex flex-col sm:flex-row gap-3 pt-4">
             <motion.button
               type="button"
               onClick={handleAddToCart}
               disabled={isOutOfStock}
               whileHover={!isOutOfStock && !isAddingToCart ? { scale: 1.02 } : {}}
               whileTap={!isOutOfStock && !isAddingToCart ? { scale: 0.98 } : {}}
-              className={`relative w-full py-4 rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-lg transition overflow-hidden cursor-pointer flex items-center justify-center ${
+              className={`relative flex-1 py-4 rounded-2xl font-extrabold text-xs uppercase tracking-wider shadow-lg transition overflow-hidden cursor-pointer flex items-center justify-center ${
                 isOutOfStock
                   ? "bg-foreground/20 text-foreground/40 border border-border-theme cursor-not-allowed shadow-none"
                   : isAddingToCart
@@ -1047,14 +1070,32 @@ const SingleProduct = () => {
                 </div>
               )}
             </motion.button>
+
             <button
               type="button"
               onClick={handleBuyNow}
               disabled={isOutOfStock}
-              className="w-full py-4 rounded-2xl bg-foreground text-background font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
+              className="flex-1 py-4 rounded-2xl bg-foreground text-background font-extrabold text-xs uppercase tracking-wider shadow-lg hover:opacity-90 transition transform hover:-translate-y-0.5 disabled:opacity-50 cursor-pointer flex items-center justify-center gap-1.5"
             >
               <i className="ri-flashlight-line text-sm" />
               <span>Buy Now</span>
+            </button>
+
+            {/* Wishlist Button */}
+            <button
+              type="button"
+              onClick={handleToggleWishlist}
+              className={`py-4 px-4 sm:w-14 h-14 rounded-2xl flex items-center justify-center border transition shadow-md hover:scale-105 active:scale-95 cursor-pointer shrink-0 ${
+                isWishlisted
+                  ? "bg-red-500/15 border-red-500/40 text-red-500"
+                  : "bg-surface border-border-theme hover:border-accent/40 text-foreground/70"
+              }`}
+              title={isWishlisted ? "Remove from Wishlist" : "Save to Wishlist"}
+            >
+              <i className={isWishlisted ? "ri-heart-fill text-xl text-red-500" : "ri-heart-line text-xl"} />
+              <span className="sm:hidden text-xs font-bold uppercase tracking-wider ml-2">
+                {isWishlisted ? "Saved in Wishlist" : "Add to Wishlist"}
+              </span>
             </button>
           </div>
 

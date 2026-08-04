@@ -18,6 +18,7 @@ import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
 import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
 import CartPage from "../Features/Cart/Pages/CartPage.jsx";
+import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 
 export const routes = createBrowserRouter([
   {
@@ -61,6 +62,14 @@ export const routes = createBrowserRouter([
         element: (
           <Protected>
             <CartPage />
+          </Protected>
+        ),
+      },
+      {
+        path: "wishlist",
+        element: (
+          <Protected>
+            <Wishlist />
           </Protected>
         ),
       },

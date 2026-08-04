@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../Features/Cart/Hooks/useCart";
 import { getCartItemImage } from "../Features/Cart/State/cart.slice";
 import { useUserActivity } from "../Features/Products/Hooks/useUserActivity";
+import CartItemSkeleton from "../Features/Cart/Components/Skeletons/CartItemSkeleton";
 
 /**
  * CartDrawer Component (Snitch Style + Apple/Shopify Polish)
@@ -153,9 +154,7 @@ const getItemVariantImage = (item) => {
             {/* Cart Items List */}
             <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
               {loading && !cart ? (
-                <div className="h-full flex items-center justify-center">
-                  <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-                </div>
+                <CartItemSkeleton count={3} />
               ) : items.length > 0 ? (
                 items.map((item, idx) => {
                   const prod = item.product || {};

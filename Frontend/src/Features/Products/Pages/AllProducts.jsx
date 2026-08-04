@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useProduct } from "../Hooks/useProduct";
 import { useUserActivity } from "../Hooks/useUserActivity";
 import ProductCarousel from "../Components/ProductCarousel";
+import ProductCarouselSkeleton from "../Components/Skeletons/ProductCarouselSkeleton";
 
 const AllProducts = () => {
   const navigate = useNavigate();
@@ -29,15 +30,9 @@ const AllProducts = () => {
 
   if (loading && (!products || products.length === 0)) {
     return (
-      <section className="w-full py-16 px-4 max-w-[1350px] mx-auto">
-        <div className="flex items-center justify-center min-h-[300px]">
-          <div className="text-center">
-            <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-xs font-bold tracking-[0.3em] uppercase text-foreground/50">
-              Curating Your Feed...
-            </p>
-          </div>
-        </div>
+      <section className="w-full py-8 px-4 max-w-[1350px] mx-auto space-y-12">
+        <ProductCarouselSkeleton count={5} />
+        <ProductCarouselSkeleton count={5} />
       </section>
     );
   }
