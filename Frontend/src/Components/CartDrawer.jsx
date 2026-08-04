@@ -30,10 +30,10 @@ const CartDrawer = () => {
   const userId = user?._id || user?.id;
 
   useEffect(() => {
-    if (isDrawerOpen && userId) {
+    if (userId && (!cart || !cart.items)) {
       handleGetCart();
     }
-  }, [isDrawerOpen, userId]);
+  }, [userId]);
 
   const items = cart?.items || [];
   const firstId = items[0]?.product?._id || (typeof items[0]?.product === "string" ? items[0].product : null);
@@ -161,6 +161,7 @@ const getItemVariantImage = (item) => {
                   const prod = item.product || {};
                   const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
                   const img = getCartItemImage(item);
+                  const itemStock = item.variant?.stock ?? prod.stock ?? 999;
 
                   return (
                     <div
@@ -208,33 +209,35 @@ const getItemVariantImage = (item) => {
 
                         {/* Quantity Controls & Remove */}
                         <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center space-x-1 bg-surface border border-border-theme rounded-xl px-1.5 py-0.5">
+                          <div className="flex items-center bg-surface border border-border-theme rounded-xl overflow-hidden px-1">
                             <button
                               type="button"
                               onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
-                              className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
+                              disabled={item.quantity <= 1}
+                              className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-background font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                             >
-                              <i className="ri-subtract-line" />
+                              -
                             </button>
                             <input
                               type="number"
                               min={1}
-                              max={999}
+                              max={itemStock}
                               value={item.quantity}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value, 10);
                                 if (!isNaN(val) && val >= 1) {
-                                  handleUpdateQuantity(item._id, val);
+                                  handleUpdateQuantity(item._id, Math.min(itemStock, val));
                                 }
                               }}
                               className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                             />
                             <button
                               type="button"
-                              onClick={() => handleUpdateQuantity(item._id, item.quantity + 1)}
-                              className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
+                              onClick={() => handleUpdateQuantity(item._id, Math.min(itemStock, item.quantity + 1))}
+                              disabled={item.quantity >= itemStock}
+                              className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-background font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                             >
-                              <i className="ri-add-line" />
+                              +
                             </button>
                           </div>
 

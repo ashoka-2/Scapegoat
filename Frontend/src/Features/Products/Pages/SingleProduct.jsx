@@ -660,7 +660,7 @@ const SingleProduct = () => {
               src={galleryImages[activeImageIndex]}
               alt={product.title}
               className={`w-full h-full object-cover transition-transform duration-300 ${
-                isZoomed ? "scale-150" : "scale-100"
+                isZoomed ? "scale-200" : "scale-100"
               }`}
               style={
                 isZoomed
@@ -678,22 +678,22 @@ const SingleProduct = () => {
                   -{discountPercent}% OFF
                 </span>
               )}
-              {selectedAttributes && (
+              {/* {selectedAttributes && (
                 <span className="w-fit inline-flex items-center px-3 py-1 rounded-full bg-background/80 backdrop-blur border border-border-theme text-foreground text-[10px] font-extrabold uppercase shadow truncate max-w-full">
-                  Variant: {Object.entries(selectedAttributes).map(([k, v]) => `${k}: ${v}`).join(" • ")}
+                  {Object.entries(selectedAttributes).map(([k, v]) => `${k}: ${v}`).join(" • ")}
                 </span>
-              )}
+              )} */}
             </div>
           </div>
 
           {/* 🖼️ Thumbnails Carousel (Shows ONLY Selected Variant / Color Photos) */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-extrabold uppercase text-foreground/50 tracking-wider">
+              <span className="text-[11px] font-bold uppercase text-foreground/50 tracking-wider">
                 Product Photos ({galleryImages.length})
               </span>
             </div>
-            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-none">
+            <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
               {galleryImages.map((imgUrl, idx) => (
                 <button
                   key={idx}
@@ -755,7 +755,8 @@ const SingleProduct = () => {
           </div>
 
           {/* Price Card */}
-          <div className="bg-background border border-border-theme p-6 rounded-2xl space-y-3 shadow-sm">
+          <div className="flex flex-col items-start sm:flex-row sm:items-center justify-between sm:justify-start gap-2">
+            <div className="bg-surface border border-border-theme p-4 rounded-2xl space-y-1 shadow-sm">
             <div className="flex items-baseline gap-3">
               <span className="text-3xl sm:text-4xl font-extrabold text-accent">
                 ₹{currentPrice.toLocaleString()}
@@ -769,6 +770,51 @@ const SingleProduct = () => {
             <p className="text-[11px] text-foreground/50 font-medium">
               Inclusive of all taxes. Free shipping on orders over ₹999.
             </p>
+          </div>
+              <div className="space-y-3 pt-2 bg-surface p-4 rounded-2xl border border-border-theme ">
+            <span className="text-xs font-bold text-foreground uppercase tracking-wider">Quantity:</span>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden px-1">
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
+                  disabled={quantity <= 1 || isOutOfStock}
+                  className="px-3 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min={1}
+                  max={currentStock || 999}
+                  value={quantity}
+                  disabled={isOutOfStock}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1) {
+                      setQuantity(Math.min(currentStock || 999, val));
+                    }
+                  }}
+                  className="w-12 text-center bg-transparent font-extrabold text-sm text-foreground outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
+                <button
+                  type="button"
+                  onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
+                  disabled={quantity >= currentStock || isOutOfStock}
+                  className="px-4 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
+                >
+                  +
+                </button>
+              </div>
+
+              {currentStock > 0 && currentStock <= 5 && (
+                <span className="text-xs font-extrabold text-amber-400 animate-pulse">
+                  ⚡ Only {currentStock} left in stock - order soon!
+                </span>
+              )}
+            </div>
+          </div>
+          
           </div>
 
           {/* Dynamic Attribute Selectors */}
@@ -907,50 +953,7 @@ const SingleProduct = () => {
             </div>
           )}
 
-          {/* Quantity Stepper & Stock Warning */}
-          <div className="space-y-3 pt-2">
-            <span className="text-xs font-bold text-foreground uppercase tracking-wider">Quantity:</span>
-            <div className="flex items-center gap-4">
-              <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden px-1">
-                <button
-                  type="button"
-                  onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
-                  disabled={quantity <= 1 || isOutOfStock}
-                  className="px-3 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
-                >
-                  -
-                </button>
-                <input
-                  type="number"
-                  min={1}
-                  max={currentStock || 999}
-                  value={quantity}
-                  disabled={isOutOfStock}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    if (!isNaN(val) && val >= 1) {
-                      setQuantity(Math.min(currentStock || 999, val));
-                    }
-                  }}
-                  className="w-12 text-center bg-transparent font-extrabold text-sm text-foreground outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-                <button
-                  type="button"
-                  onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
-                  disabled={quantity >= currentStock || isOutOfStock}
-                  className="px-4 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
-                >
-                  +
-                </button>
-              </div>
 
-              {currentStock > 0 && currentStock <= 5 && (
-                <span className="text-xs font-extrabold text-amber-400 animate-pulse">
-                  ⚡ Only {currentStock} left in stock - order soon!
-                </span>
-              )}
-            </div>
-          </div>
 
           {/* ⚡ Action Buttons (Add to Cart & Buy Now) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-4">

@@ -2,8 +2,6 @@ import express from "express";
 import {
   getCart,
   addToCart,
-  incrementQuantity,
-  decrementQuantity,
   updateQuantity,
   removeFromCart,
   clearCart,
@@ -18,16 +16,10 @@ router.use(verifyToken);
 // View user's cart
 router.get("/", getCart);
 
-// Add product/variant to cart (with custom quantity or default 1)
+// Add product/variant to cart
 router.post("/add", addToCart);
 
-// Increment quantity (+1)
-router.patch("/item/:itemId/increment", incrementQuantity);
-
-// Decrement quantity (-1)
-router.patch("/item/:itemId/decrement", decrementQuantity);
-
-// Manually update quantity to a typed integer value (e.g. 5, 10)
+// Update quantity (typed integer, incremented, or decremented value)
 router.put("/item/:itemId", updateQuantity);
 
 // Remove specific item from cart

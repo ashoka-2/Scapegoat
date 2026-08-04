@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 import {
@@ -7,21 +7,34 @@ import {
   setCartDrawerOpen,
   setLoading,
   setError,
-  optimisticUpdateQuantity,
-  optimisticRemoveItem,
-  optimisticAddToCart,
 } from "../State/cart.slice";
 import * as api from "../Services/cart.api";
 
 export const useCart = () => {
   const dispatch = useDispatch();
+  const updateTimersRef = useRef({});
+  const latestQtyRef = useRef({});
   const { user } = useSelector((state) => state.auth);
-  const { cart, totalItems, subtotal, isDrawerOpen, loading } = useSelector((state) => state.cart);
+  const { cart, isDrawerOpen, loading } = useSelector((state) => state.cart);
 
   const toast = (message, type = "info") =>
     dispatch(addToast({ message, type }));
 
   const errMsg = (e) => e?.response?.data?.message || "Operation failed.";
+
+  // Calculate item price
+  const calculateItemPrice = (item) => {
+    if (item?.variant?.price?.amount) return item.variant.price.amount;
+    if (typeof item?.variant?.priceAmount === "number") return item.variant.priceAmount;
+    if (item?.product?.sellingPrice?.amount) return item.product.sellingPrice.amount;
+    if (item?.product?.maxPrice?.amount) return item.product.maxPrice.amount;
+    return 0;
+  };
+
+  // Derived cart totals
+  const items = Array.isArray(cart?.items) ? cart.items : [];
+  const totalItems = items.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
+  const subtotal = items.reduce((acc, i) => acc + calculateItemPrice(i) * (Number(i.quantity) || 0), 0);
 
   // Fetch Cart
   const handleGetCart = async () => {
@@ -38,140 +51,154 @@ export const useCart = () => {
     }
   };
 
-  const deriveDefaultAttributes = (product) => {
-    if (!product) return null;
-    const derived = {};
-    if (product.variants && product.variants.length > 0 && product.variants[0]?.attributes) {
-      const raw = typeof product.variants[0].attributes.forEach === "function"
-        ? Object.fromEntries(product.variants[0].attributes)
-        : (product.variants[0].attributes._doc || product.variants[0].attributes);
-      if (raw && typeof raw === "object") {
-        Object.entries(raw).forEach(([k, v]) => {
-          derived[k] = Array.isArray(v) ? v[0] : v;
-        });
-      }
-    }
-    if (product.attributes && Array.isArray(product.attributes)) {
-      product.attributes.forEach((attr) => {
-        const name = attr.name || attr.key;
-        const opts = attr.options || attr.values || [];
-        if (name && opts.length > 0 && !derived[name]) {
-          derived[name] = opts[0];
-        }
-      });
-    }
-    return Object.keys(derived).length > 0 ? derived : null;
-  };
-
-  const getSellerId = (prod) => {
-    if (!prod) return null;
-    if (typeof prod.seller === "object") return prod.seller?._id || prod.seller?.id;
-    if (typeof prod.seller === "string") return prod.seller;
-    if (prod.sellerId) return prod.sellerId;
-    if (typeof prod.user === "object") return prod.user?._id || prod.user?.id;
-    if (typeof prod.user === "string") return prod.user;
-    return null;
-  };
-
-  // Fetch Cart automatically on mount/login
+  // Fetch Cart automatically on login/mount
   useEffect(() => {
     if (user && (!cart || !cart.items)) {
       handleGetCart();
     }
   }, [user]);
 
-  // Add To Cart with Stock & Seller Restrictions (⚡ 100% Optimistic UX)
+  // Add To Cart with Optimistic UX & Rollback
   const handleAddToCart = async (product, quantity = 1, variantId = null, selectedAttributes = null) => {
     if (!user) {
       toast("Please login to add items to your shopping cart.", "info");
       return;
     }
+    if (!product) return;
 
-    if (!product) {
-      toast("Invalid product selection.", "error");
-      return;
-    }
-
-    // 1. Seller Ownership Check (Seller cannot purchase their own product)
-    const sellerId = getSellerId(product);
-    const userId = user?._id || user?.id;
-
-    if (sellerId && userId && String(sellerId) === String(userId)) {
-      toast("Alert: Sellers cannot purchase their own listed products.", "error");
-      return;
-    }
-
-    // 2. Stock Availability Check
-    if (product.manageStock && (Number(product.stock) <= 0 || product.stockStatus === "outofstock")) {
-      toast("Sorry, this item is currently out of stock.", "error");
-      return;
-    }
-
-    const finalAttributes = (selectedAttributes && Object.keys(selectedAttributes).length > 0)
-      ? selectedAttributes
-      : deriveDefaultAttributes(product);
-
+    const prodId = product._id || product.id || product;
     const finalVariantId = variantId || (product.variants?.length > 0 ? product.variants[0]?._id : null);
+    const targetVariant = finalVariantId ? product.variants?.find((v) => String(v._id) === String(finalVariantId)) : null;
+    const maxStock = targetVariant?.stock ?? product?.stock ?? 999;
 
-    // ⚡ 1. INSTANT Optimistic UI Update & Toast
-    dispatch(optimisticAddToCart({
-      product,
-      quantity: Number(quantity),
-      variantId: finalVariantId,
-      selectedAttributes: finalAttributes,
-    }));
-    toast(`Added "${product.title || 'item'}" to your cart! 🛍️`, "success");
+    const existingItem = items.find((item) => {
+      const itemProdId = item.product?._id || item.product?.id || item.product;
+      return String(itemProdId) === String(prodId);
+    });
+
+    const currentQtyInCart = existingItem?.quantity || 0;
+    if (currentQtyInCart + Number(quantity) > maxStock) {
+      toast(`Cannot add more. Only ${maxStock} units available in stock (${currentQtyInCart} already in cart).`, "error");
+      return;
+    }
+
+    const originalCart = cart || { items: [] };
+    let updatedItems = [...items];
+
+    if (existingItem) {
+      updatedItems = updatedItems.map((item) => {
+        const itemProdId = item.product?._id || item.product?.id || item.product;
+        if (String(itemProdId) === String(prodId)) {
+          return { ...item, quantity: Math.min(item.quantity + Number(quantity), maxStock) };
+        }
+        return item;
+      });
+    } else {
+      updatedItems.unshift({
+        _id: "temp_" + Date.now(),
+        product,
+        quantity: Math.min(Number(quantity), maxStock),
+        selectedAttributes,
+        variant: targetVariant,
+      });
+    }
+
+    // ⚡ Instant 0ms Optimistic UI update
+    dispatch(setCart({ ...originalCart, items: updatedItems }));
+    toast(`Added "${product.title || 'item'}" to your bag! 🛍️`, "success");
     dispatch(setCartDrawerOpen(true));
 
-    // ⚡ 2. Async Background Backend Sync
     try {
-      const productId = product._id || product.id || product;
       const data = await api.addItemToCartApi({
-        productId,
+        productId: prodId,
         variantId: finalVariantId,
-        selectedAttributes: finalAttributes,
+        selectedAttributes,
         quantity: Number(quantity),
       });
       dispatch(setCart(data));
-      return data.data;
     } catch (e) {
+      dispatch(setCart(originalCart));
       toast(errMsg(e), "error");
-      handleGetCart();
     }
   };
 
-  // Update Item Quantity or Attributes with Optimistic UX (Instant UI, async backend)
-  const handleUpdateQuantity = async (itemId, quantity, selectedAttributes = null) => {
-    if (quantity < 1) {
+  // Update Item Quantity with Optimistic UX & Race-Condition Safe Sync
+  const handleUpdateQuantity = (itemId, quantity, selectedAttributes = null) => {
+    const nextQty = Number(quantity);
+
+    if (nextQty <= 0) {
+      if (updateTimersRef.current[itemId]) {
+        clearTimeout(updateTimersRef.current[itemId]);
+        delete updateTimersRef.current[itemId];
+      }
       return handleRemoveFromCart(itemId);
     }
 
-    // ⚡ Optimistic update immediately on frontend (0ms latency!)
-    dispatch(optimisticUpdateQuantity({ itemId, quantity, selectedAttributes }));
-
-    try {
-      const data = await api.updateCartItemQuantityApi(itemId, quantity, selectedAttributes);
-      dispatch(setCart(data));
-      return data.data;
-    } catch (e) {
-      toast(errMsg(e), "error");
-      handleGetCart();
+    const targetItem = items.find((i) => String(i._id || i.id) === String(itemId));
+    if (targetItem) {
+      const maxStock = targetItem.variant?.stock ?? targetItem.product?.stock ?? 999;
+      if (nextQty > maxStock) {
+        toast(`Only ${maxStock} units available in stock.`, "error");
+        return;
+      }
     }
+
+    const originalCart = cart;
+    latestQtyRef.current[itemId] = nextQty;
+
+    const updatedItems = items.map((i) => {
+      if (String(i._id || i.id) === String(itemId)) {
+        return { ...i, quantity: nextQty };
+      }
+      return i;
+    });
+
+    // ⚡ 1. Instant Redux Optimistic Update (0ms UI latency)
+    dispatch(setCart({ ...cart, items: updatedItems }));
+
+    // ⚡ 2. Debounce HTTP call by 250ms so rapid clicks don't cause network race conditions
+    if (updateTimersRef.current[itemId]) {
+      clearTimeout(updateTimersRef.current[itemId]);
+    }
+
+    updateTimersRef.current[itemId] = setTimeout(async () => {
+      try {
+        const data = await api.updateCartItemQuantityApi(itemId, nextQty, selectedAttributes);
+        // Only update state with server response if no newer click happened
+        if (latestQtyRef.current[itemId] === nextQty) {
+          dispatch(setCart(data));
+        }
+      } catch (e) {
+        if (latestQtyRef.current[itemId] === nextQty) {
+          dispatch(setCart(originalCart));
+          toast(errMsg(e), "error");
+        }
+      } finally {
+        delete updateTimersRef.current[itemId];
+      }
+    }, 250);
   };
 
-  // Remove Item with Optimistic UX (Instant UI, async backend)
+  // Remove Item with Optimistic UX & Rollback
   const handleRemoveFromCart = async (itemId) => {
-    // ⚡ Optimistic remove immediately on frontend (0ms latency!)
-    dispatch(optimisticRemoveItem({ itemId }));
+    if (updateTimersRef.current[itemId]) {
+      clearTimeout(updateTimersRef.current[itemId]);
+      delete updateTimersRef.current[itemId];
+    }
+
+    const originalCart = cart;
+    const updatedItems = items.filter((i) => String(i._id || i.id) !== String(itemId));
+
+    // ⚡ Optimistic UI update
+    dispatch(setCart({ ...cart, items: updatedItems }));
+    toast("Item removed from bag.", "info");
 
     try {
       const data = await api.deleteCartItemApi(itemId);
       dispatch(setCart(data));
-      toast("Item removed from cart.", "info");
-      return data.data;
     } catch (e) {
+      dispatch(setCart(originalCart));
       toast(errMsg(e), "error");
-      handleGetCart();
     }
   };
 

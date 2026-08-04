@@ -170,4 +170,17 @@ export const TertiaryBtn = ({
     </button>
 );
 
+
+export const DeleteBtn = ({onClick}) =>{
+    return <div className="h-[30px] w-[30px] rounded-full flex items-center justify-center border text-red-400 hover:text-red-600 transition cursor-pointer " onClick={onClick} title="Delete item">
+        <i className="ri-delete-bin-line text-base" />
+    </div>
+}
+
+export const EditBtn = ({onClick}) =>{
+    return <div className="h-[30px] w-[30px] rounded-full flex items-center justify-center border text-yellow-400 hover:text-yellow-600 transition cursor-pointer " onClick={onClick} title="Edit item">
+        <i className="ri-edit-line text-base" />
+    </div>
+}
+
 export default { PrimaryBtn, SecondaryBtn, TertiaryBtn };

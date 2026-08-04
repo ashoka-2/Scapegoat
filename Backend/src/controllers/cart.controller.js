@@ -50,6 +50,7 @@ export const getCart = async (req, res) => {
       totalItems,
       subtotal,
       data: cart,
+      cart,
     });
   } catch (error) {
     console.error("Error fetching cart:", error);
@@ -150,6 +151,7 @@ export const addToCart = async (req, res) => {
       totalItems,
       subtotal,
       data: updatedCart,
+      cart: updatedCart,
     });
   } catch (error) {
     console.error("Error adding to cart:", error);
@@ -160,108 +162,7 @@ export const addToCart = async (req, res) => {
   }
 };
 
-/**
- * @desc    Increment item quantity (+1)
- * @route   PATCH /api/cart/item/:itemId/increment
- * @access  Private
- */
-export const incrementQuantity = async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const cart = await cartModel.findOne({ user: req.user._id });
 
-    if (!cart) {
-      return res.status(404).json({ success: false, message: "Cart not found" });
-    }
-
-    const item = cart.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({ success: false, message: "Cart item not found" });
-    }
-
-    // Check product stock limit
-    const product = await productModel.findById(item.product);
-    if (product && product.manageStock && item.quantity + 1 > product.stock) {
-      return res.status(400).json({
-        success: false,
-        message: `Maximum stock reached (${product.stock} units available)`,
-      });
-    }
-
-    item.quantity += 1;
-    await cart.save();
-
-    const updatedCart = await cartModel.findById(cart._id).populate({
-      path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock",
-    });
-
-    const { totalItems, subtotal } = calculateCartTotals(updatedCart);
-
-    return res.status(200).json({
-      success: true,
-      message: "Quantity increased",
-      totalItems,
-      subtotal,
-      data: updatedCart,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to increment quantity",
-    });
-  }
-};
-
-/**
- * @desc    Decrement item quantity (-1). Removes item if quantity reaches 0.
- * @route   PATCH /api/cart/item/:itemId/decrement
- * @access  Private
- */
-export const decrementQuantity = async (req, res) => {
-  try {
-    const { itemId } = req.params;
-    const cart = await cartModel.findOne({ user: req.user._id });
-
-    if (!cart) {
-      return res.status(404).json({ success: false, message: "Cart not found" });
-    }
-
-    const item = cart.items.id(itemId);
-    if (!item) {
-      return res.status(404).json({ success: false, message: "Cart item not found" });
-    }
-
-    if (item.quantity > 1) {
-      item.quantity -= 1;
-    } else {
-      // Remove item if quantity hits 0
-      cart.items.pull({ _id: itemId });
-    }
-
-    await cart.save();
-
-    const updatedCart = await cartModel.findById(cart._id).populate({
-      path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock",
-    });
-
-    const { totalItems, subtotal } = calculateCartTotals(updatedCart);
-
-    return res.status(200).json({
-      success: true,
-      message: "Quantity decreased",
-      totalItems,
-      subtotal,
-      data: updatedCart,
-    });
-  } catch (error) {
-    return res.status(500).json({
-      success: false,
-      message: error.message || "Failed to decrement quantity",
-    });
-  }
-};
 
 /**
  * @desc    Manually update item quantity to a typed integer value
@@ -324,6 +225,7 @@ export const updateQuantity = async (req, res) => {
       totalItems,
       subtotal,
       data: updatedCart,
+      cart: updatedCart,
     });
   } catch (error) {
     return res.status(500).json({
@@ -363,6 +265,7 @@ export const removeFromCart = async (req, res) => {
       totalItems,
       subtotal,
       data: updatedCart,
+      cart: updatedCart,
     });
   } catch (error) {
     return res.status(500).json({
@@ -391,6 +294,7 @@ export const clearCart = async (req, res) => {
       totalItems: 0,
       subtotal: 0,
       data: cart,
+      cart,
     });
   } catch (error) {
     return res.status(500).json({

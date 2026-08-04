@@ -5,6 +5,7 @@ import { useCart } from "../Hooks/useCart";
 import { getCartItemImage } from "../State/cart.slice";
 import { useUserActivity } from "../../Products/Hooks/useUserActivity";
 import ProductCarousel from "../../Products/Components/ProductCarousel";
+import { DeleteBtn } from "../../../Components/Buttons";
 
 /**
  * CartPage Component (Full Width Shopping Cart)
@@ -35,7 +36,9 @@ const CartPage = () => {
 
   useEffect(() => {
     if (userId) {
-      handleGetCart();
+      if (!cart || !cart.items) {
+        handleGetCart();
+      }
       fetchRecentlyViewed(10);
     }
   }, [userId]);
@@ -172,16 +175,17 @@ const getItemVariantImage = (item) => {
               const prod = item.product || {};
               const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
               const img = getCartItemImage(item);
+              const itemStock = item.variant?.stock ?? prod.stock ?? 999;
 
               return (
                 <div
                   key={item._id || idx}
-                  className="bg-surface border border-border-theme p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:border-accent/40 transition"
+                  className="bg-surface border border-border-theme p-4 sm:p-5 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm hover:border-accent/40 transition overflow-hidden"
                 >
                   <div className="flex items-center space-x-4 flex-1 min-w-0">
                     <div
                       onClick={() => navigate(`/product/${prod.slug || prod._id}`)}
-                      className="w-20 h-24 bg-background rounded-xl overflow-hidden shrink-0 cursor-pointer border border-border-theme"
+                      className="w-16 h-20 bg-background rounded-xl overflow-hidden shrink-0 cursor-pointer border border-border-theme"
                     >
                       <img src={img} alt={prod.title} className="w-full h-full object-cover" />
                     </div>
@@ -210,51 +214,51 @@ const getItemVariantImage = (item) => {
                   </div>
 
                   {/* Quantity & Controls */}
-                  <div className="flex items-center justify-between sm:justify-end w-full sm:w-auto space-x-4 border-t sm:border-t-0 border-border-theme/40 pt-3 sm:pt-0">
-                    <div className="flex items-center space-x-1 bg-background border border-border-theme rounded-xl px-2 py-1">
+                  <div className="flex sm:flex-col items-center justify-between sm:justify-end w-full sm:w-auto space-x-4 border-t sm:border-t-0 border-border-theme/40 pt-3 sm:pt-0 gap-2">
+                    <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden px-1">
                       <button
                         type="button"
                         onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
-                        className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
+                        disabled={item.quantity <= 1}
+                        className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                       >
-                        <i className="ri-subtract-line" />
+                        -
                       </button>
                       <input
                         type="number"
                         min={1}
-                        max={999}
+                        max={itemStock}
                         value={item.quantity}
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
                           if (!isNaN(val) && val >= 1) {
-                            handleUpdateQuantity(item._id, val);
+                            handleUpdateQuantity(item._id, Math.min(itemStock, val));
                           }
                         }}
                         className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                       />
                       <button
                         type="button"
-                        onClick={() => handleUpdateQuantity(item._id, item.quantity + 1)}
-                        className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
+                        onClick={() => handleUpdateQuantity(item._id, Math.min(itemStock, item.quantity + 1))}
+                        disabled={item.quantity >= itemStock}
+                        className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                       >
-                        <i className="ri-add-line" />
+                        +
                       </button>
                     </div>
 
+
+                  <div className="flex items-center justify-between gap-2">
                     <div className="text-right">
                       <p className="text-xs font-mono font-extrabold text-foreground">
                         ₹{Number(price * item.quantity).toLocaleString("en-IN")}
                       </p>
                     </div>
+                        <DeleteBtn onClick={() => handleRemoveFromCart(item._id)}/>
+                    
 
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveFromCart(item._id)}
-                      className="text-red-400 hover:text-red-600 transition cursor-pointer p-1.5"
-                      title="Delete item"
-                    >
-                      <i className="ri-delete-bin-line text-base" />
-                    </button>
+                  </div>
+
                   </div>
                 </div>
               );

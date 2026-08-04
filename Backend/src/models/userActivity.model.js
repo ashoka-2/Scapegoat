@@ -53,8 +53,6 @@ const userActivitySchema = new Schema(
   { timestamps: true }
 );
 
-// Fast lookup by user
-userActivitySchema.index({ user: 1 });
 // Fast lookup for recently viewed products sorted by recency
 userActivitySchema.index({ "views.lastViewedAt": -1 });
 
