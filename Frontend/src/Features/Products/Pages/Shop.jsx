@@ -1,68 +1,60 @@
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import { useProduct } from "../Hooks/useProduct";
+import { useUserActivity } from "../Hooks/useUserActivity";
 import ProductCard from "../Components/ProductCard";
 import { useDebounce } from "../../../utils/timingUtils";
+import { useInfiniteScroll } from "../../../utils/useInfiniteScroll";
 import { aiSearchProductsApi } from "../Services/product.api";
 
 function calculateProductMatchScore(product, query) {
-  if (!query || !query.trim()) return { score: 0, tag: null };
+  if (!query || !query.trim()) return 0;
   const q = query.trim().toLowerCase();
   const words = q.split(/\s+/).filter(Boolean);
 
   let score = 0;
   const titleLower = (product.title || "").toLowerCase();
-  const descLower = (product.description || "" + " " + (product.shortDescription || "")).toLowerCase();
+  const descLower = ((product.description || "") + " " + (product.shortDescription || "")).toLowerCase();
   const catLower = (product.category?.name || "").toLowerCase();
   const brandLower = (product.brand?.name || "").toLowerCase();
   const tagsLower = Array.isArray(product.tags) ? product.tags.join(" ").toLowerCase() : (product.tags || "").toLowerCase();
+  const skuLower = (product.sku || "").toLowerCase();
 
-  // Variant Attributes String
-  let attrText = "";
-  (product.variants || []).forEach((v) => {
-    if (v.attributes) {
-      const raw =
-        typeof v.attributes.forEach === "function"
-          ? Object.fromEntries(v.attributes)
-          : v.attributes._doc || v.attributes;
-      if (raw) attrText += " " + Object.values(raw).join(" ");
+  const queryNum = parseFloat(q);
+  const isNum = !isNaN(queryNum) && queryNum > 0;
+
+  // Number-as-price match: check if product price is close to requested number
+  if (isNum) {
+    const prodPrice = product.sellingPrice?.amount || product.maxPrice?.amount || product.price?.saleAmount || product.price?.amount || 0;
+    if (prodPrice > 0 && Math.abs(prodPrice - queryNum) <= queryNum * 0.15) {
+      score += 120;
     }
-    (v.dynamicAttributes || []).forEach((da) => {
-      attrText += " " + (da.key || "") + " " + (da.values || da.options || []).join(" ");
-    });
-  });
-  const attrLower = attrText.toLowerCase();
+  }
 
-  // 1. Exact Title Match
+  // SKU Exact Match
+  if (skuLower && skuLower === q) score += 180;
+
+  // Exact Title Match
   if (titleLower === q) score += 150;
   else if (titleLower.includes(q)) score += 100;
   else if (titleLower.startsWith(q)) score += 60;
 
-  // 2. Direct Category, Brand & Tags Match
+  // Direct Category, Brand & Tags Match
   if (catLower.includes(q)) score += 85;
   if (brandLower.includes(q)) score += 85;
   if (tagsLower.includes(q)) score += 80;
 
-  // 3. Variant Attributes Match
-  if (attrLower.includes(q)) score += 70;
-
-  // 4. Token Keyword Matching
+  // Token Keyword Matching
   words.forEach((w) => {
     if (titleLower.includes(w)) score += 35;
     if (catLower.includes(w)) score += 30;
     if (brandLower.includes(w)) score += 30;
     if (tagsLower.includes(w)) score += 25;
-    if (attrLower.includes(w)) score += 25;
     if (descLower.includes(w)) score += 15;
   });
 
-  let tag = null;
-  if (score >= 120) tag = "✨ Exact Match";
-  else if (score >= 60) tag = "✨ High Relevance";
-  else if (score > 0) tag = "✨ Match";
-
-  return { score, tag };
+  return score;
 }
 
 // ── Dual Range Price Slider ───────────────────────────────────────────────────
@@ -71,7 +63,7 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
   const [activeThumb, setActiveThumb] = useState("low");
 
   const effectiveMin = min || 0;
-  const effectiveMax = max > min ? max : 10000;
+  const effectiveMax = max > min ? max : 50000;
 
   const thumbLow = Math.max(0, Math.min(100, ((low - effectiveMin) / (effectiveMax - effectiveMin)) * 100));
   const thumbHigh = Math.max(0, Math.min(100, ((high - effectiveMin) / (effectiveMax - effectiveMin)) * 100));
@@ -108,10 +100,7 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
         onMouseMove={(e) => e.buttons !== 1 && updateActiveThumb(e)}
         onTouchStart={updateActiveThumb}
       >
-        {/* Base Track */}
         <div className="absolute inset-x-0 h-1.5 rounded-full bg-border-theme/40" />
-
-        {/* Active Range Highlight */}
         <div
           className="absolute h-1.5 rounded-full bg-accent transition-all duration-75"
           style={{
@@ -119,26 +108,22 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
             width: `${Math.max(0, thumbHigh - thumbLow)}%`,
           }}
         />
-
-        {/* Low Range Input */}
         <input
           type="range"
           min={effectiveMin}
           max={effectiveMax}
           value={low}
           onChange={handleLowChange}
-          className="absolute inset-0 w-full h-full appearance-none bg-transparent pointer-events-none focus:outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:shadow-lg"
+          className="absolute inset-0 w-full h-full appearance-none bg-transparent pointer-events-none focus:outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:shadow-lg"
           style={{ zIndex: activeThumb === "low" ? 5 : 3 }}
         />
-
-        {/* High Range Input */}
         <input
           type="range"
           min={effectiveMin}
           max={effectiveMax}
           value={high}
           onChange={handleHighChange}
-          className="absolute inset-0 w-full h-full appearance-none bg-transparent pointer-events-none focus:outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:pointer-events-auto [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-accent [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-background [&::-moz-range-thumb]:shadow-lg"
+          className="absolute inset-0 w-full h-full appearance-none bg-transparent pointer-events-none focus:outline-none [&::-webkit-slider-thumb]:pointer-events-auto [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-accent [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-background [&::-webkit-slider-thumb]:shadow-lg"
           style={{ zIndex: activeThumb === "high" ? 5 : 3 }}
         />
       </div>
@@ -146,28 +131,195 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
   );
 };
 
+// ── Reusable Tag Filter Component ─────────────────────────────────────────────
+const TagFilter = ({ label, options, selected, onToggle, colorClass }) => {
+  if (!options || !options.length) return null;
+  return (
+    <div>
+      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">{label}</h3>
+      <div className="flex flex-wrap gap-2">
+        {options.map((opt) => (
+          <button
+            key={opt}
+            onClick={() => onToggle(opt)}
+            className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
+              selected.includes(opt)
+                ? `${colorClass || "bg-foreground text-background border-foreground"}`
+                : "bg-surface border-border-theme/50 hover:border-accent text-foreground/70"
+            }`}
+          >
+            {opt}
+            {selected.includes(opt) && <i className="ri-close-line ml-1 text-xs" />}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+// ── Standalone Sidebar Component (Prevents Unmounting Input Focus Loss) ──────
+const FilterSidebarContent = ({
+  activeFilterCount,
+  isPriceFiltered,
+  debouncedSearchQuery,
+  rawSearchQuery,
+  setRawSearchQuery,
+  clearFilters,
+  setIsMobileFilterOpen,
+  sortBy,
+  setSortBy,
+  fmt,
+  priceLow,
+  priceHigh,
+  filterOptions,
+  setPriceLow,
+  setPriceHigh,
+  selectedCategories,
+  setSelectedCategories,
+  selectedBrands,
+  setSelectedBrands,
+  selectedColors,
+  setSelectedColors,
+  selectedSizes,
+  setSelectedSizes,
+  toggleItem,
+}) => (
+  <div className="space-y-6">
+    <div className="flex justify-between items-center mb-2">
+      <div className="flex items-center gap-2">
+        <h2 className="text-xl font-black uppercase tracking-widest text-foreground">Filters</h2>
+        {(activeFilterCount > 0 || isPriceFiltered || debouncedSearchQuery) && (
+          <span className="bg-accent text-accent-content text-[10px] font-black px-2 py-0.5 rounded-full">
+            {activeFilterCount + (isPriceFiltered ? 1 : 0) + (debouncedSearchQuery ? 1 : 0)}
+          </span>
+        )}
+      </div>
+      <div className="flex items-center gap-2">
+        {(activeFilterCount > 0 || isPriceFiltered || debouncedSearchQuery) && (
+          <button onClick={clearFilters} className="text-xs text-accent font-bold hover:underline cursor-pointer">
+            Clear All
+          </button>
+        )}
+        <button onClick={() => setIsMobileFilterOpen(false)} className="md:hidden text-2xl text-foreground">
+          <i className="ri-close-line"></i>
+        </button>
+      </div>
+    </div>
+
+    {/* Search Input */}
+    <div>
+      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-2">Search Catalog</h3>
+      <div className="relative flex items-center">
+        <i className="ri-search-line absolute left-3 text-foreground/40 text-xs pointer-events-none" />
+        <input
+          type="text"
+          placeholder="Search products or price (e.g. 999)..."
+          value={rawSearchQuery}
+          onChange={(e) => setRawSearchQuery(e.target.value)}
+          className="w-full bg-surface border border-border-theme/50 rounded-xl pl-8 pr-7 py-2 text-xs font-medium text-foreground focus:outline-none focus:border-accent placeholder:text-foreground/40 transition"
+        />
+        {rawSearchQuery && (
+          <button
+            onClick={() => setRawSearchQuery("")}
+            className="absolute right-2 text-foreground/40 hover:text-foreground text-xs cursor-pointer"
+          >
+            <i className="ri-close-line" />
+          </button>
+        )}
+      </div>
+    </div>
+
+    {/* Sort By */}
+    <div>
+      <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">Sort By</h3>
+      <select
+        value={sortBy}
+        onChange={(e) => setSortBy(e.target.value)}
+        className="w-full bg-surface border border-border-theme/50 rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-accent"
+      >
+        {debouncedSearchQuery && <option value="relevance">Best Match</option>}
+        <option value="newest">Newest Arrivals</option>
+        <option value="price-asc">Price: Low to High</option>
+        <option value="price-desc">Price: High to Low</option>
+      </select>
+    </div>
+
+    {/* Price Range Slider */}
+    <div className="border-t border-border-theme/30 pt-4">
+      <div className="flex justify-between items-center mb-2">
+        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50">Price Range</h3>
+        <span className="text-xs font-mono font-bold text-accent">
+          {fmt(priceLow)} – {fmt(priceHigh)}
+        </span>
+      </div>
+      <DualRangeSlider
+        min={filterOptions.minPrice}
+        max={filterOptions.maxPrice}
+        low={priceLow}
+        high={priceHigh}
+        onChange={(l, h) => {
+          setPriceLow(l);
+          setPriceHigh(h);
+        }}
+      />
+    </div>
+
+    <TagFilter
+      label="Categories"
+      options={filterOptions.categories}
+      selected={selectedCategories}
+      onToggle={(val) => toggleItem(setSelectedCategories, val)}
+    />
+
+    <TagFilter
+      label="Brands"
+      options={filterOptions.brands}
+      selected={selectedBrands}
+      onToggle={(val) => toggleItem(setSelectedBrands, val)}
+    />
+
+    <TagFilter
+      label="Colors"
+      options={filterOptions.colors}
+      selected={selectedColors}
+      onToggle={(val) => toggleItem(setSelectedColors, val)}
+    />
+
+    <TagFilter
+      label="Sizes"
+      options={filterOptions.sizes}
+      selected={selectedSizes}
+      onToggle={(val) => toggleItem(setSelectedSizes, val)}
+    />
+  </div>
+);
+
+// ── Main Shop Page Component ──────────────────────────────────────────────────
 const Shop = () => {
   const [searchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
+  const initialSort = searchParams.get("sortBy") || "newest";
+  const initialFilter = searchParams.get("filter") || "";
 
   const { handleFetchAllProducts } = useProduct();
   const { products: allProducts, loading } = useSelector((state) => state.product);
+  const { recentlyViewed, forYouProducts, fetchRecentlyViewed, fetchForYou } = useUserActivity();
 
-  // Raw search input state & debounced 300ms search state
   const [rawSearchQuery, setRawSearchQuery] = useState(initialQuery);
 
+  // Sync search input when URL query param `q` updates
   useEffect(() => {
     const q = searchParams.get("q");
     if (q !== null && q !== undefined) {
       setRawSearchQuery(q);
     }
   }, [searchParams]);
+
   const debouncedSearchQuery = useDebounce(rawSearchQuery, 300);
   const [aiVectorResults, setAiVectorResults] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const isSearching = rawSearchQuery !== debouncedSearchQuery || isAiLoading;
 
-  // Filter states – multi-select arrays
+  // Filter states
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [selectedBrands, setSelectedBrands] = useState([]);
   const [selectedColors, setSelectedColors] = useState([]);
@@ -175,11 +327,16 @@ const Shop = () => {
   const [priceLow, setPriceLow] = useState(0);
   const [priceHigh, setPriceHigh] = useState(50000);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
-  const [sortBy, setSortBy] = useState("newest");
+  const [sortBy, setSortBy] = useState(initialSort);
+
+  // Infinite Scroll Pagination State (20 items per batch)
+  const [visibleCount, setVisibleCount] = useState(20);
 
   useEffect(() => {
     handleFetchAllProducts();
-  }, [handleFetchAllProducts]);
+    if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
+    if (initialFilter === "for-you") fetchForYou(20);
+  }, [handleFetchAllProducts, initialFilter, fetchRecentlyViewed, fetchForYou]);
 
   // Execute Backend Vector Search API using text embeddings
   useEffect(() => {
@@ -259,7 +416,6 @@ const Shop = () => {
     };
   }, [allProducts]);
 
-  // Initialize price range based on dynamic max price
   useEffect(() => {
     if (filterOptions.maxPrice > 0) {
       setPriceHigh(filterOptions.maxPrice);
@@ -270,32 +426,28 @@ const Shop = () => {
     setter((prev) => (prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value]));
 
   // AI Semantic + Vector Embedding Filter & Sort algorithm
-  const filteredProductsWithScores = useMemo(() => {
+  const filteredProducts = useMemo(() => {
     if (!allProducts) return [];
 
-    const isSearchActive = Boolean(debouncedSearchQuery && debouncedSearchQuery.trim());
+    let pool = allProducts;
+    if (initialFilter === "recently-viewed" && recentlyViewed.length > 0) {
+      pool = recentlyViewed;
+    } else if (initialFilter === "for-you" && forYouProducts.length > 0) {
+      pool = forYouProducts;
+    }
 
-    // Use backend vector search results if available, otherwise use allProducts pool
-    const sourcePool = isSearchActive && aiVectorResults && aiVectorResults.length > 0 ? aiVectorResults : allProducts;
+    const isSearchActive = Boolean(debouncedSearchQuery && debouncedSearchQuery.trim());
+    const sourcePool = isSearchActive && aiVectorResults && aiVectorResults.length > 0 ? aiVectorResults : pool;
 
     let scoredList = sourcePool.map((p) => {
-      const { score, tag } = isSearchActive
-        ? calculateProductMatchScore(p, debouncedSearchQuery)
-        : { score: 0, tag: null };
-
-      const finalTag =
-        isSearchActive && aiVectorResults && aiVectorResults.some((vecP) => vecP._id === p._id)
-          ? "✨ AI Embedding Match"
-          : tag;
-
-      return { product: p, score: Math.max(score, 80), matchTag: finalTag };
+      const score = isSearchActive ? calculateProductMatchScore(p, debouncedSearchQuery) : 0;
+      return { product: p, score };
     });
 
     if (isSearchActive && (!aiVectorResults || aiVectorResults.length === 0)) {
       scoredList = scoredList.filter((item) => item.score > 0);
     }
 
-    // Apply Standard Category, Brand, Price, Color, Size filters
     let result = scoredList.filter(({ product: p }) => {
       const price =
         p.sellingPrice?.amount || p.maxPrice?.amount || p.price?.saleAmount || p.price?.amount || 0;
@@ -333,7 +485,6 @@ const Shop = () => {
     const getPrice = (prod) =>
       prod.sellingPrice?.amount || prod.maxPrice?.amount || prod.price?.saleAmount || prod.price?.amount || 0;
 
-    // Sort strategy
     if (isSearchActive && sortBy === "relevance") {
       result.sort((a, b) => b.score - a.score);
     } else if (sortBy === "price-asc") {
@@ -341,17 +492,20 @@ const Shop = () => {
     } else if (sortBy === "price-desc") {
       result.sort((a, b) => getPrice(b.product) - getPrice(a.product));
     } else {
-      // Default: newest or AI match score
       result.sort((a, b) => {
         if (isSearchActive && b.score !== a.score) return b.score - a.score;
         return new Date(b.product.createdAt) - new Date(a.product.createdAt);
       });
     }
 
-    return result;
+    return result.map((item) => item.product);
   }, [
     allProducts,
+    recentlyViewed,
+    forYouProducts,
+    initialFilter,
     debouncedSearchQuery,
+    aiVectorResults,
     selectedCategories,
     selectedBrands,
     selectedColors,
@@ -360,6 +514,22 @@ const Shop = () => {
     priceHigh,
     sortBy,
   ]);
+
+  // Reset pagination count when search/filters change
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [debouncedSearchQuery, selectedCategories, selectedBrands, selectedColors, selectedSizes, priceLow, priceHigh, sortBy]);
+
+  const loadMoreProducts = useCallback(() => {
+    setVisibleCount((prev) => Math.min(prev + 20, filteredProducts.length));
+  }, [filteredProducts.length]);
+
+  const hasMore = visibleCount < filteredProducts.length;
+  const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || isAiLoading);
+
+  const displayedProducts = useMemo(() => {
+    return filteredProducts.slice(0, visibleCount);
+  }, [filteredProducts, visibleCount]);
 
   const clearFilters = () => {
     setSelectedCategories([]);
@@ -377,145 +547,32 @@ const Shop = () => {
 
   const fmt = (v) => `₹${Number(v).toLocaleString("en-IN")}`;
 
-  const TagFilter = ({ label, options, selected, onToggle, colorClass }) => {
-    if (!options.length) return null;
-    return (
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">{label}</h3>
-        <div className="flex flex-wrap gap-2">
-          {options.map((opt) => (
-            <button
-              key={opt}
-              onClick={() => onToggle(opt)}
-              className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all cursor-pointer ${
-                selected.includes(opt)
-                  ? `${colorClass || "bg-foreground text-background border-foreground"}`
-                  : "bg-surface border-border-theme/50 hover:border-accent text-foreground/70"
-              }`}
-            >
-              {opt}
-              {selected.includes(opt) && <i className="ri-close-line ml-1 text-xs" />}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
+  const sidebarProps = {
+    activeFilterCount,
+    isPriceFiltered,
+    debouncedSearchQuery,
+    rawSearchQuery,
+    setRawSearchQuery,
+    clearFilters,
+    setIsMobileFilterOpen,
+    sortBy,
+    setSortBy,
+    fmt,
+    priceLow,
+    priceHigh,
+    filterOptions,
+    setPriceLow,
+    setPriceHigh,
+    selectedCategories,
+    setSelectedCategories,
+    selectedBrands,
+    setSelectedBrands,
+    selectedColors,
+    setSelectedColors,
+    selectedSizes,
+    setSelectedSizes,
+    toggleItem,
   };
-
-  const FilterSidebar = () => (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xl font-black uppercase tracking-widest text-foreground">Filters</h2>
-          {(activeFilterCount > 0 || isPriceFiltered || debouncedSearchQuery) && (
-            <span className="bg-accent text-accent-content text-[10px] font-black px-2 py-0.5 rounded-full">
-              {activeFilterCount + (isPriceFiltered ? 1 : 0) + (debouncedSearchQuery ? 1 : 0)}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          {(activeFilterCount > 0 || isPriceFiltered || debouncedSearchQuery) && (
-            <button onClick={clearFilters} className="text-xs text-accent font-bold hover:underline cursor-pointer">
-              Clear All
-            </button>
-          )}
-          <button onClick={() => setIsMobileFilterOpen(false)} className="md:hidden text-2xl text-foreground">
-            <i className="ri-close-line"></i>
-          </button>
-        </div>
-      </div>
-
-      {/* Small Compact Searchbar */}
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-2">Search Shop</h3>
-        <div className="relative flex items-center">
-          <i className="ri-search-line absolute left-3 text-foreground/40 text-xs pointer-events-none" />
-          <input
-            type="text"
-            placeholder="Search products..."
-            value={rawSearchQuery}
-            onChange={(e) => setRawSearchQuery(e.target.value)}
-            className="w-full bg-surface border border-border-theme/50 rounded-xl pl-8 pr-7 py-2 text-xs font-medium text-foreground focus:outline-none focus:border-accent placeholder:text-foreground/40 transition"
-          />
-          {rawSearchQuery && (
-            <button
-              onClick={() => setRawSearchQuery("")}
-              className="absolute right-2 text-foreground/40 hover:text-foreground text-xs cursor-pointer"
-            >
-              <i className="ri-close-line" />
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Sort By (Desktop & Mobile) */}
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">Sort By</h3>
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="w-full bg-surface border border-border-theme/50 rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-accent"
-        >
-          {debouncedSearchQuery && <option value="relevance">✨ Best Match</option>}
-          <option value="newest">Newest Arrivals</option>
-          <option value="price-asc">Price: Low to High</option>
-          <option value="price-desc">Price: High to Low</option>
-        </select>
-      </div>
-
-      {/* Price Range Slider */}
-      <div className="border-t border-border-theme/30 pt-4">
-        <div className="flex justify-between items-center mb-2">
-          <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50">Price Range</h3>
-          <span className="text-xs font-mono font-bold text-accent">
-            {fmt(priceLow)} – {fmt(priceHigh)}
-          </span>
-        </div>
-        <DualRangeSlider
-          min={filterOptions.minPrice}
-          max={filterOptions.maxPrice}
-          low={priceLow}
-          high={priceHigh}
-          onChange={(l, h) => {
-            setPriceLow(l);
-            setPriceHigh(h);
-          }}
-        />
-      </div>
-
-      {/* Filter Categories */}
-      <TagFilter
-        label="Categories"
-        options={filterOptions.categories}
-        selected={selectedCategories}
-        onToggle={(val) => toggleItem(setSelectedCategories, val)}
-      />
-
-      {/* Filter Brands */}
-      <TagFilter
-        label="Brands"
-        options={filterOptions.brands}
-        selected={selectedBrands}
-        onToggle={(val) => toggleItem(setSelectedBrands, val)}
-      />
-
-      {/* Filter Colors */}
-      <TagFilter
-        label="Colors"
-        options={filterOptions.colors}
-        selected={selectedColors}
-        onToggle={(val) => toggleItem(setSelectedColors, val)}
-      />
-
-      {/* Filter Sizes */}
-      <TagFilter
-        label="Sizes"
-        options={filterOptions.sizes}
-        selected={selectedSizes}
-        onToggle={(val) => toggleItem(setSelectedSizes, val)}
-      />
-    </div>
-  );
 
   return (
     <div className="min-h-screen bg-background text-foreground py-10 px-4 max-w-[1400px] mx-auto">
@@ -523,7 +580,7 @@ const Shop = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8 pb-6 border-b border-border-theme/40">
         <div>
           <span className="text-[10px] font-black tracking-[0.4em] uppercase text-accent mb-1 block">
-            ScapeGoat Store
+            ScapeGoat Marketplace
           </span>
           <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase">The Shop</h1>
         </div>
@@ -538,7 +595,7 @@ const Shop = () => {
             </div>
           )}
           <p className="text-xs font-bold uppercase tracking-widest text-foreground/50">
-            Showing <span className="text-foreground font-black">{filteredProductsWithScores.length}</span> Drops
+            Showing <span className="text-foreground font-black">{displayedProducts.length}</span> of {filteredProducts.length} Drops
           </p>
           <button
             onClick={() => setIsMobileFilterOpen(true)}
@@ -557,48 +614,53 @@ const Shop = () => {
       <div className="flex gap-8">
         {/* Desktop Sidebar */}
         <div className="hidden md:block w-64 flex-shrink-0">
-          <FilterSidebar />
+          <FilterSidebarContent {...sidebarProps} />
         </div>
 
-        {/* Mobile Filter Drawer Modal */}
+        {/* Mobile Filter Drawer */}
         {isMobileFilterOpen && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end md:hidden">
             <div className="bg-background w-4/5 max-w-sm h-full p-6 overflow-y-auto shadow-2xl border-l border-border-theme">
-              <FilterSidebar />
+              <FilterSidebarContent {...sidebarProps} />
             </div>
           </div>
         )}
 
-        {/* Product Grid */}
+        {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">
           {loading && (!allProducts || allProducts.length === 0) ? (
             <div className="min-h-[400px] flex items-center justify-center">
               <div className="text-center">
                 <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
                 <p className="text-xs font-bold tracking-[0.3em] uppercase text-foreground/50">
-                  Searching AI Catalog...
+                  Loading Products...
                 </p>
               </div>
             </div>
-          ) : filteredProductsWithScores.length > 0 ? (
-            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredProductsWithScores.map(({ product, matchTag }) => (
-                <div key={product._id} className="relative group">
-                  {matchTag && (
-                    <div className="absolute top-2 right-2 z-30 bg-accent text-accent-content text-[8px] font-black uppercase px-2 py-0.5 rounded-full shadow-md backdrop-blur-md border border-accent-content/20 pointer-events-none">
-                      {matchTag}
-                    </div>
-                  )}
-                  <ProductCard product={product} />
-                </div>
-              ))}
-            </div>
+          ) : displayedProducts.length > 0 ? (
+            <>
+              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {displayedProducts.map((product) => (
+                  <ProductCard key={product._id} product={product} />
+                ))}
+              </div>
+
+              {/* Infinite Scroll Sentinel Element */}
+              <div ref={sentinelRef} className="w-full py-8 flex items-center justify-center min-h-[60px]">
+                {hasMore && (
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-foreground/50">
+                    <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
+                    Loading 20 more drops...
+                  </div>
+                )}
+              </div>
+            </>
           ) : (
             <div className="bg-surface/50 border border-dashed border-border-theme rounded-3xl p-16 text-center">
-              <i className="ri-sparkling-2-line text-5xl text-accent/30 mb-4 block"></i>
-              <h3 className="text-xl font-bold">No matching drops found</h3>
+              <i className="ri-shopping-bag-line text-5xl text-accent/30 mb-4 block"></i>
+              <h3 className="text-xl font-bold">No products found</h3>
               <p className="text-sm text-foreground/40 mt-1 mb-6">
-                Try searching for related keywords like "sneakers", "hoodie", or clear parameters.
+                Try searching for related terms or clearing applied filters.
               </p>
               <button
                 onClick={clearFilters}

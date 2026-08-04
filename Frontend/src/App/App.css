@@ -64,6 +64,7 @@
 
 html, body {
   scrollbar-width: thin;
+  scrollbar-gutter: stable;
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;

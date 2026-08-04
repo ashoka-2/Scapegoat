@@ -12,7 +12,7 @@ const toastSlice = createSlice({
                 message: action.payload.message,
                 type: action.payload.type || "info",
             });
-            if (state.toasts.length > 3) {
+            if (state.toasts.length > 2) {
                 state.toasts.shift();
             }
         },

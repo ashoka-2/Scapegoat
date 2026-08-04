@@ -15,6 +15,7 @@ import {
   aiImageSearchProducts,
   suggestProductDescription,
 } from "../controllers/product.controller.js";
+import { getFrequentlyBoughtTogether } from "../controllers/userActivity.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
 import {
@@ -63,6 +64,7 @@ router.get("/seller/:sellerId", (req, res, next) => {
 // Get similar / "You May Also Like" product recommendations (AI Vector Similarity + Multi-Seller boost)
 router.get("/:id/similar", getSimilarProducts);
 router.get("/:id/you-may-also-like", getYouMayAlsoLikeProducts);
+router.get("/:id/frequently-bought-together", getFrequentlyBoughtTogether);
 
 // ── Protected Seller / Admin Routes ──────────────────────────────────────────
 

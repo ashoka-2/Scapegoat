@@ -14,6 +14,7 @@ import wishlistRouter from "./routes/wishlist.routes.js";
 import categoryRouter from "./routes/category.routes.js";
 import brandRouter from "./routes/brand.routes.js";
 import unitRouter from "./routes/unit.routes.js";
+import activityRouter from "./routes/userActivity.routes.js";
 
 const app = express();
 
@@ -41,5 +42,6 @@ app.use("/api/wishlist", wishlistRouter);
 app.use("/api/categories", categoryRouter);
 app.use("/api/brands", brandRouter);
 app.use("/api/units", unitRouter);
+app.use("/api/activity", activityRouter);
 
 export default app;

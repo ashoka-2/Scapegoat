@@ -9,11 +9,11 @@ const Toast = ({ id, message, type }) => {
     useEffect(() => {
         const exitTimer = setTimeout(() => {
             setIsExiting(true);
-        }, 4600); // Trigger exit animation slightly before removal
+        }, 2700); // Trigger exit animation slightly before 3000ms removal
 
         const removeTimer = setTimeout(() => {
             dispatch(removeToast(id));
-        }, 5000); // Match absolute lifecycle
+        }, 3000); // 3000ms auto-dismiss lifecycle
 
         return () => {
             clearTimeout(exitTimer);
@@ -56,7 +56,7 @@ const Toast = ({ id, message, type }) => {
 
     return (
         <div 
-            className={`relative flex items-center gap-4 p-4 pr-12 rounded-xl border backdrop-blur-xl transition-all duration-300 ${
+            className={`relative pointer-events-auto flex items-center gap-4 p-4 pr-12 rounded-xl border backdrop-blur-xl transition-all duration-300 ${
                 isExiting ? 'toast-slide-out' : 'toast-slide-in'
             } ${getToastStyles()}`}
             style={{ width: 'max-content', minWidth: '320px', maxWidth: '420px' }}
@@ -72,7 +72,7 @@ const Toast = ({ id, message, type }) => {
             </div>
             <button 
                 onClick={handleManualDismiss}
-                className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-white/0 hover:bg-white/5 border border-transparent hover:border-white/10 opacity-40 hover:opacity-100 transition-all duration-300"
+                className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 flex items-center justify-center rounded-full bg-white/0 hover:bg-white/5 border border-transparent hover:border-white/10 opacity-40 hover:opacity-100 transition-all duration-300 cursor-pointer"
             >
                 <i className="ri-close-line text-sm"></i>
             </button>
@@ -84,7 +84,7 @@ export const ToastContainer = () => {
     const toasts = useSelector((state) => state.toast.toasts);
 
     return (
-        <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3">
+        <div className="fixed bottom-6 right-6 z-[9999] pointer-events-none flex flex-col gap-3">
             {toasts.map((toast) => (
                 <Toast key={toast.id} {...toast} />
             ))}

@@ -6,6 +6,8 @@ import { addToast } from "../../../utils/toast.slice";
 import { useDispatch } from "react-redux";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { isColorAttribute } from "../../../utils/attributeUtils";
+import { useUserActivity, useDwellTracker } from "../Hooks/useUserActivity";
+import ProductCarousel from "../Components/ProductCarousel";
 
 // Color name to Hex map for fallback swatches
 const getColorHex = (colorName) => {
@@ -161,6 +163,28 @@ const SingleProduct = () => {
 
   // Active Specs Tab
   const [activeTab, setActiveTab] = useState("description");
+
+  const {
+    trackView,
+    recentlyViewed,
+    fbtProducts,
+    fetchRecentlyViewed,
+    fetchFrequentlyBoughtTogether,
+  } = useUserActivity();
+
+  // Track page dwell time
+  useDwellTracker(product?._id);
+
+  const prodId = product?._id;
+
+  // Track product view and fetch recommendations
+  useEffect(() => {
+    if (prodId) {
+      trackView(prodId);
+      fetchFrequentlyBoughtTogether(prodId);
+      fetchRecentlyViewed(10);
+    }
+  }, [prodId]);
 
   // 📜 1. Always scroll to top when targetIdentifier changes or a new product is clicked
   useEffect(() => {
@@ -1039,6 +1063,19 @@ const SingleProduct = () => {
         )}
       </div>
 
+      {/* ── 🛒 Frequently Bought Together ── */}
+      {fbtProducts && fbtProducts.length > 0 && (
+        <div className="pt-8">
+          <ProductCarousel
+            badge="Co-Purchased"
+            title="Frequently Bought Together"
+            subtitle="Products commonly purchased alongside this item."
+            products={fbtProducts}
+            onViewAll={() => navigate("/shop")}
+          />
+        </div>
+      )}
+
       {/* ── 🤖 AI Similar / "You May Also Like" Vector Recommendation Slider ── */}
       {similarProducts.length > 0 && (
         <div className="space-y-6 pt-6">
@@ -1078,6 +1115,19 @@ const SingleProduct = () => {
               </Link>
             ))}
           </div>
+        </div>
+      )}
+
+      {/* ── 🕒 Recently Visited Slider ── */}
+      {recentlyViewed && recentlyViewed.length > 0 && (
+        <div className="pt-8">
+          <ProductCarousel
+            badge="Jump Back In"
+            title="Recently Visited"
+            subtitle="Products you were checking out earlier."
+            products={recentlyViewed}
+            onViewAll={() => navigate("/shop?filter=recently-viewed")}
+          />
         </div>
       )}
     </div>

@@ -3,6 +3,8 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useCart } from "../Features/Cart/Hooks/useCart";
+import { getCartItemImage } from "../Features/Cart/State/cart.slice";
+import { useUserActivity } from "../Features/Products/Hooks/useUserActivity";
 
 /**
  * CartDrawer Component (Snitch Style + Apple/Shopify Polish)
@@ -23,13 +25,39 @@ const CartDrawer = () => {
     handleSetDrawerOpen,
   } = useCart();
 
+  const { fbtProducts, fetchFrequentlyBoughtTogether } = useUserActivity();
+
+  const userId = user?._id || user?.id;
+
   useEffect(() => {
-    if (isDrawerOpen && user) {
+    if (isDrawerOpen && userId) {
       handleGetCart();
     }
-  }, [isDrawerOpen, user]);
+  }, [isDrawerOpen, userId]);
 
   const items = cart?.items || [];
+  const firstId = items[0]?.product?._id || (typeof items[0]?.product === "string" ? items[0].product : null);
+
+  useEffect(() => {
+    if (isDrawerOpen && firstId) {
+      fetchFrequentlyBoughtTogether(firstId);
+    }
+  }, [isDrawerOpen, firstId]);
+
+const isColorAttrKey = (key) => /^colou?r$/i.test(String(key || "").trim());
+
+const formatSelectedAttributesTag = (item) => {
+  const selectedAttrs = typeof item.selectedAttributes?.forEach === "function"
+    ? Object.fromEntries(item.selectedAttributes)
+    : (item.selectedAttributes || {});
+
+  if (!selectedAttrs || Object.keys(selectedAttrs).length === 0) return null;
+
+  const vals = Object.values(selectedAttrs).filter(Boolean);
+  if (vals.length === 0) return null;
+
+  return vals.join(" | ");
+};
 
 const getItemVariantImage = (item) => {
   const prod = item.product || {};
@@ -37,27 +65,47 @@ const getItemVariantImage = (item) => {
     ? Object.fromEntries(item.selectedAttributes)
     : (item.selectedAttributes || {});
 
+  if (prod.variants && prod.variants.length > 0 && selectedAttrs) {
+    const colorKey = Object.keys(selectedAttrs).find(isColorAttrKey);
+    const colorValue = colorKey ? selectedAttrs[colorKey] : null;
+
+    if (colorValue) {
+      const matchedVar = prod.variants.find((v) => {
+        const vName = (v.name || "").toLowerCase();
+        if (vName.includes(String(colorValue).toLowerCase())) return true;
+
+        const vAttrs = typeof v.attributes?.forEach === "function"
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+
+        const vColorKey = Object.keys(vAttrs).find(isColorAttrKey);
+        if (vColorKey && String(vAttrs[vColorKey]).trim().toLowerCase() === String(colorValue).trim().toLowerCase()) {
+          return true;
+        }
+
+        if (Array.isArray(v.dynamicAttributes)) {
+          return v.dynamicAttributes.some((da) => {
+            const k = da.key || da.name || "";
+            if (isColorAttrKey(k)) {
+              const vals = (da.values || da.options || [da.value]).map((x) => String(x).toLowerCase());
+              return vals.includes(String(colorValue).toLowerCase());
+            }
+            return false;
+          });
+        }
+        return false;
+      });
+
+      if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
+        const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
+        if (vImg) return vImg;
+      }
+    }
+  }
+
   if (item.variant && item.variant.images && item.variant.images.length > 0) {
     const vImg = item.variant.images[0]?.url || item.variant.images[0];
     if (vImg) return vImg;
-  }
-
-  if (prod.variants && prod.variants.length > 0 && selectedAttrs && Object.keys(selectedAttrs).length > 0) {
-    const matchedVar = prod.variants.find((v) => {
-      const vAttrs = typeof v.attributes?.forEach === "function"
-        ? Object.fromEntries(v.attributes)
-        : (v.attributes?._doc || v.attributes || {});
-      return Object.entries(selectedAttrs).every(([k, val]) => {
-        if (!val) return true;
-        const vVal = vAttrs[k];
-        if (!vVal) return true;
-        return String(vVal).trim().toLowerCase() === String(val).trim().toLowerCase();
-      });
-    });
-    if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
-      const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
-      if (vImg) return vImg;
-    }
   }
 
   return prod.images?.[0]?.url || (typeof prod.images?.[0] === "string" ? prod.images[0] : null) || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
@@ -111,8 +159,8 @@ const getItemVariantImage = (item) => {
               ) : items.length > 0 ? (
                 items.map((item, idx) => {
                   const prod = item.product || {};
-                  const price = prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
-                  const img = getItemVariantImage(item);
+                  const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
+                  const img = getCartItemImage(item);
 
                   return (
                     <div
@@ -150,55 +198,12 @@ const getItemVariantImage = (item) => {
                             ₹{Number(price).toLocaleString("en-IN")}
                           </p>
 
-                          {/* Interactive Selected Attributes */}
-                          {prod.attributes && Array.isArray(prod.attributes) && prod.attributes.length > 0 ? (
-                            <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                              {prod.attributes.map((attr) => {
-                                const attrName = attr.name || attr.key;
-                                const options = attr.options || attr.values || [];
-                                if (!attrName || options.length === 0) return null;
-                                const currentSelectedMap = typeof item.selectedAttributes?.forEach === "function"
-                                  ? Object.fromEntries(item.selectedAttributes)
-                                  : (item.selectedAttributes || {});
-                                const activeVal = currentSelectedMap[attrName] || options[0];
-
-                                return (
-                                  <div key={attrName} className="flex items-center gap-1 text-[10px] bg-surface border border-border-theme/70 px-1.5 py-0.5 rounded-md">
-                                    <span className="text-foreground/50">{attrName}:</span>
-                                    <select
-                                      value={activeVal}
-                                      onChange={(e) => {
-                                        const newSelected = { ...currentSelectedMap, [attrName]: e.target.value };
-                                        handleUpdateQuantity(item._id, item.quantity, newSelected);
-                                      }}
-                                      className="bg-transparent font-extrabold text-accent focus:outline-none cursor-pointer"
-                                    >
-                                      {options.map((opt) => (
-                                        <option key={opt} value={opt} className="bg-surface text-foreground font-bold">
-                                          {opt}
-                                        </option>
-                                      ))}
-                                    </select>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          ) : item.selectedAttributes ? (
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {Object.entries(
-                                typeof item.selectedAttributes.forEach === "function"
-                                  ? Object.fromEntries(item.selectedAttributes)
-                                  : item.selectedAttributes
-                              ).map(([attrKey, attrVal]) => (
-                                <span
-                                  key={attrKey}
-                                  className="text-[10px] font-bold text-foreground/70 bg-background border border-border-theme/60 px-1.5 py-0.5 rounded-md"
-                                >
-                                  {attrKey}: <strong className="text-accent">{String(attrVal)}</strong>
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
+                          {/* Selected Attributes Tag Display (e.g. White | UK6) */}
+                          {formatSelectedAttributesTag(item) && (
+                            <p className="text-[10px] font-bold text-foreground/70 tracking-wide mt-1 bg-surface border border-border-theme/70 px-1.5 py-0.5 rounded-md inline-block w-fit">
+                              {formatSelectedAttributesTag(item)}
+                            </p>
+                          )}
                         </div>
 
                         {/* Quantity Controls & Remove */}
@@ -265,6 +270,39 @@ const getItemVariantImage = (item) => {
                   >
                     Explore Shop
                   </button>
+                </div>
+              )}
+
+              {/* Frequently Bought Together Slider inside Drawer */}
+              {items.length > 0 && fbtProducts && fbtProducts.length > 0 && (
+                <div className="pt-4 border-t border-border-theme/40">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-accent">
+                      Frequently Bought Together
+                    </span>
+                  </div>
+                  <div className="flex gap-2.5 overflow-x-auto scrollbar-hide pb-2">
+                    {fbtProducts.slice(0, 5).map((fbt) => {
+                      const price = fbt.sellingPrice?.amount || fbt.maxPrice?.amount || 0;
+                      const img = fbt.images?.[0]?.url || (typeof fbt.images?.[0] === "string" ? fbt.images[0] : null);
+                      return (
+                        <div
+                          key={fbt._id}
+                          onClick={() => {
+                            navigate(`/product/${fbt.slug || fbt._id}`);
+                            handleSetDrawerOpen(false);
+                          }}
+                          className="flex-shrink-0 w-28 bg-background border border-border-theme p-2 rounded-xl text-center cursor-pointer hover:border-accent/50 transition group"
+                        >
+                          <div className="w-full h-16 rounded-lg bg-surface overflow-hidden mb-1.5">
+                            <img src={img} alt={fbt.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                          </div>
+                          <p className="text-[10px] font-bold text-foreground truncate">{fbt.title}</p>
+                          <p className="text-[10px] font-mono font-extrabold text-accent">₹{Number(price).toLocaleString("en-IN")}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
             </div>

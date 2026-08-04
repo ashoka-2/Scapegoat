@@ -2,6 +2,9 @@ import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../Hooks/useCart";
+import { getCartItemImage } from "../State/cart.slice";
+import { useUserActivity } from "../../Products/Hooks/useUserActivity";
+import ProductCarousel from "../../Products/Components/ProductCarousel";
 
 /**
  * CartPage Component (Full Width Shopping Cart)
@@ -21,15 +24,47 @@ const CartPage = () => {
     handleClearCart,
   } = useCart();
 
+  const {
+    recentlyViewed,
+    fbtProducts,
+    fetchRecentlyViewed,
+    fetchFrequentlyBoughtTogether,
+  } = useUserActivity();
+
+  const userId = user?._id || user?.id;
+
   useEffect(() => {
-    if (user) {
+    if (userId) {
       handleGetCart();
+      fetchRecentlyViewed(10);
     }
-  }, [user]);
+  }, [userId]);
 
   const items = cart?.items || [];
+  const firstProdId = items[0]?.product?._id || (typeof items[0]?.product === "string" ? items[0].product : null);
+
+  useEffect(() => {
+    if (firstProdId) {
+      fetchFrequentlyBoughtTogether(firstProdId);
+    }
+  }, [firstProdId]);
   const shippingFee = subtotal > 1000 ? 0 : 99;
   const grandTotal = subtotal + shippingFee;
+
+const isColorAttrKey = (key) => /^colou?r$/i.test(String(key || "").trim());
+
+const formatSelectedAttributesTag = (item) => {
+  const selectedAttrs = typeof item.selectedAttributes?.forEach === "function"
+    ? Object.fromEntries(item.selectedAttributes)
+    : (item.selectedAttributes || {});
+
+  if (!selectedAttrs || Object.keys(selectedAttrs).length === 0) return null;
+
+  const vals = Object.values(selectedAttrs).filter(Boolean);
+  if (vals.length === 0) return null;
+
+  return vals.join(" | ");
+};
 
 const getItemVariantImage = (item) => {
   const prod = item.product || {};
@@ -37,27 +72,47 @@ const getItemVariantImage = (item) => {
     ? Object.fromEntries(item.selectedAttributes)
     : (item.selectedAttributes || {});
 
+  if (prod.variants && prod.variants.length > 0 && selectedAttrs) {
+    const colorKey = Object.keys(selectedAttrs).find(isColorAttrKey);
+    const colorValue = colorKey ? selectedAttrs[colorKey] : null;
+
+    if (colorValue) {
+      const matchedVar = prod.variants.find((v) => {
+        const vName = (v.name || "").toLowerCase();
+        if (vName.includes(String(colorValue).toLowerCase())) return true;
+
+        const vAttrs = typeof v.attributes?.forEach === "function"
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+
+        const vColorKey = Object.keys(vAttrs).find(isColorAttrKey);
+        if (vColorKey && String(vAttrs[vColorKey]).trim().toLowerCase() === String(colorValue).trim().toLowerCase()) {
+          return true;
+        }
+
+        if (Array.isArray(v.dynamicAttributes)) {
+          return v.dynamicAttributes.some((da) => {
+            const k = da.key || da.name || "";
+            if (isColorAttrKey(k)) {
+              const vals = (da.values || da.options || [da.value]).map((x) => String(x).toLowerCase());
+              return vals.includes(String(colorValue).toLowerCase());
+            }
+            return false;
+          });
+        }
+        return false;
+      });
+
+      if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
+        const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
+        if (vImg) return vImg;
+      }
+    }
+  }
+
   if (item.variant && item.variant.images && item.variant.images.length > 0) {
     const vImg = item.variant.images[0]?.url || item.variant.images[0];
     if (vImg) return vImg;
-  }
-
-  if (prod.variants && prod.variants.length > 0 && selectedAttrs && Object.keys(selectedAttrs).length > 0) {
-    const matchedVar = prod.variants.find((v) => {
-      const vAttrs = typeof v.attributes?.forEach === "function"
-        ? Object.fromEntries(v.attributes)
-        : (v.attributes?._doc || v.attributes || {});
-      return Object.entries(selectedAttrs).every(([k, val]) => {
-        if (!val) return true;
-        const vVal = vAttrs[k];
-        if (!vVal) return true;
-        return String(vVal).trim().toLowerCase() === String(val).trim().toLowerCase();
-      });
-    });
-    if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
-      const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
-      if (vImg) return vImg;
-    }
   }
 
   return prod.images?.[0]?.url || (typeof prod.images?.[0] === "string" ? prod.images[0] : null) || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
@@ -115,8 +170,8 @@ const getItemVariantImage = (item) => {
           <div className="lg:col-span-2 space-y-4">
             {items.map((item, idx) => {
               const prod = item.product || {};
-              const price = prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
-              const img = getItemVariantImage(item);
+              const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
+              const img = getCartItemImage(item);
 
               return (
                 <div
@@ -145,56 +200,12 @@ const getItemVariantImage = (item) => {
                         ₹{Number(price).toLocaleString("en-IN")}
                       </p>
 
-                      {/* Interactive Selected Attributes */}
-                      {prod.attributes && Array.isArray(prod.attributes) && prod.attributes.length > 0 ? (
-                        <div className="flex flex-wrap items-center gap-2 pt-1.5">
-                          {prod.attributes.map((attr) => {
-                            const attrName = attr.name || attr.key;
-                            const options = attr.options || attr.values || [];
-                            if (!attrName || options.length === 0) return null;
-                            const currentSelectedMap = typeof item.selectedAttributes?.forEach === "function"
-                              ? Object.fromEntries(item.selectedAttributes)
-                              : (item.selectedAttributes || {});
-                            const activeVal = currentSelectedMap[attrName] || options[0];
-
-                            return (
-                              <div key={attrName} className="flex items-center gap-1.5 text-xs bg-background border border-border-theme px-2.5 py-1 rounded-xl shadow-xs">
-                                <span className="text-foreground/50 font-medium">{attrName}:</span>
-                                <select
-                                  value={activeVal}
-                                  onChange={(e) => {
-                                    const newSelected = { ...currentSelectedMap, [attrName]: e.target.value };
-                                    handleUpdateQuantity(item._id, item.quantity, newSelected);
-                                  }}
-                                  className="bg-transparent font-extrabold text-accent focus:outline-none cursor-pointer"
-                                >
-                                  {options.map((opt) => (
-                                    <option key={opt} value={opt} className="bg-surface text-foreground font-bold">
-                                      {opt}
-                                    </option>
-                                  ))}
-                                </select>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : item.selectedAttributes ? (
-                        <div className="flex flex-wrap items-center gap-1.5 pt-1">
-                          {Object.entries(
-                            typeof item.selectedAttributes.forEach === "function"
-                              ? Object.fromEntries(item.selectedAttributes)
-                              : item.selectedAttributes
-                          ).map(([attrKey, attrVal]) => (
-                            <span
-                              key={attrKey}
-                              className="text-[11px] font-bold text-foreground/80 bg-background border border-border-theme/80 px-2 py-0.5 rounded-lg flex items-center gap-1"
-                            >
-                              <span className="text-foreground/50">{attrKey}:</span>
-                              <strong className="text-accent">{String(attrVal)}</strong>
-                            </span>
-                          ))}
-                        </div>
-                      ) : null}
+                      {/* Selected Attributes Tag Display (e.g. White | UK6) */}
+                      {formatSelectedAttributesTag(item) && (
+                        <p className="text-[11px] font-bold text-foreground/70 tracking-wide mt-1 bg-background border border-border-theme/70 px-2 py-0.5 rounded-md inline-block w-fit">
+                          {formatSelectedAttributesTag(item)}
+                        </p>
+                      )}
                     </div>
                   </div>
 
@@ -317,6 +328,32 @@ const getItemVariantImage = (item) => {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Frequently Bought Together Slider */}
+      {fbtProducts && fbtProducts.length > 0 && (
+        <div className="pt-6 border-t border-border-theme/40">
+          <ProductCarousel
+            badge="Co-Purchased"
+            title="Frequently Bought Together"
+            subtitle="Products commonly purchased by shoppers who bought items in your cart."
+            products={fbtProducts}
+            onViewAll={() => navigate("/shop")}
+          />
+        </div>
+      )}
+
+      {/* Recently Visited Slider */}
+      {recentlyViewed && recentlyViewed.length > 0 && (
+        <div className="pt-4 border-t border-border-theme/40">
+          <ProductCarousel
+            badge="Jump Back In"
+            title="Recently Visited"
+            subtitle="Items you were checking out earlier."
+            products={recentlyViewed}
+            onViewAll={() => navigate("/shop?filter=recently-viewed")}
+          />
         </div>
       )}
     </div>

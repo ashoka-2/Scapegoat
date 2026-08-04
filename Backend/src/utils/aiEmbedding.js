@@ -90,8 +90,44 @@ export function buildProductTextForEmbedding(product) {
     product.shortDescription || "",
     product.description || "",
     Array.isArray(product.tags) ? product.tags.join(" ") : "",
-    product.categoryName || "",
-    product.brandName || "",
+    product.categoryName || product.category?.name || "",
+    product.brandName || product.brand?.name || "",
+    product.sku || "",
   ];
-  return parts.filter(Boolean).join(" ").substring(0, 1000);
+
+  // Include attribute names and values for semantic relevance
+  // e.g. "Color Red Blue Size S M L XL Material Cotton"
+  if (Array.isArray(product.attributes)) {
+    product.attributes.forEach((attr) => {
+      const name = attr.name || attr.key || "";
+      const options = Array.isArray(attr.options)
+        ? attr.options.join(" ")
+        : (attr.value || "");
+      if (name) parts.push(`${name} ${options}`);
+    });
+  }
+
+  // Include variant attribute values
+  if (Array.isArray(product.variants)) {
+    product.variants.forEach((v) => {
+      if (v.name) parts.push(v.name);
+      if (v.sku) parts.push(v.sku);
+      const rawAttrs = v.attributes instanceof Map
+        ? Object.fromEntries(v.attributes)
+        : (v.attributes?._doc || v.attributes || {});
+      Object.entries(rawAttrs).forEach(([k, val]) => {
+        const vals = Array.isArray(val) ? val.join(" ") : String(val || "");
+        parts.push(`${k} ${vals}`);
+      });
+      if (Array.isArray(v.dynamicAttributes)) {
+        v.dynamicAttributes.forEach((da) => {
+          const k = da.key || da.name || "";
+          const vals = (da.values || da.options || []).join(" ");
+          if (k) parts.push(`${k} ${vals}`);
+        });
+      }
+    });
+  }
+
+  return parts.filter(Boolean).join(" ").substring(0, 1500);
 }

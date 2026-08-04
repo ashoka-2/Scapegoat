@@ -1389,6 +1389,11 @@ export const aiSearchProducts = async (req, res) => {
     }
 
     const queryText = q.trim();
+    const queryLower = queryText.toLowerCase();
+
+    // Check if query is a number (for price matching)
+    const queryNumber = parseFloat(queryText);
+    const isNumericQuery = !isNaN(queryNumber) && queryNumber > 0;
 
     // Generate local 384-dimensional vector embedding for prompt
     const queryEmbedding = await generateTextEmbedding(queryText);
@@ -1403,32 +1408,103 @@ export const aiSearchProducts = async (req, res) => {
 
     let results = [];
 
-    if (queryEmbedding && queryEmbedding.length > 0) {
-      // Calculate Cosine Similarity with vector embeddings
-      results = candidates.map((product) => {
-        let score = 0;
-        if (product.embedding && product.embedding.length === queryEmbedding.length) {
-          score = cosineSimilarity(queryEmbedding, product.embedding);
-        }
+    // Score every candidate using a multi-signal algorithm
+    results = candidates.map((product) => {
+      let score = 0;
+      const titleLower = (product.title || "").toLowerCase();
+      const descLower = (product.description || "").toLowerCase();
+      const shortDescLower = (product.shortDescription || "").toLowerCase();
+      const skuLower = (product.sku || "").toLowerCase();
+      const catLower = (product.category?.name || "").toLowerCase();
+      const brandLower = (product.brand?.name || "").toLowerCase();
+      const tagsLower = Array.isArray(product.tags) ? product.tags.join(" ").toLowerCase() : "";
 
-        // Title match boost
-        if (product.title.toLowerCase().includes(queryText.toLowerCase())) {
-          score += 0.3;
-        }
-
-        return { product, score };
+      // Build attribute text from variants
+      let attrText = "";
+      (product.variants || []).forEach((v) => {
+        if (v.name) attrText += " " + v.name;
+        if (v.sku) attrText += " " + v.sku;
+        const rawAttrs = v.attributes instanceof Map
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+        Object.values(rawAttrs).forEach((val) => {
+          attrText += " " + (Array.isArray(val) ? val.join(" ") : String(val || ""));
+        });
+        (v.dynamicAttributes || []).forEach((da) => {
+          attrText += " " + (da.key || "") + " " + (da.values || da.options || []).join(" ");
+        });
       });
+      const attrLower = attrText.toLowerCase();
 
-      results.sort((a, b) => b.score - a.score);
-      results = results.map((r) => r.product);
-    } else {
-      // Fallback: MongoDB Text Index Search
-      results = await productModel
-        .find({ $text: { $search: queryText }, status: "published" })
-        .populate("category", "name slug")
-        .populate("brand", "name slug image")
-        .populate("seller", "fullname profilePic");
-    }
+      // Signal 1: AI Vector Cosine Similarity (0-1 range)
+      let vectorScore = 0;
+      if (queryEmbedding && queryEmbedding.length > 0 &&
+          product.embedding && product.embedding.length === queryEmbedding.length) {
+        vectorScore = cosineSimilarity(queryEmbedding, product.embedding);
+      }
+      score += vectorScore;
+
+      // Signal 2: SKU exact match (highest priority)
+      if (skuLower && skuLower === queryLower) {
+        score += 2.0;
+      }
+
+      // Signal 3: Title direct match (very high priority)
+      if (titleLower === queryLower) {
+        score += 1.5;
+      } else if (titleLower.includes(queryLower)) {
+        score += 0.8;
+      }
+
+      // Signal 4: Category / Brand match
+      if (catLower.includes(queryLower)) score += 0.5;
+      if (brandLower.includes(queryLower)) score += 0.5;
+
+      // Signal 5: Tags match
+      if (tagsLower.includes(queryLower)) score += 0.4;
+
+      // Signal 6: Attribute match (color, size, etc.)
+      if (attrLower.includes(queryLower)) score += 0.35;
+
+      // Signal 7: Description match (lower weight)
+      if (descLower.includes(queryLower)) score += 0.2;
+      if (shortDescLower.includes(queryLower)) score += 0.15;
+
+      // Signal 8: Token-level matching (each query word)
+      const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 1);
+      if (queryWords.length > 1) {
+        queryWords.forEach((w) => {
+          if (titleLower.includes(w)) score += 0.15;
+          if (catLower.includes(w)) score += 0.1;
+          if (brandLower.includes(w)) score += 0.1;
+          if (tagsLower.includes(w)) score += 0.08;
+          if (attrLower.includes(w)) score += 0.08;
+        });
+      }
+
+      // Signal 9: Number-as-price matching
+      if (isNumericQuery) {
+        const productPrice = product.sellingPrice?.amount || product.maxPrice?.amount || 0;
+        const tolerance = queryNumber * 0.1; // ±10%
+        if (productPrice > 0 && Math.abs(productPrice - queryNumber) <= tolerance) {
+          score += 0.6;
+        }
+        // Also check if the number appears in title/description as text
+        if (titleLower.includes(queryText) || descLower.includes(queryText)) {
+          score += 0.5;
+        }
+      }
+
+      return { product, score };
+    });
+
+    // Apply minimum similarity threshold — only return genuinely matching products
+    const MIN_MATCH_SCORE = 0.35;
+    results = results.filter((r) => r.score >= MIN_MATCH_SCORE);
+
+    // Sort by score descending
+    results.sort((a, b) => b.score - a.score);
+    results = results.map((r) => r.product);
 
     return res.status(200).json({
       success: true,
