@@ -162,11 +162,19 @@ const getItemVariantImage = (item) => {
                   const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
                   const img = getCartItemImage(item);
                   const itemStock = item.variant?.stock ?? prod.stock ?? 999;
+                  const isOutOfStock = prod.stockStatus === "outofstock" || (prod.manageStock && itemStock <= 0);
+                  const exceedsStock = prod.manageStock && item.quantity > itemStock;
 
                   return (
                     <div
                       key={item._id || idx}
-                      className="flex gap-4 p-4 bg-background border border-border-theme rounded-2xl hover:border-accent/40 transition group"
+                      className={`flex gap-4 p-4 rounded-2xl transition group border ${
+                        isOutOfStock
+                          ? "bg-red-500/5 border-red-500/40"
+                          : exceedsStock
+                          ? "bg-amber-500/5 border-amber-500/40"
+                          : "bg-background border-border-theme hover:border-accent/40"
+                      }`}
                     >
                       {/* Image Thumbnail */}
                       <div
@@ -176,25 +184,42 @@ const getItemVariantImage = (item) => {
                             handleSetDrawerOpen(false);
                           }
                         }}
-                        className="w-16 h-20 bg-surface rounded-xl overflow-hidden shrink-0 cursor-pointer border border-border-theme"
+                        className="w-16 h-20 bg-surface rounded-xl overflow-hidden shrink-0 cursor-pointer border border-border-theme relative"
                       >
-                        <img src={img} alt={prod.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                        <img src={img} alt={prod.title} className={`w-full h-full object-cover group-hover:scale-105 transition duration-300 ${isOutOfStock ? "grayscale opacity-60" : ""}`} />
+                        {isOutOfStock && (
+                          <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-0.5 text-center">
+                            <span className="text-[8px] font-black text-white uppercase tracking-tighter leading-none">Out of Stock</span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Item Details */}
                       <div className="flex-1 min-w-0 flex flex-col justify-between py-0.5">
                         <div>
-                          <h3
-                            onClick={() => {
-                              if (prod._id || prod.slug) {
-                                navigate(`/product/${prod.slug || prod._id}`);
-                                handleSetDrawerOpen(false);
-                              }
-                            }}
-                            className="text-xs font-bold text-foreground truncate hover:text-accent cursor-pointer transition"
-                          >
-                            {prod.title || "Product Item"}
-                          </h3>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <h3
+                              onClick={() => {
+                                if (prod._id || prod.slug) {
+                                  navigate(`/product/${prod.slug || prod._id}`);
+                                  handleSetDrawerOpen(false);
+                                }
+                              }}
+                              className="text-xs font-bold text-foreground truncate hover:text-accent cursor-pointer transition"
+                            >
+                              {prod.title || "Product Item"}
+                            </h3>
+                            {isOutOfStock ? (
+                              <span className="text-[9px] font-extrabold text-red-400 bg-red-500/10 border border-red-500/30 px-1.5 py-0.5 rounded">
+                                ⚠️ Sold Out
+                              </span>
+                            ) : exceedsStock ? (
+                              <span className="text-[9px] font-extrabold text-amber-400 bg-amber-500/10 border border-amber-500/30 px-1.5 py-0.5 rounded">
+                                ⚠️ Only {itemStock} left
+                              </span>
+                            ) : null}
+                          </div>
+
                           <p className="text-[11px] font-mono font-bold text-accent mt-0.5">
                             ₹{Number(price).toLocaleString("en-IN")}
                           </p>
@@ -213,7 +238,7 @@ const getItemVariantImage = (item) => {
                             <button
                               type="button"
                               onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
-                              disabled={item.quantity <= 1}
+                              disabled={item.quantity <= 1 || isOutOfStock}
                               className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-background font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                             >
                               -
@@ -223,18 +248,19 @@ const getItemVariantImage = (item) => {
                               min={1}
                               max={itemStock}
                               value={item.quantity}
+                              disabled={isOutOfStock}
                               onChange={(e) => {
                                 const val = parseInt(e.target.value, 10);
                                 if (!isNaN(val) && val >= 1) {
                                   handleUpdateQuantity(item._id, Math.min(itemStock, val));
                                 }
                               }}
-                              className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-50"
                             />
                             <button
                               type="button"
                               onClick={() => handleUpdateQuantity(item._id, Math.min(itemStock, item.quantity + 1))}
-                              disabled={item.quantity >= itemStock}
+                              disabled={item.quantity >= itemStock || isOutOfStock}
                               className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-background font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                             >
                               +
@@ -320,30 +346,45 @@ const getItemVariantImage = (item) => {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSetDrawerOpen(false);
-                      navigate("/cart");
-                    }}
-                    className="py-3 rounded-xl bg-surface border border-border-theme text-foreground font-bold text-xs hover:bg-background transition cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <i className="ri-shopping-cart-2-line" />
-                    <span>View Cart</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      handleSetDrawerOpen(false);
-                      navigate("/cart");
-                    }}
-                    className="py-3 rounded-xl bg-accent text-accent-content font-extrabold text-xs shadow hover:opacity-90 transition cursor-pointer flex items-center justify-center gap-1"
-                  >
-                    <span>Checkout</span>
-                    <i className="ri-arrow-right-line" />
-                  </button>
-                </div>
+                {(() => {
+                  const hasOutOfStock = items.some((item) => {
+                    const prod = item.product || {};
+                    const itemStock = item.variant?.stock ?? prod.stock ?? 0;
+                    return prod.stockStatus === "outofstock" || (prod.manageStock && itemStock <= 0) || (prod.manageStock && item.quantity > itemStock);
+                  });
+
+                  return (
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          handleSetDrawerOpen(false);
+                          navigate("/cart");
+                        }}
+                        className="py-3 rounded-xl bg-surface border border-border-theme text-foreground font-bold text-xs hover:bg-background transition cursor-pointer flex items-center justify-center gap-1"
+                      >
+                        <i className="ri-shopping-cart-2-line" />
+                        <span>View Cart</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={hasOutOfStock}
+                        onClick={() => {
+                          handleSetDrawerOpen(false);
+                          navigate("/cart");
+                        }}
+                        className={`py-3 rounded-xl font-extrabold text-xs shadow transition flex items-center justify-center gap-1 ${
+                          hasOutOfStock
+                            ? "bg-foreground/10 text-foreground/40 border border-border-theme cursor-not-allowed"
+                            : "bg-accent text-accent-content hover:opacity-90 cursor-pointer"
+                        }`}
+                      >
+                        <span>{hasOutOfStock ? "Unavailable" : "Checkout"}</span>
+                        <i className="ri-arrow-right-line" />
+                      </button>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </motion.div>
