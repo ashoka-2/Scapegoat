@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 import {
@@ -8,6 +9,7 @@ import {
   setError,
   optimisticUpdateQuantity,
   optimisticRemoveItem,
+  optimisticAddToCart,
 } from "../State/cart.slice";
 import * as api from "../Services/cart.api";
 
@@ -61,7 +63,24 @@ export const useCart = () => {
     return Object.keys(derived).length > 0 ? derived : null;
   };
 
-  // Add To Cart with Stock & Seller Restrictions
+  const getSellerId = (prod) => {
+    if (!prod) return null;
+    if (typeof prod.seller === "object") return prod.seller?._id || prod.seller?.id;
+    if (typeof prod.seller === "string") return prod.seller;
+    if (prod.sellerId) return prod.sellerId;
+    if (typeof prod.user === "object") return prod.user?._id || prod.user?.id;
+    if (typeof prod.user === "string") return prod.user;
+    return null;
+  };
+
+  // Fetch Cart automatically on mount/login
+  useEffect(() => {
+    if (user && (!cart || !cart.items)) {
+      handleGetCart();
+    }
+  }, [user]);
+
+  // Add To Cart with Stock & Seller Restrictions (⚡ 100% Optimistic UX)
   const handleAddToCart = async (product, quantity = 1, variantId = null, selectedAttributes = null) => {
     if (!user) {
       toast("Please login to add items to your shopping cart.", "info");
@@ -74,11 +93,11 @@ export const useCart = () => {
     }
 
     // 1. Seller Ownership Check (Seller cannot purchase their own product)
-    const sellerId = typeof product.seller === "object" ? product.seller?._id : product.seller;
+    const sellerId = getSellerId(product);
     const userId = user?._id || user?.id;
 
-    if (sellerId && String(sellerId) === String(userId)) {
-      toast("Sellers cannot purchase their own listed products.", "error");
+    if (sellerId && userId && String(sellerId) === String(userId)) {
+      toast("Alert: Sellers cannot purchase their own listed products.", "error");
       return;
     }
 
@@ -88,31 +107,36 @@ export const useCart = () => {
       return;
     }
 
-    // Derive default base attributes if none selected (e.g. from ProductCard slide to cart)
     const finalAttributes = (selectedAttributes && Object.keys(selectedAttributes).length > 0)
       ? selectedAttributes
       : deriveDefaultAttributes(product);
 
     const finalVariantId = variantId || (product.variants?.length > 0 ? product.variants[0]?._id : null);
 
-    dispatch(setLoading(true));
+    // ⚡ 1. INSTANT Optimistic UI Update & Toast
+    dispatch(optimisticAddToCart({
+      product,
+      quantity: Number(quantity),
+      variantId: finalVariantId,
+      selectedAttributes: finalAttributes,
+    }));
+    toast(`Added "${product.title || 'item'}" to your cart! 🛍️`, "success");
+    dispatch(setCartDrawerOpen(true));
+
+    // ⚡ 2. Async Background Backend Sync
     try {
-      const productId = product._id || product;
+      const productId = product._id || product.id || product;
       const data = await api.addItemToCartApi({
         productId,
         variantId: finalVariantId,
         selectedAttributes: finalAttributes,
-        quantity,
+        quantity: Number(quantity),
       });
       dispatch(setCart(data));
-      toast(`Added "${product.title || 'item'}" to your cart! 🛍️`, "success");
-      dispatch(setCartDrawerOpen(true));
       return data.data;
     } catch (e) {
       toast(errMsg(e), "error");
-      throw e;
-    } finally {
-      dispatch(setLoading(false));
+      handleGetCart();
     }
   };
 

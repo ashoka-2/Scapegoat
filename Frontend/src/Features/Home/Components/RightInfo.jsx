@@ -7,12 +7,17 @@ import { useNavigate } from "react-router-dom";
 import { useProduct } from "../../Products/Hooks/useProduct";
 import { addToast } from "../../../utils/toast.slice";
 
+import { useCart } from "../../Cart/Hooks/useCart";
+
 const ProductCardItem = ({ product }) => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
+  const user = useSelector((state) => state.auth?.user);
   const dragContainerRef = useRef(null);
   const [isDragged, setIsDragged] = useState(false);
   const controls = useAnimation();
+
+  const { handleAddToCart: addToCartFn } = useCart();
 
   // Lock arrow to left: 0 on mount
   useEffect(() => {
@@ -20,22 +25,22 @@ const ProductCardItem = ({ product }) => {
   }, [controls, product]);
 
   const handleAddToCart = async () => {
+    if (!user) {
+      dispatch(addToast({ message: "Please log in to add items to your cart", type: "info" }));
+      navigate("/login");
+      return;
+    }
+
     if (!isDragged && product) {
-      setIsDragged(true);
       try {
-        dispatch(
-          addToast({
-            message: `🛒 ${product.title || "Product"} added to your cart!`,
-            type: "success",
-          })
-        );
-      } catch (err) {
-        console.error(err);
-      } finally {
+        await addToCartFn(product);
+        setIsDragged(true);
         setTimeout(() => {
           setIsDragged(false);
           controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
         }, 1500);
+      } catch (err) {
+        console.error("Cart error", err);
       }
     }
   };

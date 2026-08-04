@@ -203,21 +203,31 @@ const getItemVariantImage = (item) => {
 
                         {/* Quantity Controls & Remove */}
                         <div className="flex items-center justify-between mt-2">
-                          <div className="flex items-center space-x-2 bg-surface border border-border-theme rounded-xl px-2 py-1">
+                          <div className="flex items-center space-x-1 bg-surface border border-border-theme rounded-xl px-1.5 py-0.5">
                             <button
                               type="button"
                               onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
-                              className="text-foreground/60 hover:text-accent font-bold text-xs px-1 cursor-pointer"
+                              className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
                             >
                               <i className="ri-subtract-line" />
                             </button>
-                            <span className="text-xs font-bold text-foreground font-mono px-1">
-                              {item.quantity}
-                            </span>
+                            <input
+                              type="number"
+                              min={1}
+                              max={999}
+                              value={item.quantity}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value, 10);
+                                if (!isNaN(val) && val >= 1) {
+                                  handleUpdateQuantity(item._id, val);
+                                }
+                              }}
+                              className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                            />
                             <button
                               type="button"
                               onClick={() => handleUpdateQuantity(item._id, item.quantity + 1)}
-                              className="text-foreground/60 hover:text-accent font-bold text-xs px-1 cursor-pointer"
+                              className="text-foreground/60 hover:text-accent font-bold text-xs p-1 cursor-pointer"
                             >
                               <i className="ri-add-line" />
                             </button>

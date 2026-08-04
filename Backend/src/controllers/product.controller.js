@@ -406,6 +406,7 @@ export const createProduct = async (req, res) => {
     const productData = {
       ...req.body,
       seller: req.user._id,
+      status: req.body.status || "published",
     };
 
     // Extract rawUrls from request body (supports array, JSON string, or indexed keys)
@@ -803,10 +804,10 @@ export const getSingleProduct = async (req, res) => {
       });
     }
 
-    // Hide draft or trashed products from public callers unless they are the owner/admin
-    if (product.status !== "published") {
-      const canViewDraft = req.user && isOwnerOrAdmin(product, req.user);
-      if (!canViewDraft) {
+    // Only hide trashed products from public callers unless they are the owner/admin
+    if (product.status === "trash") {
+      const canViewTrash = req.user && isOwnerOrAdmin(product, req.user);
+      if (!canViewTrash) {
         return res.status(404).json({
           success: false,
           message: "Product not available",

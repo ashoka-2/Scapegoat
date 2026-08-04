@@ -40,7 +40,7 @@ const cartSlice = createSlice({
         if (quantity <= 0) {
           state.cart.items.splice(itemIdx, 1);
         } else {
-          state.cart.items[itemIdx].quantity = quantity;
+          state.cart.items[itemIdx].quantity = Number(quantity);
           if (selectedAttributes) {
             state.cart.items[itemIdx].selectedAttributes = selectedAttributes;
           }
@@ -68,6 +68,45 @@ const cartSlice = createSlice({
         return acc + price * (i.quantity || 0);
       }, 0);
     },
+    optimisticAddToCart: (state, action) => {
+      const { product, quantity = 1, variantId, selectedAttributes } = action.payload;
+      if (!state.cart) {
+        state.cart = { items: [] };
+      }
+      if (!Array.isArray(state.cart.items)) {
+        state.cart.items = [];
+      }
+
+      const prodId = product._id || product.id || product;
+      const existingIdx = state.cart.items.findIndex((item) => {
+        const itemProdId = item.product?._id || item.product?.id || item.product;
+        if (String(itemProdId) !== String(prodId)) return false;
+        if (variantId && item.variant?._id && String(item.variant._id) !== String(variantId)) return false;
+        return true;
+      });
+
+      if (existingIdx !== -1) {
+        state.cart.items[existingIdx].quantity += Number(quantity);
+        if (selectedAttributes) {
+          state.cart.items[existingIdx].selectedAttributes = selectedAttributes;
+        }
+      } else {
+        const tempId = "temp_" + Date.now() + "_" + Math.random().toString(36).substr(2, 5);
+        state.cart.items.unshift({
+          _id: tempId,
+          product: product,
+          quantity: Number(quantity),
+          selectedAttributes: selectedAttributes || {},
+          variant: variantId ? product.variants?.find((v) => String(v._id) === String(variantId)) : null,
+        });
+      }
+
+      state.totalItems = state.cart.items.reduce((acc, i) => acc + (i.quantity || 0), 0);
+      state.subtotal = state.cart.items.reduce((acc, i) => {
+        const price = i.product?.sellingPrice?.amount || i.product?.maxPrice?.amount || i.variant?.priceAmount || 0;
+        return acc + price * (i.quantity || 0);
+      }, 0);
+    },
   },
 });
 
@@ -79,5 +118,6 @@ export const {
   setError,
   optimisticUpdateQuantity,
   optimisticRemoveItem,
+  optimisticAddToCart,
 } = cartSlice.actions;
 export default cartSlice.reducer;

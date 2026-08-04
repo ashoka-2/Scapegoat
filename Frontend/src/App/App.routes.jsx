@@ -6,6 +6,7 @@ import Profile from "../Features/auth/Pages/Profile.jsx";
 import CompleteProfile from "../Features/auth/Pages/CompleteProfile.jsx";
 import Protected from "../Features/auth/components/Protected.jsx";
 import SellerRoute from "../Features/auth/components/SellerRoute.jsx";
+import GuestRoute from "../Features/auth/components/GuestRoute.jsx";
 import MainLayout from "./MainLayout.jsx";
 import SellerLayout from "../Components/SellerLayout.jsx";
 
@@ -21,11 +22,19 @@ import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 export const routes = createBrowserRouter([
   {
     path: "/register",
-    element: <Register />,
+    element: (
+      <GuestRoute>
+        <Register />
+      </GuestRoute>
+    ),
   },
   {
     path: "/login",
-    element: <Login />,
+    element: (
+      <GuestRoute>
+        <Login />
+      </GuestRoute>
+    ),
   },
   {
     path: "/complete-profile",
@@ -37,11 +46,7 @@ export const routes = createBrowserRouter([
   },
   {
     path: "/",
-    element: (
-      <Protected>
-        <MainLayout />
-      </Protected>
-    ),
+    element: <MainLayout />,
     children: [
       {
         index: true,
@@ -53,7 +58,11 @@ export const routes = createBrowserRouter([
       },
       {
         path: "cart",
-        element: <CartPage />,
+        element: (
+          <Protected>
+            <CartPage />
+          </Protected>
+        ),
       },
       {
         path: "profile",

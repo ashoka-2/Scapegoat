@@ -887,18 +887,29 @@ const SingleProduct = () => {
           <div className="space-y-3 pt-2">
             <span className="text-xs font-bold text-foreground uppercase tracking-wider">Quantity:</span>
             <div className="flex items-center gap-4">
-              <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden">
+              <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden px-1">
                 <button
                   type="button"
                   onClick={() => setQuantity((prev) => Math.max(1, prev - 1))}
                   disabled={quantity <= 1 || isOutOfStock}
-                  className="px-4 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
+                  className="px-3 py-2.5 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-sm transition disabled:opacity-30 cursor-pointer"
                 >
                   -
                 </button>
-                <span className="px-5 py-2.5 font-extrabold text-sm text-foreground">
-                  {quantity}
-                </span>
+                <input
+                  type="number"
+                  min={1}
+                  max={currentStock || 999}
+                  value={quantity}
+                  disabled={isOutOfStock}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1) {
+                      setQuantity(Math.min(currentStock || 999, val));
+                    }
+                  }}
+                  className="w-12 text-center bg-transparent font-extrabold text-sm text-foreground outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                />
                 <button
                   type="button"
                   onClick={() => setQuantity((prev) => Math.min(currentStock, prev + 1))}
