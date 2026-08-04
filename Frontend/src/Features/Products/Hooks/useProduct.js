@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   setLoading,
@@ -17,6 +17,7 @@ import {
   getSellerProductsApi,
   deleteProductApi,
   updateProductApi,
+  restoreProductApi,
 } from "../Services/product.api.js";
 import { addToast } from "../../../utils/toast.slice.js";
 
@@ -65,8 +66,12 @@ export const useProduct = () => {
     [dispatch]
   );
 
+  const isFetchingRef = useRef(false);
+
   const handleFetchAllProducts = useCallback(
     async (params) => {
+      if (isFetchingRef.current) return;
+      isFetchingRef.current = true;
       dispatch(setLoading(true));
       try {
         const data = await getAllProductsApi(params);
@@ -75,6 +80,7 @@ export const useProduct = () => {
         const message = err.response?.data?.message || "Failed to fetch products.";
         dispatch(setError(message));
       } finally {
+        isFetchingRef.current = false;
         dispatch(setLoading(false));
       }
     },
@@ -161,6 +167,24 @@ export const useProduct = () => {
     [dispatch]
   );
 
+  const handleRestoreProduct = useCallback(
+    async (productId) => {
+      dispatch(setLoading(true));
+      try {
+        await restoreProductApi(productId);
+        dispatch(addToast({ message: "🎉 Product restored from trash successfully!", type: "success" }));
+        return { success: true };
+      } catch (err) {
+        const message = err.response?.data?.message || "Failed to restore product.";
+        dispatch(addToast({ message, type: "error" }));
+        return { success: false, error: message };
+      } finally {
+        dispatch(setLoading(false));
+      }
+    },
+    [dispatch]
+  );
+
   return {
     products,
     sellerProducts,
@@ -177,5 +201,6 @@ export const useProduct = () => {
     handleFetchSellerProducts,
     handleDeleteProduct,
     handleUpdateProduct,
+    handleRestoreProduct,
   };
 };

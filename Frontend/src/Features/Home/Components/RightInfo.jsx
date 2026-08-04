@@ -148,11 +148,14 @@ const FeatureCard = () => {
   const reduxProducts = useSelector((state) => state.product.products) || [];
   const [localProducts, setLocalProducts] = useState([]);
 
+  const hasFetchedRef = useRef(false);
+
   useEffect(() => {
-    if (!reduxProducts || reduxProducts.length === 0) {
+    if (!hasFetchedRef.current && (!reduxProducts || reduxProducts.length === 0)) {
+      hasFetchedRef.current = true;
       handleFetchAllProducts();
     }
-  }, [handleFetchAllProducts, reduxProducts]);
+  }, []);
 
   const allProducts = reduxProducts.length > 0 ? reduxProducts : localProducts;
   const featuredProducts = allProducts.slice(0, 5);

@@ -14,7 +14,14 @@ const SellerCatalog = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
-  const { sellerProducts, loading, handleFetchSellerProducts, handleDeleteProduct, handleUpdateProduct } = useProduct();
+  const {
+    sellerProducts,
+    loading,
+    handleFetchSellerProducts,
+    handleDeleteProduct,
+    handleUpdateProduct,
+    handleRestoreProduct,
+  } = useProduct();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -45,7 +52,13 @@ const SellerCatalog = () => {
       await handleDeleteProduct(deleteModal.productId);
       setDeleteModal({ open: false, productId: null });
       setSelectedProductIds((prev) => prev.filter((id) => id !== deleteModal.productId));
+      if (user?._id || user?.id) handleFetchSellerProducts(user._id || user.id);
     }
+  };
+
+  const handleRestoreSingle = async (prodId) => {
+    await handleRestoreProduct(prodId);
+    if (user?._id || user?.id) handleFetchSellerProducts(user._id || user.id);
   };
 
   // Filtered Products List
@@ -53,12 +66,15 @@ const SellerCatalog = () => {
     const matchesSearch =
       p.title?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       p.sku?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === "all" || p.status === statusFilter;
+    const matchesStatus =
+      statusFilter === "all"
+        ? p.status !== "trash"
+        : p.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
 
   // Counts
-  const countAll = sellerProducts.length;
+  const countAll = sellerProducts.filter((p) => p.status !== "trash").length;
   const countPublished = sellerProducts.filter((p) => p.status === "published").length;
   const countDraft = sellerProducts.filter((p) => p.status === "draft").length;
   const countTrash = sellerProducts.filter((p) => p.status === "trash").length;
@@ -92,11 +108,14 @@ const SellerCatalog = () => {
       return;
     }
 
-    if (bulkAction === "trash") {
-      if (window.confirm(`Move ${selectedProductIds.length} selected products to trash?`)) {
-        await Promise.all(selectedProductIds.map((id) => handleDeleteProduct(id)));
-        setSelectedProductIds([]);
-      }
+    if (bulkAction === "restore") {
+      await Promise.all(selectedProductIds.map((id) => handleRestoreProduct(id)));
+      setSelectedProductIds([]);
+      if (user?._id || user?.id) handleFetchSellerProducts(user._id || user.id);
+    } else if (bulkAction === "trash" || bulkAction === "delete_permanently") {
+      await Promise.all(selectedProductIds.map((id) => handleDeleteProduct(id)));
+      setSelectedProductIds([]);
+      if (user?._id || user?.id) handleFetchSellerProducts(user._id || user.id);
     } else if (bulkAction === "publish") {
       await Promise.all(
         selectedProductIds.map((id) => {
@@ -182,6 +201,28 @@ const SellerCatalog = () => {
         </div>
       </div>
 
+      {/* Trash View Notice Banner */}
+      {statusFilter === "trash" && (
+        <div className="bg-red-500/10 border border-red-500/20 p-4 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-red-500 font-bold">
+          <div className="flex items-center gap-2">
+            <i className="ri-delete-bin-line text-lg shrink-0" />
+            <span>Products in Trash are hidden from your store. You can restore them anytime or delete them permanently.</span>
+          </div>
+          {countTrash > 0 && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedProductIds(filteredProducts.map((p) => p._id));
+                setBulkAction("restore");
+              }}
+              className="px-3 py-1.5 rounded-xl bg-red-500 text-white hover:bg-red-600 transition text-[11px] font-extrabold cursor-pointer shrink-0"
+            >
+              Select All Trashed ({countTrash})
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Filters & Bulk Action Toolbars (WooCommerce Layout) */}
       <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 bg-surface border border-border-theme p-4 rounded-2xl shadow-sm">
         {/* Bulk Action Controls */}
@@ -192,9 +233,18 @@ const SellerCatalog = () => {
             className="bg-background border border-border-theme text-foreground rounded-xl px-3 py-2 text-xs font-bold outline-none cursor-pointer focus:border-accent"
           >
             <option value="">Bulk Actions</option>
-            <option value="publish">Mark as Published</option>
-            <option value="draft">Mark as Draft</option>
-            <option value="trash">Move to Trash / Delete</option>
+            {statusFilter === "trash" ? (
+              <>
+                <option value="restore">Restore Selected</option>
+                <option value="delete_permanently">Delete Permanently</option>
+              </>
+            ) : (
+              <>
+                <option value="publish">Mark as Published</option>
+                <option value="draft">Mark as Draft</option>
+                <option value="trash">Move to Trash</option>
+              </>
+            )}
           </select>
           <button
             type="button"
@@ -294,54 +344,80 @@ const SellerCatalog = () => {
                         </div>
                       </td>
 
-                      {/* Name & Quick Hover Action Links */}
+                      {/* Name & Quick Action Links */}
                       <td className="p-4 space-y-1">
                         <div className="flex items-center space-x-2">
                           <span className="font-bold text-foreground hover:text-accent cursor-pointer transition text-sm">
                             {prod.title}
                           </span>
-                          {prod.status === "draft" && (
+                          {prod.status === "trash" ? (
+                            <span className="text-[10px] font-extrabold uppercase bg-red-500/10 text-red-500 border border-red-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <i className="ri-delete-bin-line text-[10px]" /> Trashed
+                            </span>
+                          ) : prod.status === "draft" ? (
                             <span className="text-[10px] font-extrabold uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full">
                               Draft
                             </span>
-                          )}
+                          ) : null}
                         </div>
 
-                        {/* Hover Actions (WooCommerce style) */}
-                        <div className="flex items-center space-x-2 text-[11px] font-semibold text-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={() => handleEditProduct(prod._id)}
-                            className="text-accent hover:underline cursor-pointer"
-                          >
-                            Edit
-                          </button>
-                          <span>|</span>
-                          <button
-                            type="button"
-                            onClick={() => handleDuplicateProduct(prod)}
-                            className="text-foreground/70 hover:underline cursor-pointer"
-                          >
-                            Duplicate
-                          </button>
-                          <span>|</span>
-                          <button
-                            type="button"
-                            onClick={() => confirmDelete(prod._id)}
-                            className="text-red-400 hover:underline cursor-pointer"
-                          >
-                            Trash
-                          </button>
-                          <span>|</span>
-                          <a
-                            href={`/product/${prod.slug || prod._id}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="text-foreground/70 hover:underline cursor-pointer"
-                          >
-                            View
-                          </a>
-                        </div>
+                        {/* Actions */}
+                        {prod.status === "trash" ? (
+                          <div className="flex items-center space-x-2.5 text-[11px] font-semibold pt-0.5">
+                            <button
+                              type="button"
+                              onClick={() => handleRestoreSingle(prod._id)}
+                              className="text-emerald-500 hover:underline cursor-pointer font-bold flex items-center gap-1"
+                            >
+                              <i className="ri-history-line" />
+                              <span>Restore</span>
+                            </button>
+                            <span>|</span>
+                            <button
+                              type="button"
+                              onClick={() => confirmDelete(prod._id)}
+                              className="text-red-500 hover:underline cursor-pointer font-bold flex items-center gap-1"
+                            >
+                              <i className="ri-delete-bin-line" />
+                              <span>Delete Permanently</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex items-center space-x-2 text-[11px] font-semibold text-foreground/50 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              type="button"
+                              onClick={() => handleEditProduct(prod._id)}
+                              className="text-accent hover:underline cursor-pointer"
+                            >
+                              Edit
+                            </button>
+                            <span>|</span>
+                            <button
+                              type="button"
+                              onClick={() => handleDuplicateProduct(prod)}
+                              className="text-foreground/70 hover:underline cursor-pointer"
+                            >
+                              Duplicate
+                            </button>
+                            <span>|</span>
+                            <button
+                              type="button"
+                              onClick={() => confirmDelete(prod._id)}
+                              className="text-red-400 hover:underline cursor-pointer"
+                            >
+                              Move to Trash
+                            </button>
+                            <span>|</span>
+                            <a
+                              href={`/product/${prod.slug || prod._id}`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="text-foreground/70 hover:underline cursor-pointer"
+                            >
+                              View
+                            </a>
+                          </div>
+                        )}
                       </td>
 
                       {/* SKU */}

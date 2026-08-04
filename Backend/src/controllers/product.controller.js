@@ -684,6 +684,15 @@ export const deleteProduct = async (req, res) => {
       });
     }
 
+    // If already in trash or force parameter requested -> Permanent Delete
+    if (product.status === "trash" || req.query.force === "true") {
+      await productModel.findByIdAndDelete(id);
+      return res.status(200).json({
+        success: true,
+        message: "Product deleted permanently",
+      });
+    }
+
     // Move to trash (Soft Delete)
     product.status = "trash";
     await product.save();

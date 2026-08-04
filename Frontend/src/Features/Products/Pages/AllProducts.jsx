@@ -16,10 +16,15 @@ const AllProducts = () => {
     fetchForYou,
   } = useUserActivity();
 
+  const hasFetchedRef = React.useRef(false);
+
   useEffect(() => {
-    handleFetchAllProducts();
-    fetchRecentlyViewed(10);
-    fetchForYou(10);
+    if (!hasFetchedRef.current) {
+      hasFetchedRef.current = true;
+      handleFetchAllProducts();
+      fetchRecentlyViewed(10);
+      fetchForYou(10);
+    }
   }, []);
 
   if (loading && (!products || products.length === 0)) {

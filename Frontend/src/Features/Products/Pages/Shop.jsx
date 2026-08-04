@@ -332,11 +332,16 @@ const Shop = () => {
   // Infinite Scroll Pagination State (20 items per batch)
   const [visibleCount, setVisibleCount] = useState(20);
 
+  const hasShopFetchedRef = useRef(false);
+
   useEffect(() => {
-    handleFetchAllProducts();
-    if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
-    if (initialFilter === "for-you") fetchForYou(20);
-  }, [handleFetchAllProducts, initialFilter, fetchRecentlyViewed, fetchForYou]);
+    if (!hasShopFetchedRef.current) {
+      hasShopFetchedRef.current = true;
+      handleFetchAllProducts();
+      if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
+      if (initialFilter === "for-you") fetchForYou(20);
+    }
+  }, [initialFilter]);
 
   // Execute Backend Vector Search API using text embeddings
   useEffect(() => {
