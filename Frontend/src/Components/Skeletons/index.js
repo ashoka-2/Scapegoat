@@ -5,3 +5,8 @@ export { default as SingleProductSkeleton } from "../../Features/Products/Compon
 export { default as WishlistSkeleton } from "../../Features/Wishlist/Components/Skeletons/WishlistSkeleton";
 export { default as SellerTableSkeleton } from "../../Features/Seller/Components/Skeletons/SellerTableSkeleton";
 export { default as CartItemSkeleton } from "../../Features/Cart/Components/Skeletons/CartItemSkeleton";
+export { default as NavbarSkeleton } from "./NavbarSkeleton";
+export { default as AuthSkeleton } from "./AuthSkeleton";
+export { default as ProfileSkeleton } from "./ProfileSkeleton";
+export { default as HeroSkeleton } from "../../Features/Home/Components/Skeletons/HeroSkeleton";
+export { default as HomeSkeleton } from "../../Features/Home/Components/Skeletons/HomeSkeleton";

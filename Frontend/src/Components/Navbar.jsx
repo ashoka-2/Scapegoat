@@ -31,11 +31,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const profileWrapperRef = useRef();
   const profileDropdownRef = useRef();
 
-  const { user } = useSelector((state) => state.auth);
-  const wishlist = useSelector((state) => state.wishlist?.wishlist);
+  const { user, loading: authLoading } = useSelector((state) => state.auth);
+  const { wishlist, loading: wishlistLoading } = useSelector((state) => state.wishlist || {});
   const wishlistCount = wishlist?.products?.length || 0;
   const { handleLogout } = useAuth();
-  const { totalItems, handleToggleDrawer } = useCart();
+  const { totalItems, loading: cartLoading, handleToggleDrawer } = useCart();
 
   const tl = useRef();
 
@@ -342,15 +342,19 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             title="My Wishlist"
           >
             <i className="ri-heart-line text-xl" />
-            {wishlistCount > 0 && (
+            {wishlistLoading ? (
+              <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-accent/40 animate-pulse border border-background" />
+            ) : wishlistCount > 0 ? (
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
                 {wishlistCount}
               </span>
-            )}
+            ) : null}
           </Link>
 
-          {/* User Profile Menu */}
-          {user ? (
+          {/* User Profile Menu / Account Option */}
+          {authLoading ? (
+            <div className="w-10 h-10 rounded-full bg-foreground/15 border border-border-theme/40 animate-pulse hidden md:block" />
+          ) : user ? (
             <div className="relative hidden md:block" ref={profileWrapperRef}>
               <button
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
@@ -455,9 +459,13 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             aria-label="Open Shopping Cart Drawer"
           >
             <i className="ri-shopping-bag-3-fill text-base"></i>
-            <span className="text-xs font-mono font-bold tracking-wider leading-none">
-              {totalItems}
-            </span>
+            {cartLoading && totalItems === 0 ? (
+              <span className="w-4 h-3 rounded bg-current opacity-40 animate-pulse inline-block" />
+            ) : (
+              <span className="text-xs font-mono font-bold tracking-wider leading-none">
+                {totalItems}
+              </span>
+            )}
           </button>
         </div>
       </nav>

@@ -14,7 +14,7 @@ import {
   HomeSkeleton,
   NavbarSkeleton,
   ProfileSkeleton,
-} from "../Components/Skeletons.jsx";
+} from "../Components/Skeletons/index.js";
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
 
 const App = () => {
