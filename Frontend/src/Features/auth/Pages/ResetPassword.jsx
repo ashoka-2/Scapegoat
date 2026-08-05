@@ -3,7 +3,7 @@ import { useSearchParams, useNavigate, Link } from "react-router-dom";
 import { useAuth } from "../Hooks/useAuth";
 import { useSelector, useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
-import { PrimaryBtn } from "../../../Components/Buttons";
+import { PrimaryBtn } from "../../../Shared/Buttons.jsx";
 import PasswordRequirementChecker, {
   isPasswordValid,
 } from "../components/PasswordRequirementChecker.jsx";
@@ -27,11 +27,18 @@ const ResetPassword = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!token) {
-      dispatch(addToast({ message: "Invalid or missing reset token.", type: "error" }));
+      dispatch(
+        addToast({ message: "Invalid or missing reset token.", type: "error" }),
+      );
       return;
     }
     if (!isPasswordValid(newPassword)) {
-      dispatch(addToast({ message: "Please satisfy all password strength requirements.", type: "error" }));
+      dispatch(
+        addToast({
+          message: "Please satisfy all password strength requirements.",
+          type: "error",
+        }),
+      );
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -54,7 +61,9 @@ const ResetPassword = () => {
           <div className="w-14 h-14 rounded-full bg-accent/10 border border-accent/20 text-accent flex items-center justify-center text-2xl mx-auto mb-4">
             🔒
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Set New Password</h1>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
+            Set New Password
+          </h1>
           <p className="text-xs text-foreground/60">
             Create a secure new password for your account below.
           </p>
@@ -65,9 +74,12 @@ const ResetPassword = () => {
           <div>
             <label className="text-xs font-bold text-foreground/80 mb-1.5 flex items-center justify-between">
               <span>
-                New Password <span className="text-red-500 font-bold ml-0.5">*</span>
+                New Password{" "}
+                <span className="text-red-500 font-bold ml-0.5">*</span>
               </span>
-              <span className="text-[10px] text-red-500 font-semibold">* Required</span>
+              <span className="text-[10px] text-red-500 font-semibold">
+                * Required
+              </span>
             </label>
             <div className="relative">
               <input
@@ -85,21 +97,29 @@ const ResetPassword = () => {
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm"
               >
-                <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} />
+                <i
+                  className={showPassword ? "ri-eye-off-line" : "ri-eye-line"}
+                />
               </button>
             </div>
 
             {/* Password Requirement Checker Popup */}
-            <PasswordRequirementChecker password={newPassword} isFocused={isFocused || Boolean(newPassword)} />
+            <PasswordRequirementChecker
+              password={newPassword}
+              isFocused={isFocused || Boolean(newPassword)}
+            />
           </div>
 
           {/* Confirm Password Input */}
           <div>
             <label className="text-xs font-bold text-foreground/80 mb-1.5 flex items-center justify-between">
               <span>
-                Confirm New Password <span className="text-red-500 font-bold ml-0.5">*</span>
+                Confirm New Password{" "}
+                <span className="text-red-500 font-bold ml-0.5">*</span>
               </span>
-              <span className="text-[10px] text-red-500 font-semibold">* Required</span>
+              <span className="text-[10px] text-red-500 font-semibold">
+                * Required
+              </span>
             </label>
             <div className="relative">
               <input
@@ -116,7 +136,11 @@ const ResetPassword = () => {
                 onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm"
               >
-                <i className={showConfirmPassword ? "ri-eye-off-line" : "ri-eye-line"} />
+                <i
+                  className={
+                    showConfirmPassword ? "ri-eye-off-line" : "ri-eye-line"
+                  }
+                />
               </button>
             </div>
           </div>

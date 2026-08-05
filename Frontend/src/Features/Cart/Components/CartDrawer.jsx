@@ -2,10 +2,10 @@ import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { useCart } from "../Features/Cart/Hooks/useCart";
-import { getCartItemImage } from "../Features/Cart/State/cart.slice";
-import { useUserActivity } from "../Features/Products/Hooks/useUserActivity";
-import CartItemSkeleton from "../Features/Cart/Components/Skeletons/CartItemSkeleton";
+import { useCart } from "../Hooks/useCart";
+import { getCartItemImage } from "../State/cart.slice";
+import { useUserActivity } from "../../Products/Hooks/useUserActivity";
+import CartItemSkeleton from "./Skeletons/CartItemSkeleton";
 
 /**
  * CartDrawer Component (Snitch Style + Apple/Shopify Polish)

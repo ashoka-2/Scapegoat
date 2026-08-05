@@ -8,7 +8,7 @@ import { getCartItemImage } from "../State/cart.slice";
 import { useUserActivity } from "../../Products/Hooks/useUserActivity";
 import ProductCarousel from "../../Products/Components/ProductCarousel";
 import CartItemSkeleton from "../Components/Skeletons/CartItemSkeleton";
-import { DeleteBtn } from "../../../Components/Buttons";
+import { DeleteBtn } from "../../../Shared/Buttons";
 
 /**
  * CartPage Component (Full Width Shopping Cart)
@@ -48,7 +48,9 @@ const CartPage = () => {
   }, [userId]);
 
   const items = cart?.items || [];
-  const firstProdId = items[0]?.product?._id || (typeof items[0]?.product === "string" ? items[0].product : null);
+  const firstProdId =
+    items[0]?.product?._id ||
+    (typeof items[0]?.product === "string" ? items[0].product : null);
 
   useEffect(() => {
     if (firstProdId) {
@@ -58,72 +60,85 @@ const CartPage = () => {
   const shippingFee = subtotal > 1000 ? 0 : 99;
   const grandTotal = subtotal + shippingFee;
 
-const isColorAttrKey = (key) => /^colou?r$/i.test(String(key || "").trim());
+  const isColorAttrKey = (key) => /^colou?r$/i.test(String(key || "").trim());
 
-const formatSelectedAttributesTag = (item) => {
-  const selectedAttrs = typeof item.selectedAttributes?.forEach === "function"
-    ? Object.fromEntries(item.selectedAttributes)
-    : (item.selectedAttributes || {});
+  const formatSelectedAttributesTag = (item) => {
+    const selectedAttrs =
+      typeof item.selectedAttributes?.forEach === "function"
+        ? Object.fromEntries(item.selectedAttributes)
+        : item.selectedAttributes || {};
 
-  if (!selectedAttrs || Object.keys(selectedAttrs).length === 0) return null;
+    if (!selectedAttrs || Object.keys(selectedAttrs).length === 0) return null;
 
-  const vals = Object.values(selectedAttrs).filter(Boolean);
-  if (vals.length === 0) return null;
+    const vals = Object.values(selectedAttrs).filter(Boolean);
+    if (vals.length === 0) return null;
 
-  return vals.join(" | ");
-};
+    return vals.join(" | ");
+  };
 
-const getItemVariantImage = (item) => {
-  const prod = item.product || {};
-  const selectedAttrs = typeof item.selectedAttributes?.forEach === "function"
-    ? Object.fromEntries(item.selectedAttributes)
-    : (item.selectedAttributes || {});
+  const getItemVariantImage = (item) => {
+    const prod = item.product || {};
+    const selectedAttrs =
+      typeof item.selectedAttributes?.forEach === "function"
+        ? Object.fromEntries(item.selectedAttributes)
+        : item.selectedAttributes || {};
 
-  if (prod.variants && prod.variants.length > 0 && selectedAttrs) {
-    const colorKey = Object.keys(selectedAttrs).find(isColorAttrKey);
-    const colorValue = colorKey ? selectedAttrs[colorKey] : null;
+    if (prod.variants && prod.variants.length > 0 && selectedAttrs) {
+      const colorKey = Object.keys(selectedAttrs).find(isColorAttrKey);
+      const colorValue = colorKey ? selectedAttrs[colorKey] : null;
 
-    if (colorValue) {
-      const matchedVar = prod.variants.find((v) => {
-        const vName = (v.name || "").toLowerCase();
-        if (vName.includes(String(colorValue).toLowerCase())) return true;
+      if (colorValue) {
+        const matchedVar = prod.variants.find((v) => {
+          const vName = (v.name || "").toLowerCase();
+          if (vName.includes(String(colorValue).toLowerCase())) return true;
 
-        const vAttrs = typeof v.attributes?.forEach === "function"
-          ? Object.fromEntries(v.attributes)
-          : (v.attributes?._doc || v.attributes || {});
+          const vAttrs =
+            typeof v.attributes?.forEach === "function"
+              ? Object.fromEntries(v.attributes)
+              : v.attributes?._doc || v.attributes || {};
 
-        const vColorKey = Object.keys(vAttrs).find(isColorAttrKey);
-        if (vColorKey && String(vAttrs[vColorKey]).trim().toLowerCase() === String(colorValue).trim().toLowerCase()) {
-          return true;
+          const vColorKey = Object.keys(vAttrs).find(isColorAttrKey);
+          if (
+            vColorKey &&
+            String(vAttrs[vColorKey]).trim().toLowerCase() ===
+              String(colorValue).trim().toLowerCase()
+          ) {
+            return true;
+          }
+
+          if (Array.isArray(v.dynamicAttributes)) {
+            return v.dynamicAttributes.some((da) => {
+              const k = da.key || da.name || "";
+              if (isColorAttrKey(k)) {
+                const vals = (da.values || da.options || [da.value]).map((x) =>
+                  String(x).toLowerCase(),
+                );
+                return vals.includes(String(colorValue).toLowerCase());
+              }
+              return false;
+            });
+          }
+          return false;
+        });
+
+        if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
+          const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
+          if (vImg) return vImg;
         }
-
-        if (Array.isArray(v.dynamicAttributes)) {
-          return v.dynamicAttributes.some((da) => {
-            const k = da.key || da.name || "";
-            if (isColorAttrKey(k)) {
-              const vals = (da.values || da.options || [da.value]).map((x) => String(x).toLowerCase());
-              return vals.includes(String(colorValue).toLowerCase());
-            }
-            return false;
-          });
-        }
-        return false;
-      });
-
-      if (matchedVar && matchedVar.images && matchedVar.images.length > 0) {
-        const vImg = matchedVar.images[0]?.url || matchedVar.images[0];
-        if (vImg) return vImg;
       }
     }
-  }
 
-  if (item.variant && item.variant.images && item.variant.images.length > 0) {
-    const vImg = item.variant.images[0]?.url || item.variant.images[0];
-    if (vImg) return vImg;
-  }
+    if (item.variant && item.variant.images && item.variant.images.length > 0) {
+      const vImg = item.variant.images[0]?.url || item.variant.images[0];
+      if (vImg) return vImg;
+    }
 
-  return prod.images?.[0]?.url || (typeof prod.images?.[0] === "string" ? prod.images[0] : null) || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200";
-};
+    return (
+      prod.images?.[0]?.url ||
+      (typeof prod.images?.[0] === "string" ? prod.images[0] : null) ||
+      "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=200"
+    );
+  };
 
   return (
     <div className="w-full space-y-6 selection:bg-accent selection:text-accent-content font-sans py-4">
@@ -135,7 +150,8 @@ const getItemVariantImage = (item) => {
             <span>Shopping Cart</span>
           </h1>
           <p className="text-xs text-foreground/60 mt-1">
-            Review your selected items, modify quantities, apply discount codes, and proceed to checkout.
+            Review your selected items, modify quantities, apply discount codes,
+            and proceed to checkout.
           </p>
         </div>
 
@@ -159,8 +175,12 @@ const getItemVariantImage = (item) => {
             <i className="ri-shopping-cart-2-line" />
           </div>
           <div className="space-y-1">
-            <h2 className="text-base font-extrabold text-foreground">Your shopping cart is currently empty</h2>
-            <p className="text-xs text-foreground/60">Discover thousands of amazing products listed across categories.</p>
+            <h2 className="text-base font-extrabold text-foreground">
+              Your shopping cart is currently empty
+            </h2>
+            <p className="text-xs text-foreground/60">
+              Discover thousands of amazing products listed across categories.
+            </p>
           </div>
           <Link
             to="/shop"
@@ -177,24 +197,38 @@ const getItemVariantImage = (item) => {
             {items.some((item) => {
               const prod = item.product || {};
               const itemStock = item.variant?.stock ?? prod.stock ?? 0;
-              return prod.stockStatus === "outofstock" || (prod.manageStock && itemStock <= 0) || (prod.manageStock && item.quantity > itemStock);
+              return (
+                prod.stockStatus === "outofstock" ||
+                (prod.manageStock && itemStock <= 0) ||
+                (prod.manageStock && item.quantity > itemStock)
+              );
             }) && (
               <div className="bg-red-500/10 border border-red-500/30 text-red-400 p-4 rounded-2xl text-xs font-bold flex items-center gap-2">
                 <i className="ri-error-warning-line text-lg shrink-0 text-red-500" />
                 <span>
-                  Some items in your shopping bag are out of stock or exceed available quantity. Please remove or update out-of-stock items before checkout.
+                  Some items in your shopping bag are out of stock or exceed
+                  available quantity. Please remove or update out-of-stock items
+                  before checkout.
                 </span>
               </div>
             )}
 
             {items.map((item, idx) => {
               const prod = item.product || {};
-              const price = item.variant?.price?.amount || item.variant?.priceAmount || prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
+              const price =
+                item.variant?.price?.amount ||
+                item.variant?.priceAmount ||
+                prod.sellingPrice?.amount ||
+                prod.maxPrice?.amount ||
+                0;
               const img = getCartItemImage(item);
               const itemStock = item.variant?.stock ?? prod.stock ?? 999;
 
-              const isOutOfStock = prod.stockStatus === "outofstock" || (prod.manageStock && itemStock <= 0);
-              const exceedsStock = prod.manageStock && item.quantity > itemStock;
+              const isOutOfStock =
+                prod.stockStatus === "outofstock" ||
+                (prod.manageStock && itemStock <= 0);
+              const exceedsStock =
+                prod.manageStock && item.quantity > itemStock;
 
               return (
                 <div
@@ -203,19 +237,27 @@ const getItemVariantImage = (item) => {
                     isOutOfStock
                       ? "bg-red-500/5 border-red-500/40"
                       : exceedsStock
-                      ? "bg-amber-500/5 border-amber-500/40"
-                      : "bg-surface border-border-theme hover:border-accent/40"
+                        ? "bg-amber-500/5 border-amber-500/40"
+                        : "bg-surface border-border-theme hover:border-accent/40"
                   }`}
                 >
                   <div className="flex items-center space-x-4 flex-1 min-w-0">
                     <div
-                      onClick={() => navigate(`/product/${prod.slug || prod._id}`)}
+                      onClick={() =>
+                        navigate(`/product/${prod.slug || prod._id}`)
+                      }
                       className="w-16 h-20 bg-background rounded-xl overflow-hidden shrink-0 cursor-pointer border border-border-theme relative"
                     >
-                      <img src={img} alt={prod.title} className={`w-full h-full object-cover ${isOutOfStock ? "grayscale opacity-60" : ""}`} />
+                      <img
+                        src={img}
+                        alt={prod.title}
+                        className={`w-full h-full object-cover ${isOutOfStock ? "grayscale opacity-60" : ""}`}
+                      />
                       {isOutOfStock && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-0.5 text-center">
-                          <span className="text-[8px] font-black text-white uppercase tracking-tighter leading-none">Out of Stock</span>
+                          <span className="text-[8px] font-black text-white uppercase tracking-tighter leading-none">
+                            Out of Stock
+                          </span>
                         </div>
                       )}
                     </div>
@@ -223,7 +265,9 @@ const getItemVariantImage = (item) => {
                     <div className="space-y-1 flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3
-                          onClick={() => navigate(`/product/${prod.slug || prod._id}`)}
+                          onClick={() =>
+                            navigate(`/product/${prod.slug || prod._id}`)
+                          }
                           className="text-sm font-extrabold text-foreground truncate hover:text-accent cursor-pointer transition"
                         >
                           {prod.title || "Product Item"}
@@ -260,7 +304,12 @@ const getItemVariantImage = (item) => {
                     <div className="flex items-center bg-background border border-border-theme rounded-xl overflow-hidden px-1">
                       <button
                         type="button"
-                        onClick={() => handleUpdateQuantity(item._id, Math.max(1, item.quantity - 1))}
+                        onClick={() =>
+                          handleUpdateQuantity(
+                            item._id,
+                            Math.max(1, item.quantity - 1),
+                          )
+                        }
                         disabled={item.quantity <= 1 || isOutOfStock}
                         className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                       >
@@ -275,14 +324,22 @@ const getItemVariantImage = (item) => {
                         onChange={(e) => {
                           const val = parseInt(e.target.value, 10);
                           if (!isNaN(val) && val >= 1) {
-                            handleUpdateQuantity(item._id, Math.min(itemStock, val));
+                            handleUpdateQuantity(
+                              item._id,
+                              Math.min(itemStock, val),
+                            );
                           }
                         }}
                         className="w-10 text-center bg-transparent text-xs font-extrabold text-foreground font-mono outline-none focus:text-accent [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none disabled:opacity-50"
                       />
                       <button
                         type="button"
-                        onClick={() => handleUpdateQuantity(item._id, Math.min(itemStock, item.quantity + 1))}
+                        onClick={() =>
+                          handleUpdateQuantity(
+                            item._id,
+                            Math.min(itemStock, item.quantity + 1),
+                          )
+                        }
                         disabled={item.quantity >= itemStock || isOutOfStock}
                         className="px-2.5 py-1 text-foreground/70 hover:text-foreground hover:bg-surface font-extrabold text-xs transition disabled:opacity-30 cursor-pointer"
                       >
@@ -293,10 +350,15 @@ const getItemVariantImage = (item) => {
                     <div className="flex items-center justify-between gap-2">
                       <div className="text-right">
                         <p className="text-xs font-mono font-extrabold text-foreground">
-                          ₹{Number(price * item.quantity).toLocaleString("en-IN")}
+                          ₹
+                          {Number(price * item.quantity).toLocaleString(
+                            "en-IN",
+                          )}
                         </p>
                       </div>
-                      <DeleteBtn onClick={() => handleRemoveFromCart(item._id)} />
+                      <DeleteBtn
+                        onClick={() => handleRemoveFromCart(item._id)}
+                      />
                     </div>
                   </div>
                 </div>
@@ -309,7 +371,9 @@ const getItemVariantImage = (item) => {
             <div className="bg-surface border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
               <h2 className="text-base font-black text-foreground border-b border-border-theme pb-3 flex items-center justify-between">
                 <span>Order Summary</span>
-                <span className="text-xs font-mono font-bold text-accent">{totalItems} Items</span>
+                <span className="text-xs font-mono font-bold text-accent">
+                  {totalItems} Items
+                </span>
               </h2>
 
               {/* Coupon Input */}
@@ -326,7 +390,14 @@ const getItemVariantImage = (item) => {
                   />
                   <button
                     type="button"
-                    onClick={() => dispatch(addToast({ message: "Promo code feature applied at checkout.", type: "info" }))}
+                    onClick={() =>
+                      dispatch(
+                        addToast({
+                          message: "Promo code feature applied at checkout.",
+                          type: "info",
+                        }),
+                      )
+                    }
                     className="px-4 py-2 rounded-xl bg-accent/10 border border-accent/30 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
                   >
                     Apply
@@ -338,13 +409,21 @@ const getItemVariantImage = (item) => {
               <div className="space-y-2.5 pt-3 border-t border-border-theme text-xs font-medium">
                 <div className="flex items-center justify-between text-foreground/70">
                   <span>Items Subtotal</span>
-                  <span className="font-mono font-bold text-foreground">₹{Number(subtotal).toLocaleString("en-IN")}</span>
+                  <span className="font-mono font-bold text-foreground">
+                    ₹{Number(subtotal).toLocaleString("en-IN")}
+                  </span>
                 </div>
 
                 <div className="flex items-center justify-between text-foreground/70">
                   <span>Shipping Charges</span>
                   <span className="font-mono font-bold text-foreground">
-                    {shippingFee === 0 ? <span className="text-emerald-500 uppercase font-black text-[11px]">Free</span> : `₹${shippingFee}`}
+                    {shippingFee === 0 ? (
+                      <span className="text-emerald-500 uppercase font-black text-[11px]">
+                        Free
+                      </span>
+                    ) : (
+                      `₹${shippingFee}`
+                    )}
                   </span>
                 </div>
 
@@ -358,28 +437,45 @@ const getItemVariantImage = (item) => {
               {/* Grand Total */}
               <div className="pt-3 border-t border-border-theme flex items-center justify-between text-sm font-black">
                 <span className="text-foreground">Grand Total:</span>
-                <span className="font-mono text-lg text-accent">₹{Number(grandTotal).toLocaleString("en-IN")}</span>
+                <span className="font-mono text-lg text-accent">
+                  ₹{Number(grandTotal).toLocaleString("en-IN")}
+                </span>
               </div>
 
               {(() => {
                 const hasOutOfStock = items.some((item) => {
                   const prod = item.product || {};
                   const itemStock = item.variant?.stock ?? prod.stock ?? 0;
-                  return prod.stockStatus === "outofstock" || (prod.manageStock && itemStock <= 0) || (prod.manageStock && item.quantity > itemStock);
+                  return (
+                    prod.stockStatus === "outofstock" ||
+                    (prod.manageStock && itemStock <= 0) ||
+                    (prod.manageStock && item.quantity > itemStock)
+                  );
                 });
 
                 return (
                   <button
                     type="button"
                     disabled={hasOutOfStock}
-                    onClick={() => dispatch(addToast({ message: "Checkout process initiated!", type: "success" }))}
+                    onClick={() =>
+                      dispatch(
+                        addToast({
+                          message: "Checkout process initiated!",
+                          type: "success",
+                        }),
+                      )
+                    }
                     className={`w-full py-3.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-1.5 ${
                       hasOutOfStock
                         ? "bg-foreground/10 text-foreground/40 border border-border-theme cursor-not-allowed"
                         : "bg-accent text-accent-content hover:opacity-90 cursor-pointer"
                     }`}
                   >
-                    <span>{hasOutOfStock ? "Unavailable Items in Bag" : "Proceed to Checkout"}</span>
+                    <span>
+                      {hasOutOfStock
+                        ? "Unavailable Items in Bag"
+                        : "Proceed to Checkout"}
+                    </span>
                     <i className="ri-arrow-right-line text-sm" />
                   </button>
                 );

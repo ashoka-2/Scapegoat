@@ -16,5 +16,4 @@ export { default as HeroSkeleton } from "../../Features/Home/Components/Skeleton
 export { default as HomeSkeleton } from "../../Features/Home/Components/Skeletons/HomeSkeleton";
 export { default as ShopSkeleton } from "../../Features/Products/Components/Skeletons/ShopSkeleton";
 export { default as CartSkeleton } from "../../Features/Cart/Components/Skeletons/CartSkeleton";
-export { default as CreateProductSkeleton } from "../../Features/Products/Components/Skeletons/CreateProductSkeleton";
 export { default as SellerSkeleton } from "../../Features/Seller/Components/Skeletons/SellerSkeleton";

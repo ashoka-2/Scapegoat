@@ -8,7 +8,7 @@ import Protected from "../Features/auth/components/Protected.jsx";
 import SellerRoute from "../Features/auth/components/SellerRoute.jsx";
 import GuestRoute from "../Features/auth/components/GuestRoute.jsx";
 import MainLayout from "./MainLayout.jsx";
-import SellerLayout from "../Components/SellerLayout.jsx";
+import SellerLayout from "../Features/Seller/Components/SellerLayout.jsx";
 
 // Product & Seller Pages
 import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";

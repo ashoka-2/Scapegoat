@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../Hooks/useAuth";
 import { useSelector } from "react-redux";
-import { PrimaryBtn } from "../../../Components/Buttons";
+import { PrimaryBtn } from "../../../Shared/Buttons";
 
 const ForgotPassword = () => {
   const { handleForgotPassword } = useAuth();
@@ -28,9 +28,12 @@ const ForgotPassword = () => {
           <div className="w-14 h-14 rounded-full bg-accent/10 border border-accent/20 text-accent flex items-center justify-center text-2xl mx-auto mb-4">
             🔑
           </div>
-          <h1 className="text-2xl font-black tracking-tight text-foreground">Forgot Password?</h1>
+          <h1 className="text-2xl font-black tracking-tight text-foreground">
+            Forgot Password?
+          </h1>
           <p className="text-xs text-foreground/60">
-            Enter your account email address and we'll send you an instant link to reset your password.
+            Enter your account email address and we'll send you an instant link
+            to reset your password.
           </p>
         </div>
 
@@ -52,9 +55,12 @@ const ForgotPassword = () => {
             <div>
               <label className="text-xs font-bold text-foreground/80 mb-1.5 flex items-center justify-between">
                 <span>
-                  Email Address <span className="text-red-500 font-bold ml-0.5">*</span>
+                  Email Address{" "}
+                  <span className="text-red-500 font-bold ml-0.5">*</span>
                 </span>
-                <span className="text-[10px] text-red-500 font-semibold">* Required</span>
+                <span className="text-[10px] text-red-500 font-semibold">
+                  * Required
+                </span>
               </label>
               <input
                 type="email"

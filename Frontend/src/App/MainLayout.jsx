@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import Navbar from "../Components/Navbar.jsx";
+import Navbar from "../Shared/Navbar.jsx";
 import { Outlet, useNavigate } from "react-router";
 import { flushSync } from "react-dom";
 import { useSelector } from "react-redux";
-import Footer from "../Components/Footer.jsx";
+import Footer from "../Shared/Footer.jsx";
 import { createAnimation, TRANSITION_CONFIG } from "../utils/themeTransition.js";
 
-import CartDrawer from "../Components/CartDrawer.jsx";
+import CartDrawer from "../Features/Cart/Components/CartDrawer.jsx";
 
 import socket from "../utils/socket.js";
 import { useDispatch } from "react-redux";
@@ -16,6 +16,8 @@ import { useWishlist } from "../Features/Wishlist/Hooks/useWishlist.js";
 import { useCart } from "../Features/Cart/Hooks/useCart.js";
 import { clearWishlist } from "../Features/Wishlist/State/wishlist.slice.js";
 import { clearCart } from "../Features/Cart/State/cart.slice.js";
+import ScrollToTop from "../Components/ScrollToTop.jsx";
+import ScrollToTopButton from "../Components/ScrollToTopButton.jsx";
 
 const STYLE_ID = "theme-transition-style";
 
@@ -125,6 +127,7 @@ const MainLayout = () => {
 
   return (
     <div className="flex flex-col min-h-screen bg-background text-foreground transition-colors duration-500 overflow-x-clip">
+      <ScrollToTop />
       <div className="max-w-[1440px] w-full mx-auto px-4 md:px-6 py-4 md:py-6 flex-grow">
         <Navbar toggleTheme={toggleTheme} isDarkMode={isDarkMode} />
         <main className="pt-16 md:pt-20 w-full relative z-10 pb-20">
@@ -133,6 +136,7 @@ const MainLayout = () => {
       </div>
       <Footer />
       <CartDrawer />
+      <ScrollToTopButton />
     </div>
   );
 };

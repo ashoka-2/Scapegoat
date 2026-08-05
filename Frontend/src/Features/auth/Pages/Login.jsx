@@ -3,57 +3,52 @@ import { useAuth } from "../Hooks/useAuth.js";
 import { useNavigate, Link } from "react-router-dom";
 import ContinueWithGoogle from "../components/ContinueWithGoogle.jsx";
 import { useSelector } from "react-redux";
-import { PrimaryBtn, TertiaryBtn } from "../../../Components/Buttons.jsx";
+import { PrimaryBtn, TertiaryBtn } from "../../../Shared/Buttons.jsx";
 
 const appName = "ScapeGoat";
 
 const Login = () => {
-
-  const {handleLogin} = useAuth();
+  const { handleLogin } = useAuth();
   const navigate = useNavigate();
 
-  const {loading} = useSelector((state)=>state.auth);
+  const { loading } = useSelector((state) => state.auth);
 
-  const [formData,setFormData] = useState({
-    identifier: '',
-    password:''
+  const [formData, setFormData] = useState({
+    identifier: "",
+    password: "",
   });
 
   const [showPassword, setShowPassword] = useState(false);
 
-  const handleChange = (e)=>{
-    const {name,value}= e.target;
-    setFormData(prev=>({
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
       ...prev,
-      [name]:value
+      [name]: value,
     }));
   };
 
-  const handleSubmit = async (e)=>{
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    try{
+    try {
       let identifier = formData.identifier;
-      if(/^\d{10}$/.test(identifier)){
+      if (/^\d{10}$/.test(identifier)) {
         identifier = `+91${identifier}`;
-      };
+      }
 
       const loggedInUser = await handleLogin({
-        identifier:identifier,
-        password:formData.password
+        identifier: identifier,
+        password: formData.password,
       });
-      if(loggedInUser?.role === 'admin'){
+      if (loggedInUser?.role === "admin") {
         navigate("/admin");
-      }
-      else {
+      } else {
         navigate("/");
       }
-    }
-    catch (error){
-      console.log("Login failed",error);
-      
+    } catch (error) {
+      console.log("Login failed", error);
     }
   };
-
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans selection:bg-accent selection:text-accent-content flex flex-col lg:flex-row transition-colors duration-500">

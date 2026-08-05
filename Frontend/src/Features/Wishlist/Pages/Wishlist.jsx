@@ -5,7 +5,7 @@ import { useWishlist } from "../Hooks/useWishlist";
 import { useCart } from "../../Cart/Hooks/useCart";
 import ProductCard from "../../Products/Components/ProductCard";
 import WishlistSkeleton from "../Components/Skeletons/WishlistSkeleton";
-import { PrimaryBtn } from "../../../Components/Buttons";
+import { PrimaryBtn } from "../../../Shared/Buttons";
 
 const Wishlist = () => {
   const navigate = useNavigate();
@@ -86,10 +86,15 @@ const Wishlist = () => {
           <div>
             <h3 className="text-xl font-bold mb-1">Your wishlist is empty</h3>
             <p className="text-foreground/50 text-sm">
-              Save items to your vault while browsing our latest drops and releases.
+              Save items to your vault while browsing our latest drops and
+              releases.
             </p>
           </div>
-          <PrimaryBtn onClick={() => navigate("/shop")} className="mt-2" icon="ri-arrow-right-line">
+          <PrimaryBtn
+            onClick={() => navigate("/shop")}
+            className="mt-2"
+            icon="ri-arrow-right-line"
+          >
             Discover Products
           </PrimaryBtn>
         </div>

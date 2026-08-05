@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import { useProduct } from "../Hooks/useProduct";
@@ -624,13 +625,15 @@ const Shop = () => {
         </div>
 
         {/* Mobile Filter Drawer */}
-        {isMobileFilterOpen && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex justify-end md:hidden">
-            <div className="bg-background w-4/5 max-w-sm h-full p-6 overflow-y-auto shadow-2xl border-l border-border-theme">
-              <FilterSidebarContent {...sidebarProps} />
-            </div>
-          </div>
-        )}
+        {isMobileFilterOpen &&
+          createPortal(
+            <div className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-md flex justify-end md:hidden">
+              <div className="bg-background w-[85%] max-w-sm h-full p-6 overflow-y-auto shadow-2xl border-l border-border-theme">
+                <FilterSidebarContent {...sidebarProps} />
+              </div>
+            </div>,
+            document.body
+          )}
 
         {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">

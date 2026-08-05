@@ -4,8 +4,8 @@ import "./App.css";
 import { RouterProvider } from "react-router-dom";
 
 import { routes } from "./App.routes.jsx";
-import PageLoader from "../Components/PageLoader.jsx";
-import Preloader from "../Components/Preloader.jsx";
+import PageLoader from "../Shared/PageLoader.jsx";
+import Preloader from "../Shared/Preloader.jsx";
 
 import { ToastContainer } from "../Components/Toast.jsx";
 
@@ -18,7 +18,6 @@ import {
   CartSkeleton,
   WishlistSkeleton,
   SingleProductSkeleton,
-  CreateProductSkeleton,
   SellerSkeleton,
 } from "../Components/Skeletons/index.js";
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
@@ -38,7 +37,6 @@ const getPageSkeleton = (path) => {
   if (path === "/cart") return CartSkeleton;
   if (path === "/wishlist") return WishlistSkeleton;
   if (path.startsWith("/product/")) return SingleProductSkeleton;
-  if (path.startsWith("/products/edit")) return CreateProductSkeleton;
   if (path.startsWith("/seller")) return SellerSkeleton;
   return HomeSkeleton;
 };

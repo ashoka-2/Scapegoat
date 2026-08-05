@@ -15,7 +15,6 @@ import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/att
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
 import RichTextEditor from "../Components/RichTextEditor";
-import CreateProductSkeleton from "../Components/Skeletons/CreateProductSkeleton";
 import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 
