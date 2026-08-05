@@ -22,11 +22,13 @@ const AllProducts = () => {
   useEffect(() => {
     if (!hasFetchedRef.current) {
       hasFetchedRef.current = true;
-      handleFetchAllProducts();
+      if (!products || products.length === 0) {
+        handleFetchAllProducts();
+      }
       fetchRecentlyViewed(10);
       fetchForYou(10);
     }
-  }, []);
+  }, [products]);
 
   const allProductsList = products || [];
 

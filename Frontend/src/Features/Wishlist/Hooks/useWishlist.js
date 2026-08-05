@@ -27,15 +27,6 @@ export const useWishlist = () => {
     }
   };
 
-  // Auto-fetch wishlist when user changes (account switch or fresh login)
-  useEffect(() => {
-    if (user) {
-      getWishlist();
-    } else {
-      dispatch(clearWishlist());
-    }
-  }, [user?._id || user?.id]);
-
   const toggleWishlist = async (productId) => {
     if (!user) {
       toast("Please login to wishlist products.", "info");

@@ -30,12 +30,6 @@ const CartDrawer = () => {
 
   const userId = user?._id || user?.id;
 
-  useEffect(() => {
-    if (userId && (!cart || !cart.items)) {
-      handleGetCart();
-    }
-  }, [userId]);
-
   const items = cart?.items || [];
   const firstId = items[0]?.product?._id || (typeof items[0]?.product === "string" ? items[0].product : null);
 

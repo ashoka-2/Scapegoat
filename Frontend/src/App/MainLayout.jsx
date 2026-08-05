@@ -13,6 +13,9 @@ import { useDispatch } from "react-redux";
 import { getAllProductsApi } from "../Features/Products/Services/product.api.js";
 import { setProducts } from "../Features/Products/State/product.slice.js";
 import { useWishlist } from "../Features/Wishlist/Hooks/useWishlist.js";
+import { useCart } from "../Features/Cart/Hooks/useCart.js";
+import { clearWishlist } from "../Features/Wishlist/State/wishlist.slice.js";
+import { clearCart } from "../Features/Cart/State/cart.slice.js";
 
 const STYLE_ID = "theme-transition-style";
 
@@ -21,12 +24,19 @@ const MainLayout = () => {
   const user = useSelector((state) => state.auth.user);
   const navigate = useNavigate();
   const { getWishlist } = useWishlist();
+  const { handleGetCart } = useCart();
+
+  const userId = user?._id || user?.id;
 
   useEffect(() => {
-    if (user) {
+    if (userId) {
       getWishlist();
+      handleGetCart();
+    } else {
+      dispatch(clearWishlist());
+      dispatch(clearCart());
     }
-  }, [user]);
+  }, [userId]);
 
   useEffect(() => {
     const handleLiveProductUpdate = async (data) => {

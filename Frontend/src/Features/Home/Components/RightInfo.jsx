@@ -6,8 +6,8 @@ import { motion, useAnimation } from "framer-motion";
 import { useNavigate } from "react-router-dom";
 import { useProduct } from "../../Products/Hooks/useProduct";
 import { addToast } from "../../../utils/toast.slice";
-
 import { useCart } from "../../Cart/Hooks/useCart";
+import FeaturedProductCardSkeleton from "./Skeletons/FeaturedProductCardSkeleton";
 
 const ProductCardItem = ({ product }) => {
   const navigate = useNavigate();
@@ -183,9 +183,12 @@ const FeatureCard = () => {
   if (featuredProducts.length === 0) {
     return (
       <div className="flex flex-col items-center lg:items-end mt-auto relative z-20 pb-8 lg:pb-0 w-full overflow-hidden">
-        <div className="w-[240px] p-6 text-center border border-dashed border-white/20 rounded-[2.5rem]">
-          <p className="text-[10px] text-foreground/50 font-bold uppercase tracking-widest">Loading Drops...</p>
+        <div className="w-full text-left lg:text-right px-6 lg:px-0 mb-3 lg:mb-2">
+          <p className="font-black tracking-[0.1em] text-foreground/80 lg:text-white/50 dark:text-accent uppercase text-lg mt-5 lg:mt-0 lg:text-[10px] lg:mr-4">
+            Featured Products
+          </p>
         </div>
+        <FeaturedProductCardSkeleton />
       </div>
     );
   }

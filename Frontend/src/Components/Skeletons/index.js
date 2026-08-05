@@ -1,4 +1,5 @@
 export { default as ProductCardSkeleton } from "../../Features/Products/Components/Skeletons/ProductCardSkeleton";
+export { default as FeaturedProductCardSkeleton } from "../../Features/Home/Components/Skeletons/FeaturedProductCardSkeleton";
 export { default as ProductCarouselSkeleton } from "../../Features/Products/Components/Skeletons/ProductCarouselSkeleton";
 export { default as ProductGridSkeleton } from "../../Features/Products/Components/Skeletons/ProductGridSkeleton";
 export { default as SingleProductSkeleton } from "../../Features/Products/Components/Skeletons/SingleProductSkeleton";

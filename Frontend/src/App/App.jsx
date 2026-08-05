@@ -49,22 +49,17 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
 
     const checkServer = async () => {
       try {
-        await axios.get('/api/auth/getMe');
-        console.log("Server active.");
         await fetchMe();
         setIsServerReady(true);
-        
-        // If they've seen the preloader before, show the app immediately once server is ready
         if (hasSeenPreloader) {
-            setShowApp(true);
+          setShowApp(true);
         }
       } catch (error) {
         if (error.response) {
-            await fetchMe();
-            setIsServerReady(true);
-            if (hasSeenPreloader) setShowApp(true);
+          setIsServerReady(true);
+          if (hasSeenPreloader) setShowApp(true);
         } else {
-            intervalId = setTimeout(checkServer, 2000); 
+          intervalId = setTimeout(checkServer, 2000);
         }
       }
     };
@@ -93,11 +88,9 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
           const isAuthPage = path === "/login" || path === "/register";
 
           return (
-            <div
-              className={`min-h-screen bg-background text-foreground ${isAuthPage ? "" : "p-4 md:p-8"}`}
-            >
+            <div className="min-h-screen bg-background text-foreground">
               {!isAuthPage && <NavbarSkeleton />}
-              <div className={isAuthPage ? "" : "pt-20"}>
+              <div className={isAuthPage ? "" : "pt-20 md:pt-24"}>
                 {path === "/profile" ? (
                   <PageLoader skeleton={ProfileSkeleton} />
                 ) : isAuthPage ? (

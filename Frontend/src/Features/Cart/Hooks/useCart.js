@@ -38,7 +38,7 @@ export const useCart = () => {
   const subtotal = items.reduce((acc, i) => acc + calculateItemPrice(i) * (Number(i.quantity) || 0), 0);
 
   // Fetch Cart
-  const handleGetCart = async () => {
+  const handleGetCart = async (force = false) => {
     if (!user) return;
     dispatch(setLoading(true));
     try {
@@ -51,17 +51,6 @@ export const useCart = () => {
       dispatch(setLoading(false));
     }
   };
-
-  // Fetch Cart automatically when user changes (account switch or fresh login)
-  useEffect(() => {
-    if (user) {
-      // Always re-fetch on user change — clears stale data from previous account
-      handleGetCart();
-    } else {
-      // Clear cart when user logs out
-      dispatch(clearCart());
-    }
-  }, [user?._id || user?.id]);
 
   // Add To Cart with Optimistic UX & Rollback
   const handleAddToCart = async (product, quantity = 1, variantId = null, selectedAttributes = null) => {

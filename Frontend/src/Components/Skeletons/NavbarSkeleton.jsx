@@ -2,19 +2,18 @@ import React from "react";
 
 /**
  * NavbarSkeleton Component
- * Responsive skeleton matching Navbar.jsx structure
+ * Matches exact fixed position, top-0, height and responsive paddings of Navbar.jsx
  */
 const NavbarSkeleton = () => {
   return (
-    <nav className="w-full max-w-[1440px] mx-auto px-4 md:px-6 py-3 flex items-center justify-between animate-pulse">
+    <nav className="fixed top-0 left-0 right-0 z-[1000] px-4 md:px-12 py-3 flex items-center justify-between bg-background/80 backdrop-blur-2xl border-b border-border-theme/40 animate-pulse">
       {/* Left Links & Mobile Hamburger Skeleton */}
       <div className="flex items-center gap-6">
         {/* Mobile Hamburger Skeleton */}
         <div className="md:hidden w-10 h-10 rounded-full bg-foreground/10 border border-border-theme/40" />
 
         {/* Desktop Nav Links Skeleton */}
-        <div className="hidden lg:flex items-center gap-8">
-          <div className="w-14 h-3 bg-foreground/15 rounded-md" />
+        <div className="hidden md:flex items-center gap-6">
           <div className="w-14 h-3 bg-foreground/15 rounded-md" />
           <div className="w-14 h-3 bg-foreground/15 rounded-md" />
           <div className="w-14 h-3 bg-foreground/15 rounded-md" />

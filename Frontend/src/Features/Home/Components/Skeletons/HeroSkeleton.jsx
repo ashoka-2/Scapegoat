@@ -1,4 +1,5 @@
 import React from "react";
+import FeaturedProductCardSkeleton from "./FeaturedProductCardSkeleton";
 
 /**
  * HeroSkeleton Component
@@ -38,11 +39,19 @@ const HeroSkeleton = () => {
             <div className="w-48 sm:w-64 h-72 sm:h-96 bg-white/15 rounded-t-full rounded-b-2xl border border-white/20" />
           </div>
 
-          {/* Right Column Skeleton */}
-          <div className="w-full lg:w-[35%] flex flex-col justify-center items-start lg:items-end space-y-4">
-            <div className="w-32 h-5 bg-white/20 rounded-full" />
-            <div className="w-56 h-16 bg-white/15 rounded-2xl" />
-            <div className="w-40 h-8 bg-white/20 rounded-xl" />
+          {/* Right Column Skeleton with Feature Badges & Featured Product Card Skeleton */}
+          <div className="w-full lg:w-[35%] flex flex-col justify-center items-center lg:items-end space-y-4">
+            <div className="flex justify-center gap-6 sm:gap-8 lg:gap-3 w-full lg:w-[240px] mb-1">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-11 lg:h-11 rounded-2xl lg:rounded-full bg-white/15 border border-white/20" />
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-11 lg:h-11 rounded-2xl lg:rounded-full bg-white/15 border border-white/20" />
+              <div className="w-12 h-12 sm:w-14 sm:h-14 lg:w-11 lg:h-11 rounded-2xl lg:rounded-full bg-white/15 border border-white/20" />
+            </div>
+
+            <div className="w-full text-left lg:text-right px-2 lg:px-0">
+              <div className="w-28 h-3.5 bg-white/20 rounded-md ml-auto" />
+            </div>
+
+            <FeaturedProductCardSkeleton />
           </div>
         </div>
       </div>

@@ -19,8 +19,10 @@ const Wishlist = () => {
       navigate("/login");
       return;
     }
-    getWishlist();
-  }, [user]);
+    if (!wishlist) {
+      getWishlist();
+    }
+  }, [user, wishlist]);
 
   const handleMoveToCart = async (e, product) => {
     e.stopPropagation();
