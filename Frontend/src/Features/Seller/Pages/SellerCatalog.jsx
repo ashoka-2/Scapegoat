@@ -313,7 +313,7 @@ const SellerCatalog = () => {
               </thead>
 
               {loading ? (
-                <SellerTableSkeleton rows={6} />
+                <SellerTableSkeleton rows={6} standalone={false} />
               ) : (
                 <tbody className="divide-y divide-border-theme/40">
                 {filteredProducts.map((prod) => {

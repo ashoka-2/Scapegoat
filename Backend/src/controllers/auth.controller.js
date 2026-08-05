@@ -556,10 +556,10 @@ export const getSellerCustomers = async (req, res) => {
         const orders = await orderModel.find({ "orderItems.seller": sellerId }).populate("user", "-password").lean();
         const orderCustomers = orders.map((o) => o.user).filter(Boolean);
 
-        // Combine unique customers by ID
+        // Combine unique customers by ID (excluding seller self & admins)
         const customerMap = new Map();
         [...permanentCustomers, ...orderCustomers].forEach((c) => {
-            if (c && c._id && c.role !== "admin") {
+            if (c && c._id && c._id.toString() !== sellerId.toString() && c.role !== "admin") {
                 customerMap.set(c._id.toString(), c);
             }
         });

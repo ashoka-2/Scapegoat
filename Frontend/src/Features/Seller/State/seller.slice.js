@@ -5,6 +5,12 @@ const initialState = {
   allWishlists: [],
   allOrders: [],
   users: [],
+  unreadCounts: {
+    orders: 0,
+    carts: 0,
+    wishlists: 0,
+    customers: 0,
+  },
   loading: false,
   error: null,
 };
@@ -31,6 +37,18 @@ const sellerSlice = createSlice({
         o._id === updatedOrder._id ? updatedOrder : o
       );
     },
+    incrementUnread: (state, action) => {
+      const section = action.payload; // "orders", "carts", "wishlists", "customers"
+      if (state.unreadCounts[section] !== undefined) {
+        state.unreadCounts[section] += 1;
+      }
+    },
+    clearUnread: (state, action) => {
+      const section = action.payload;
+      if (state.unreadCounts[section] !== undefined) {
+        state.unreadCounts[section] = 0;
+      }
+    },
     setLoading: (state, action) => {
       state.loading = action.payload;
     },
@@ -46,6 +64,8 @@ export const {
   setAllOrders,
   setUsers,
   updateSellerOrderStatus,
+  incrementUnread,
+  clearUnread,
   setLoading,
   setError,
 } = sellerSlice.actions;

@@ -40,15 +40,10 @@ export const useCart = () => {
   // Fetch Cart
   const handleGetCart = async (force = false) => {
     const userId = user?._id || user?.id;
-    if (!userId) {
-      console.log("[useCart] handleGetCart skipped - no user logged in");
-      return;
-    }
+    if (!userId) return;
     dispatch(setLoading(true));
     try {
-      console.log("[useCart] Fetching user cart from API...");
       const data = await api.fetchUserCartApi();
-      console.log("[useCart] Received cart data from API:", data);
       dispatch(setCart(data));
       return data?.data || data?.cart;
     } catch (e) {

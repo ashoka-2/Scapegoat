@@ -11,16 +11,20 @@ const orderItemSchema = new mongoose.Schema({
         ref: "User",
         required: true
     },
-    // We snapshot the name, image, and price because if the seller changes the product details later, 
-    // the customer's receipt must still show what they actually bought and the price they paid.
     name: { type: String, required: true },
     image: { type: String, required: true },
     price: { type: Number, required: true },
     quantity: { type: Number, required: true, min: 1 },
+    selectedAttributes: { type: Object, default: {} },
+    variantId: { type: String, default: null },
 });
 
 const orderSchema = new mongoose.Schema(
     {
+        orderId: {
+            type: Number,
+            unique: true,
+        },
         user: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
@@ -37,7 +41,7 @@ const orderSchema = new mongoose.Schema(
         paymentMethod: {
             type: String,
             required: [true, "Payment method is required"],
-            enum: ["COD", "Card", "UPI", "NetBanking"],
+            enum: ["COD", "Card", "UPI", "NetBanking", "Razorpay"],
         },
         paymentResult: {
             id: { type: String },
@@ -90,8 +94,16 @@ const orderSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+orderSchema.pre("save", async function () {
+    if (!this.orderId) {
+        const count = await mongoose.model("Order").countDocuments();
+        this.orderId = count + 1001;
+    }
+});
+
 // Fast lookups for Customer order history
 orderSchema.index({ user: 1, createdAt: -1 });
+orderSchema.index({ orderId: 1 });
 // Fast lookups for Seller dashboard (find all orders containing items from a specific seller)
 orderSchema.index({ "orderItems.seller": 1, createdAt: -1 });
 // Fast lookups for Admin filtering by status

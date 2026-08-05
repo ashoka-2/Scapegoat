@@ -18,13 +18,17 @@ const SellerCustomersPage = () => {
   const customers = useMemo(() => {
     const activeUserIds = new Set();
 
-    allCarts?.forEach((c) => c.user?._id && activeUserIds.add(c.user._id));
-    allWishlists?.forEach((w) => w.user?._id && activeUserIds.add(w.user._id));
-    allOrders?.forEach((o) => o.user?._id && activeUserIds.add(o.user._id));
+    allCarts?.forEach((c) => c.user?._id && activeUserIds.add(String(c.user._id)));
+    allWishlists?.forEach((w) => w.user?._id && activeUserIds.add(String(w.user._id)));
+    allOrders?.forEach((o) => o.user?._id && activeUserIds.add(String(o.user._id)));
 
+    const myId = String(currentUser?._id || currentUser?.id || "");
     const list = users || [];
-    return list.filter((u) => u.role !== "admin" && (activeUserIds.has(u._id) || u.lastInteractionType));
-  }, [allCarts, allWishlists, allOrders, users]);
+    return list.filter((u) => {
+      const uId = String(u._id || u.id);
+      return uId !== myId && u.role !== "admin" && activeUserIds.has(uId);
+    });
+  }, [allCarts, allWishlists, allOrders, users, currentUser]);
 
   const filteredCustomers = useMemo(() => {
     return customers.filter((c) => {

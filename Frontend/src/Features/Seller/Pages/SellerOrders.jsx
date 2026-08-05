@@ -84,7 +84,7 @@ const SellerOrders = () => {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-mono font-black text-accent">
-                      #{order._id.toUpperCase()}
+                      #{order.orderId || order._id.slice(-6).toUpperCase()}
                     </span>
                     <span
                       className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${

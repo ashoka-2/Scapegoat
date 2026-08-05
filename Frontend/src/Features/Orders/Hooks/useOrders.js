@@ -9,6 +9,7 @@ import {
 } from "../State/orders.slice";
 import { addToast } from "../../../utils/toast.slice";
 import { clearCart } from "../../Cart/State/cart.slice";
+import * as api from "../Services/orders.api";
 
 export const useOrders = () => {
   const dispatch = useDispatch();

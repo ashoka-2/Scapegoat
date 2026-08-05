@@ -4,6 +4,7 @@ import {
   setAllWishlists,
   setAllOrders,
   setUsers,
+  incrementUnread,
   setLoading,
   setError,
 } from "../State/seller.slice";
@@ -53,31 +54,40 @@ export const useSeller = () => {
       socket.emit("join_room", `user_${userId}`);
     }
 
-    const triggerRefresh = () => {
-      console.log("⚡ Instant socket event received -> syncing dashboard...");
-      syncDashboardData();
-    };
-
-    socket.on("realtime_update", (payload) => {
-      console.log("⚡ Realtime socket update received (seller):", payload.type);
-      triggerRefresh();
-    });
-
     socket.on("new_order", (data) => {
-      console.log("⚡ New Order alert for seller:", data);
       dispatch(
         addToast({
           message: `🔔 New Order received! ₹${data.totalPrice || ""}`,
           type: "success",
         })
       );
-      triggerRefresh();
+      if (!window.location.pathname.includes("/seller/orders")) {
+        dispatch(incrementUnread("orders"));
+      }
+      syncDashboardData();
     });
 
-    socket.on("cart_update", triggerRefresh);
-    socket.on("wishlist_update", triggerRefresh);
-    socket.on("order_created", triggerRefresh);
-    socket.on("order_status_updated", triggerRefresh);
+    socket.on("cart_update", () => {
+      if (!window.location.pathname.includes("/seller/carts")) {
+        dispatch(incrementUnread("carts"));
+      }
+      syncDashboardData();
+    });
+
+    socket.on("wishlist_update", () => {
+      if (!window.location.pathname.includes("/seller/wishlists")) {
+        dispatch(incrementUnread("wishlists"));
+      }
+      syncDashboardData();
+    });
+
+    socket.on("order_created", () => {
+      syncDashboardData();
+    });
+
+    socket.on("order_status_updated", () => {
+      syncDashboardData();
+    });
   };
 
   const fetchDashboardData = async (user) => {

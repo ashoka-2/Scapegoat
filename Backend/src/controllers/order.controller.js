@@ -2,7 +2,7 @@ import orderModel from "../models/order.model.js";
 import productModel from "../models/product.model.js";
 import cartModel from "../models/cart.model.js";
 import sellerCustomerModel from "../models/sellerCustomer.model.js";
-import { broadcastUpdate, emitToSeller } from "../services/socket.service.js";
+import { broadcastUpdate, emitToSeller, emitToUser } from "../services/socket.service.js";
 
 /**
  * @desc    Create a new order
@@ -100,6 +100,8 @@ export const createOrder = async (req, res) => {
                     image: imgUrl,
                     price,
                     quantity: cartItem.quantity,
+                    selectedAttributes: cartItem.selectedAttributes || {},
+                    variantId: cartItem.variantId || null,
                 });
 
                 itemsPrice += price * cartItem.quantity;
@@ -256,6 +258,7 @@ export const updateOrderStatus = async (req, res) => {
         }
 
         await order.save();
+        emitToUser(order.user.toString(), "order_status_updated", { orderId: order._id, status, order });
         broadcastUpdate("order_status_updated", { orderId: order._id, status });
 
         return res.status(200).json({ success: true, message: "Order status updated.", order });

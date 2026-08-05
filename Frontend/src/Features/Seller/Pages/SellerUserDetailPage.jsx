@@ -203,7 +203,7 @@ const SellerUserDetailPage = () => {
                   user.orders?.map((o) => (
                     <div key={o._id} className="p-4 bg-background/50 rounded-2xl border border-border-theme/40 space-y-2 text-xs">
                       <div className="flex justify-between font-mono font-bold text-accent">
-                        <span>#{o._id.toUpperCase()}</span>
+                        <span>#{o.orderId || o._id.slice(-6).toUpperCase()}</span>
                         <span>₹{o.totalPrice?.toLocaleString()}</span>
                       </div>
                       <p className="text-[11px] text-foreground/60">Status: {o.status}</p>

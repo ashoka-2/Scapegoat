@@ -42,7 +42,6 @@ const MainLayout = () => {
 
   useEffect(() => {
     const handleLiveProductUpdate = async (data) => {
-      console.log("⚡ Live Socket Event Received:", data);
       try {
         const res = await getAllProductsApi();
         if (res) dispatch(setProducts(res));

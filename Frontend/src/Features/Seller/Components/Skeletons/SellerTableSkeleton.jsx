@@ -2,10 +2,10 @@ import React from "react";
 
 /**
  * SellerTableSkeleton Component
- * Table row skeletons for SellerCatalog
+ * Table row skeletons for Seller dashboard modules
  */
-const SellerTableSkeleton = ({ rows = 5 }) => {
-  return (
+const SellerTableSkeleton = ({ rows = 5, standalone = true }) => {
+  const content = (
     <tbody className="divide-y divide-border-theme/40 animate-pulse">
       {Array.from({ length: rows }).map((_, idx) => (
         <tr key={idx}>
@@ -40,6 +40,16 @@ const SellerTableSkeleton = ({ rows = 5 }) => {
         </tr>
       ))}
     </tbody>
+  );
+
+  if (!standalone) return content;
+
+  return (
+    <div className="bg-surface border border-border-theme rounded-3xl overflow-hidden shadow-lg p-4 w-full">
+      <table className="w-full text-left border-collapse text-xs">
+        {content}
+      </table>
+    </div>
   );
 };
 

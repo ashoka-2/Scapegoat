@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useParams, useNavigate } from "react-router-dom";
 import { useOrders } from "../Hooks/useOrders";
+import socket from "../../../utils/socket";
 
 const statusBadgeColor = (status) => {
   switch (status) {
@@ -23,12 +24,30 @@ const OrderDetails = () => {
   const navigate = useNavigate();
   const { handleFetchOrderById } = useOrders();
   const { currentOrder, loading } = useSelector((state) => state.orders);
+  const { user } = useSelector((state) => state.auth);
 
   useEffect(() => {
     if (id) {
       handleFetchOrderById(id);
     }
-  }, [id]);
+
+    const userId = user?._id || user?.id;
+    if (userId) {
+      socket.emit("join_room", `user_${userId}`);
+    }
+
+    const onStatusUpdate = () => {
+      if (id) handleFetchOrderById(id);
+    };
+
+    socket.on("order_status_updated", onStatusUpdate);
+    socket.on("realtime_update", onStatusUpdate);
+
+    return () => {
+      socket.off("order_status_updated", onStatusUpdate);
+      socket.off("realtime_update", onStatusUpdate);
+    };
+  }, [id, user]);
 
   if (loading || !currentOrder || currentOrder._id !== id) {
     return (
@@ -55,7 +74,7 @@ const OrderDetails = () => {
           <div className="space-y-1">
             <span className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">Order Receipt</span>
             <h1 className="text-2xl font-mono font-black text-foreground">
-              Order #{order._id.toUpperCase()}
+              Order #{order.orderId || order._id.slice(-6).toUpperCase()}
             </h1>
             <p className="text-xs font-semibold text-foreground/60">
               Placed on {new Date(order.createdAt).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}
@@ -79,29 +98,47 @@ const OrderDetails = () => {
           </h2>
 
           <div className="space-y-3">
-            {order.orderItems?.map((item, idx) => (
-              <div key={idx} className="flex items-center justify-between gap-4 bg-background/50 p-4 rounded-2xl border border-border-theme/40">
-                <div className="flex items-center gap-4 min-w-0">
-                  {item.image && (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-14 h-16 object-cover rounded-xl border border-border-theme shrink-0"
-                    />
-                  )}
-                  <div className="space-y-1 min-w-0">
-                    <p className="text-xs font-bold text-foreground truncate">{item.name}</p>
-                    <p className="text-[11px] font-mono text-foreground/60">
-                      Quantity: <span className="font-bold text-foreground">{item.quantity}</span> × ₹{item.price?.toLocaleString()}
-                    </p>
-                  </div>
-                </div>
+            {order.orderItems?.map((item, idx) => {
+              const prodId = item.product?._id || item.product;
 
-                <p className="text-sm font-mono font-black text-foreground shrink-0">
-                  ₹{(item.price * item.quantity).toLocaleString()}
-                </p>
-              </div>
-            ))}
+              return (
+                <div key={idx} className="flex items-center justify-between gap-4 bg-background/50 p-4 rounded-2xl border border-border-theme/40">
+                  <div
+                    onClick={() => prodId && navigate(`/product/${prodId}`)}
+                    className="flex items-center gap-4 min-w-0 cursor-pointer group"
+                  >
+                    {item.image && (
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-14 h-16 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition"
+                      />
+                    )}
+                    <div className="space-y-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground truncate group-hover:text-accent transition">{item.name}</p>
+
+                      {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
+                        <div className="flex gap-1.5 flex-wrap">
+                          {Object.entries(item.selectedAttributes).map(([k, v]) => (
+                            <span key={k} className="text-[9px] font-bold bg-accent/10 text-accent border border-accent/20 px-2 py-0.5 rounded">
+                              {k}: {String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-[11px] font-mono text-foreground/60">
+                        Quantity: <span className="font-bold text-foreground">{item.quantity}</span> × ₹{item.price?.toLocaleString()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <p className="text-sm font-mono font-black text-foreground shrink-0">
+                    ₹{(item.price * item.quantity).toLocaleString()}
+                  </p>
+                </div>
+              );
+            })}
           </div>
         </div>
 
@@ -136,12 +173,8 @@ const OrderDetails = () => {
                 {order.shippingPrice === 0 ? <span className="text-emerald-500 font-black">FREE</span> : `₹${order.shippingPrice}`}
               </span>
             </div>
-            <div className="flex justify-between text-foreground/80">
-              <span>GST Tax</span>
-              <span className="font-mono font-bold text-foreground">₹{order.taxPrice?.toLocaleString()}</span>
-            </div>
             <div className="flex justify-between pt-2 border-t border-border-theme text-sm font-black text-foreground">
-              <span>Total Paid ({order.paymentMethod})</span>
+              <span>Total Amount ({order.paymentMethod})</span>
               <span className="font-mono text-accent">₹{order.totalPrice?.toLocaleString()}</span>
             </div>
           </div>

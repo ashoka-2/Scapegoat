@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useOrders } from "../Hooks/useOrders";
+import socket from "../../../utils/socket";
 
 const statusBadgeColor = (status) => {
   switch (status) {
@@ -22,10 +23,28 @@ const MyOrders = () => {
   const navigate = useNavigate();
   const { handleFetchMyOrders } = useOrders();
   const { myOrders, loading } = useSelector((state) => state.orders);
+  const { user } = useSelector((state) => state.auth);
 
   useEffect(() => {
     handleFetchMyOrders();
-  }, []);
+
+    const userId = user?._id || user?.id;
+    if (userId) {
+      socket.emit("join_room", `user_${userId}`);
+    }
+
+    const onStatusUpdate = () => {
+      handleFetchMyOrders();
+    };
+
+    socket.on("order_status_updated", onStatusUpdate);
+    socket.on("realtime_update", onStatusUpdate);
+
+    return () => {
+      socket.off("order_status_updated", onStatusUpdate);
+      socket.off("realtime_update", onStatusUpdate);
+    };
+  }, [user]);
 
   if (loading && (!myOrders || myOrders.length === 0)) {
     return (
@@ -75,7 +94,10 @@ const MyOrders = () => {
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
               <div className="space-y-1">
                 <p className="text-xs font-mono font-bold text-foreground/50">
-                  Order ID: <span className="text-accent font-black">#{order._id.slice(-8).toUpperCase()}</span>
+                  Order ID:{" "}
+                  <span className="text-accent font-black">
+                    #{order.orderId || order._id.slice(-6).toUpperCase()}
+                  </span>
                 </p>
                 <p className="text-[11px] font-semibold text-foreground/60">
                   Placed on {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
@@ -103,6 +125,17 @@ const MyOrders = () => {
                   )}
                   <div className="text-xs space-y-0.5">
                     <p className="font-bold text-foreground max-w-[160px] truncate">{item.name}</p>
+
+                    {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
+                      <div className="flex gap-1 flex-wrap">
+                        {Object.entries(item.selectedAttributes).map(([k, v]) => (
+                          <span key={k} className="text-[9px] font-bold text-accent">
+                            {k}: {String(v)}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
                     <p className="text-[11px] text-foreground/60">
                       Qty: {item.quantity} × ₹{item.price}
                     </p>
