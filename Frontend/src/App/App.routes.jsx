@@ -17,6 +17,11 @@ import Shop from "../Features/Products/Pages/Shop.jsx";
 import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
 import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
+import SellerOrders from "../Features/Seller/Pages/SellerOrders.jsx";
+import SellerUsersPage from "../Features/Seller/Pages/SellerUsersPage.jsx";
+import SellerWishlistsPage from "../Features/Seller/Pages/SellerWishlistsPage.jsx";
+import SellerCustomersPage from "../Features/Seller/Pages/SellerCustomersPage.jsx";
+import SellerCartsPage from "../Features/Seller/Pages/SellerCartsPage.jsx";
 import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
@@ -200,6 +205,26 @@ export const routes = createBrowserRouter([
           {
             path: "metadata",
             element: <SellerMetadataManager />,
+          },
+          {
+            path: "orders",
+            element: <SellerOrders />,
+          },
+          {
+            path: "users",
+            element: <SellerUsersPage />,
+          },
+          {
+            path: "customers",
+            element: <SellerCustomersPage />,
+          },
+          {
+            path: "wishlists",
+            element: <SellerWishlistsPage />,
+          },
+          {
+            path: "carts",
+            element: <SellerCartsPage />,
           },
         ],
       },

@@ -4,6 +4,34 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { useOrders } from "../Hooks/useOrders";
 import CheckoutSkeleton from "../Components/Skeletons/CheckoutSkeleton";
+import { InputField, SelectField, RadioCard } from "../../../Shared/FormFields";
+
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
+  "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka",
+  "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram",
+  "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu",
+  "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry"
+];
+
+const PAYMENT_METHODS = [
+  {
+    id: "Razorpay",
+    label: "Razorpay / Online Payment",
+    icon: "ri-qr-code-line",
+    subtitle: "UPI, Cards, NetBanking, Wallets",
+    disabled: false,
+  },
+  {
+    id: "COD",
+    label: "Cash on Delivery",
+    icon: "ri-hand-coin-line",
+    subtitle: "Pay with cash upon delivery",
+    disabled: true,
+    badge: "Coming Soon",
+  },
+];
 
 const Checkout = () => {
   const navigate = useNavigate();
@@ -11,34 +39,55 @@ const Checkout = () => {
   const { user } = useSelector((state) => state.auth);
   const { handleCreateOrder } = useOrders();
 
+  const userId = user?._id || user?.id;
+
   const [address, setAddress] = useState({
     street: user?.address?.street || "",
     city: user?.address?.city || "",
-    state: user?.address?.state || "",
+    state: user?.address?.state || "Maharashtra",
     country: "India",
     pincode: user?.address?.pincode || "",
   });
 
-  const [paymentMethod, setPaymentMethod] = useState("COD");
+  const [pincodeError, setPincodeError] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("Razorpay");
   const [placing, setPlacing] = useState(false);
 
   useEffect(() => {
-    if (!cart) {
+    if (userId && !cart) {
       handleGetCart();
     }
-  }, []);
+  }, [userId]);
+
+  const cartItems = items || cart?.items || [];
 
   const shippingPrice = subtotal > 1999 ? 0 : 99;
-  const taxPrice = Math.round(subtotal * 0.18);
-  const grandTotal = subtotal + shippingPrice + taxPrice;
+  const grandTotal = subtotal + shippingPrice; // Tax excluded by default
 
   const handleChange = (e) => {
-    setAddress({ ...address, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    if (name === "pincode") {
+      // Numbers only, max 6 digits
+      const cleaned = value.replace(/\D/g, "").slice(0, 6);
+      setAddress((prev) => ({ ...prev, pincode: cleaned }));
+      if (cleaned.length > 0 && cleaned.length !== 6) {
+        setPincodeError("Pincode must be 6 digits");
+      } else {
+        setPincodeError("");
+      }
+      return;
+    }
+    setAddress((prev) => ({ ...prev, [name]: value }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (items.length === 0) return;
+    if (cartItems.length === 0) return;
+
+    if (address.pincode.length !== 6) {
+      setPincodeError("Pincode must be exactly 6 digits");
+      return;
+    }
 
     setPlacing(true);
     try {
@@ -57,11 +106,13 @@ const Checkout = () => {
     }
   };
 
-  if (cartLoading && (!items || items.length === 0)) {
+  // Show Skeleton while cart object is not fetched yet OR cart is loading
+  if (cart === null || cartLoading) {
     return <CheckoutSkeleton />;
   }
 
-  if (!cartLoading && (!items || items.length === 0)) {
+  // Once cart is loaded, if items array is truly empty, show empty state
+  if (cartItems.length === 0) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center text-center px-4 space-y-4 font-sans">
         <i className="ri-shopping-bag-line text-6xl text-foreground/30" />
@@ -100,80 +151,57 @@ const Checkout = () => {
               <span>Shipping Address</span>
             </h2>
 
-            <div className="space-y-4 text-xs font-semibold">
-              <div>
-                <label className="block text-[11px] font-extrabold uppercase text-foreground/60 mb-1">
-                  Street Address
-                </label>
-                <input
+            <div className="space-y-4">
+              <InputField
+                required
+                label="Street Address"
+                name="street"
+                value={address.street}
+                onChange={handleChange}
+                placeholder="House/Flat No., Building, Street Name"
+                icon="ri-home-4-line"
+              />
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <InputField
                   required
-                  type="text"
-                  name="street"
-                  value={address.street}
+                  label="City"
+                  name="city"
+                  value={address.city}
                   onChange={handleChange}
-                  placeholder="House/Flat No., Building, Street Name"
-                  className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent"
+                  placeholder="Mumbai"
+                  icon="ri-building-line"
+                />
+                <SelectField
+                  required
+                  label="State"
+                  name="state"
+                  value={address.state}
+                  onChange={handleChange}
+                  options={INDIAN_STATES}
+                  placeholder="Select State"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase text-foreground/60 mb-1">
-                    City
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    name="city"
-                    value={address.city}
-                    onChange={handleChange}
-                    placeholder="Mumbai"
-                    className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase text-foreground/60 mb-1">
-                    State
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    name="state"
-                    value={address.state}
-                    onChange={handleChange}
-                    placeholder="Maharashtra"
-                    className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase text-foreground/60 mb-1">
-                    Pincode / Postal Code
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    name="pincode"
-                    value={address.pincode}
-                    onChange={handleChange}
-                    placeholder="400001"
-                    className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase text-foreground/60 mb-1">
-                    Country
-                  </label>
-                  <input
-                    readOnly
-                    type="text"
-                    name="country"
-                    value={address.country}
-                    className="w-full bg-background/50 border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground/70 outline-none cursor-not-allowed"
-                  />
-                </div>
+                <InputField
+                  required
+                  type="text"
+                  label="Pincode / Postal Code (6 Digits)"
+                  name="pincode"
+                  value={address.pincode}
+                  onChange={handleChange}
+                  placeholder="400001"
+                  icon="ri-map-pin-line"
+                  error={pincodeError}
+                />
+                <InputField
+                  readOnly
+                  label="Country"
+                  name="country"
+                  value={address.country}
+                  icon="ri-global-line"
+                />
               </div>
             </div>
           </div>
@@ -185,26 +213,19 @@ const Checkout = () => {
               <span>Payment Option</span>
             </h2>
 
-            <div className="grid grid-cols-2 gap-3 text-xs font-bold">
-              {[
-                { id: "COD", label: "Cash on Delivery", icon: "ri-hand-coin-line" },
-                { id: "UPI", label: "Instant UPI", icon: "ri-qr-code-line" },
-                { id: "Card", label: "Credit / Debit Card", icon: "ri-bank-card-2-line" },
-                { id: "NetBanking", label: "Net Banking", icon: "ri-bank-line" },
-              ].map((pm) => (
-                <button
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {PAYMENT_METHODS.map((pm) => (
+                <RadioCard
                   key={pm.id}
-                  type="button"
-                  onClick={() => setPaymentMethod(pm.id)}
-                  className={`p-4 rounded-2xl border text-left flex flex-col justify-between space-y-2 cursor-pointer transition ${
-                    paymentMethod === pm.id
-                      ? "border-accent bg-accent/10 text-foreground"
-                      : "border-border-theme bg-background hover:border-accent/40 text-foreground/70"
-                  }`}
-                >
-                  <i className={`${pm.icon} text-xl text-accent`} />
-                  <span>{pm.label}</span>
-                </button>
+                  id={pm.id}
+                  selectedId={paymentMethod}
+                  onSelect={setPaymentMethod}
+                  label={pm.label}
+                  subtitle={pm.subtitle}
+                  icon={pm.icon}
+                  disabled={pm.disabled}
+                  badge={pm.badge}
+                />
               ))}
             </div>
           </div>
@@ -222,7 +243,7 @@ const Checkout = () => {
 
             {/* Items List Snapshot */}
             <div className="space-y-3 max-h-60 overflow-y-auto scrollbar-thin pr-1">
-              {items.map((item, idx) => {
+              {cartItems.map((item, idx) => {
                 const prod = item.product || {};
                 const price =
                   item.variant?.price?.amount ||
@@ -266,10 +287,6 @@ const Checkout = () => {
                   {shippingPrice === 0 ? <span className="text-emerald-500 font-black">FREE</span> : `₹${shippingPrice}`}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span>Estimated GST (18%)</span>
-                <span className="font-mono font-bold text-foreground">₹{taxPrice.toLocaleString()}</span>
-              </div>
 
               <div className="flex justify-between pt-3 border-t border-border-theme text-base font-black text-foreground">
                 <span>Grand Total</span>
@@ -279,7 +296,7 @@ const Checkout = () => {
 
             <button
               type="submit"
-              disabled={placing}
+              disabled={placing || pincodeError}
               className="w-full py-4 bg-accent text-accent-content font-black tracking-widest uppercase rounded-2xl hover:opacity-90 active:scale-95 transition-all shadow-xl disabled:opacity-60 flex items-center justify-center gap-2 cursor-pointer text-xs"
             >
               {placing ? (

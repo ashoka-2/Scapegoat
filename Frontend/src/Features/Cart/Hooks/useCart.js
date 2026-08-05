@@ -39,18 +39,32 @@ export const useCart = () => {
 
   // Fetch Cart
   const handleGetCart = async (force = false) => {
-    if (!user) return;
+    const userId = user?._id || user?.id;
+    if (!userId) {
+      console.log("[useCart] handleGetCart skipped - no user logged in");
+      return;
+    }
     dispatch(setLoading(true));
     try {
+      console.log("[useCart] Fetching user cart from API...");
       const data = await api.fetchUserCartApi();
+      console.log("[useCart] Received cart data from API:", data);
       dispatch(setCart(data));
-      return data.data;
+      return data?.data || data?.cart;
     } catch (e) {
+      console.error("[useCart] Failed to fetch cart:", e);
       dispatch(setError(errMsg(e)));
     } finally {
       dispatch(setLoading(false));
     }
   };
+
+  const userId = user?._id || user?.id;
+  useEffect(() => {
+    if (userId && !cart) {
+      handleGetCart();
+    }
+  }, [userId, cart]);
 
   // Add To Cart with Optimistic UX & Rollback
   const handleAddToCart = async (product, quantity = 1, variantId = null, selectedAttributes = null) => {
@@ -248,6 +262,7 @@ export const useCart = () => {
 
   return {
     cart,
+    items,
     totalItems,
     subtotal,
     isDrawerOpen,

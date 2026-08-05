@@ -151,6 +151,10 @@ export const addToCart = async (req, res) => {
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);
 
     emitToUser(req.user._id, "cart_updated", { action: "add", productId });
+    if (product?.seller) {
+      emitToSeller(product.seller.toString(), "cart_update", { userId: req.user._id, productId });
+    }
+    broadcastUpdate("cart_update", { userId: req.user._id, productId });
 
     return res.status(200).json({
       success: true,
@@ -308,5 +312,26 @@ export const clearCart = async (req, res) => {
       success: false,
       message: error.message || "Failed to clear cart",
     });
+  }
+};
+
+/**
+ * @desc    Get all active carts (Sellers & Admins)
+ * @route   GET /api/cart/all
+ * @access  Private/Seller/Admin
+ */
+export const getAllCarts = async (req, res) => {
+  try {
+    const carts = await cartModel.find()
+      .populate("user", "fullname email contact profilePic role")
+      .populate({
+        path: "items.product",
+        select: "title slug maxPrice sellingPrice images stock stockStatus manageStock seller",
+      })
+      .sort({ updatedAt: -1 });
+
+    return res.status(200).json({ success: true, carts });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

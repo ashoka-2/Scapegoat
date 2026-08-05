@@ -15,6 +15,7 @@ router.post("/", verifyToken, createOrder);
 router.get("/my-orders", verifyToken, getMyOrders);
 
 // Private seller endpoints
+router.get("/all", verifyToken, requireRole("seller", "admin"), getSellerOrders);
 router.get("/seller-orders", verifyToken, requireRole("seller", "admin"), getSellerOrders);
 router.put("/:id/status", verifyToken, requireRole("seller", "admin"), updateOrderStatus);
 

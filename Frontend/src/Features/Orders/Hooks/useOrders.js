@@ -7,8 +7,8 @@ import {
   updateStatusInList,
   setLoading,
 } from "../State/orders.slice";
-import * as api from "../Services/orders.api";
 import { addToast } from "../../../utils/toast.slice";
+import { clearCart } from "../../Cart/State/cart.slice";
 
 export const useOrders = () => {
   const dispatch = useDispatch();
@@ -19,6 +19,7 @@ export const useOrders = () => {
       const data = await api.createOrderApi(orderData);
       if (data.order) {
         dispatch(addOrder(data.order));
+        dispatch(clearCart());
         dispatch(addToast({ message: "Order placed successfully! 🎉", type: "success" }));
       }
       return data;

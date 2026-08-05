@@ -114,8 +114,8 @@ export const createOrder = async (req, res) => {
         }
 
         const shippingPrice = itemsPrice > 1999 ? 0 : 99;
-        const taxPrice = Math.round(itemsPrice * 0.18); // 18% GST estimate
-        const totalPrice = itemsPrice + shippingPrice + taxPrice;
+        const taxPrice = 0; // Tax excluded by default
+        const totalPrice = itemsPrice + shippingPrice;
 
         const order = await orderModel.create({
             user: userId,
