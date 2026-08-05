@@ -29,6 +29,11 @@ import LegalPrivacy from "../Features/Home/Pages/LegalPrivacy.jsx";
 import LegalReturns from "../Features/Home/Pages/LegalReturns.jsx";
 import LegalTerms from "../Features/Home/Pages/LegalTerms.jsx";
 
+// Order Pages
+import Checkout from "../Features/Orders/Pages/Checkout.jsx";
+import MyOrders from "../Features/Orders/Pages/MyOrders.jsx";
+import OrderDetails from "../Features/Orders/Pages/OrderDetails.jsx";
+
 export const routes = createBrowserRouter([
   {
     path: "/register",
@@ -97,6 +102,30 @@ export const routes = createBrowserRouter([
       {
         path: "terms-of-service",
         element: <LegalTerms />,
+      },
+      {
+        path: "checkout",
+        element: (
+          <Protected>
+            <Checkout />
+          </Protected>
+        ),
+      },
+      {
+        path: "my-orders",
+        element: (
+          <Protected>
+            <MyOrders />
+          </Protected>
+        ),
+      },
+      {
+        path: "orders/:id",
+        element: (
+          <Protected>
+            <OrderDetails />
+          </Protected>
+        ),
       },
       {
         path: "cart",

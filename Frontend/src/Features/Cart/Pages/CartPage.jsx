@@ -457,14 +457,7 @@ const CartPage = () => {
                   <button
                     type="button"
                     disabled={hasOutOfStock}
-                    onClick={() =>
-                      dispatch(
-                        addToast({
-                          message: "Checkout process initiated!",
-                          type: "success",
-                        }),
-                      )
-                    }
+                    onClick={() => navigate("/checkout")}
                     className={`w-full py-3.5 rounded-xl font-extrabold text-xs shadow-md transition flex items-center justify-center gap-1.5 ${
                       hasOutOfStock
                         ? "bg-foreground/10 text-foreground/40 border border-border-theme cursor-not-allowed"

@@ -17,6 +17,7 @@ import unitRouter from "./routes/unit.routes.js";
 import activityRouter from "./routes/userActivity.routes.js";
 import messageRouter from "./routes/message.routes.js";
 import settingRouter from "./routes/setting.routes.js";
+import orderRouter from "./routes/order.routes.js";
 
 const app = express();
 
@@ -47,5 +48,6 @@ app.use("/api/units", unitRouter);
 app.use("/api/activity", activityRouter);
 app.use("/api/messages", messageRouter);
 app.use("/api/settings", settingRouter);
+app.use("/api/orders", orderRouter);
 
 export default app;
