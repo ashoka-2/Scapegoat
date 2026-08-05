@@ -392,6 +392,24 @@ export const updateProfile = async (req, res) => {
     }
 };
 
+export const becomeSeller = async (req, res) => {
+    try {
+        const userId = req.user?.id || req.user?._id;
+        const user = await userModel.findById(userId);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+        if (user.role === "seller") {
+            return res.status(400).json({ success: false, message: "You are already a seller." });
+        }
+        user.role = "seller";
+        await user.save();
+        await sendTokenResponse(user, res, "Congratulations! You are now a Seller Partner on ScapeGoat.");
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
 export const changePassword = async (req, res) => {
     const userId = req.user?.id;
     const { currentPassword, newPassword } = req.body;

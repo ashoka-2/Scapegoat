@@ -16,10 +16,18 @@ const SellerOrders = () => {
   const { handleFetchSellerOrders, handleUpdateStatus } = useOrders();
   const { sellerOrders, loading } = useSelector((state) => state.orders);
   const [filterStatus, setFilterStatus] = useState("All");
+  const [expandedOrders, setExpandedOrders] = useState({});
 
   useEffect(() => {
     handleFetchSellerOrders();
   }, []);
+
+  const toggleExpand = (orderId) => {
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   const filteredOrders =
     filterStatus === "All"
@@ -74,129 +82,146 @@ const SellerOrders = () => {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredOrders.map((order) => (
-            <div
-              key={order._id}
-              className="bg-surface border border-border-theme p-6 rounded-3xl space-y-5 shadow-lg"
-            >
-              {/* Top Row: Order ID, Date, Buyer & Status Control */}
-              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
-                <div className="space-y-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-mono font-black text-accent">
-                      #{order.orderId || order._id.slice(-6).toUpperCase()}
-                    </span>
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
-                        STATUS_COLORS[order.status] || "bg-accent/10 text-accent border-accent/20"
-                      }`}
-                    >
-                      {order.status}
-                    </span>
-                  </div>
-                  <p className="text-[11px] font-semibold text-foreground/60">
-                    Buyer:{" "}
-                    <button
-                      onClick={() => order.user?._id && navigate(`/seller/users/${order.user._id}`)}
-                      className="font-bold text-foreground hover:text-accent underline transition cursor-pointer"
-                    >
-                      {order.user?.fullname || "Customer"}
-                    </button>{" "}
-                    ({order.user?.email}) • Placed{" "}
-                    {new Date(order.createdAt).toLocaleDateString("en-IN", {
-                      day: "numeric",
-                      month: "short",
-                      year: "numeric",
-                    })}
-                  </p>
-                </div>
+          {filteredOrders.map((order) => {
+            const isExpanded = expandedOrders[order._id] !== false; // Default expanded
 
-                {/* Status Changer Select */}
-                <div className="flex items-center gap-2">
-                  <label className="text-[11px] font-black uppercase text-foreground/60">
-                    Status:
-                  </label>
-                  <select
-                    value={order.status}
-                    onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
-                    className="bg-background border border-border-theme rounded-xl px-3 py-1.5 text-xs font-bold text-foreground outline-none focus:border-accent cursor-pointer"
-                  >
-                    <option value="Processing">Processing</option>
-                    <option value="Shipped">Shipped</option>
-                    <option value="Delivered">Delivered</option>
-                    <option value="Cancelled">Cancelled</option>
-                  </select>
-                </div>
-              </div>
-
-              {/* Items List */}
-              <div className="space-y-2">
-                {order.orderItems?.map((item, idx) => {
-                  const prodId = item.product?._id || item.product;
-                  const selectedAttrs = item.selectedAttributes || item.attributes || {};
-
-                  return (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between gap-3 bg-background/50 p-3 rounded-2xl border border-border-theme/40 text-xs"
-                    >
-                      <div
-                        onClick={() => prodId && navigate(`/product/${prodId}`)}
-                        className="flex items-center gap-3 min-w-0 cursor-pointer group"
+            return (
+              <div
+                key={order._id}
+                className="bg-surface border border-border-theme p-6 rounded-3xl space-y-5 shadow-lg transition-all"
+              >
+                {/* Top Row: Order ID, Date, Buyer & Status Control */}
+                <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-mono font-black text-accent">
+                        #{order.orderId || order._id.slice(-6).toUpperCase()}
+                      </span>
+                      <span
+                        className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                          STATUS_COLORS[order.status] || "bg-accent/10 text-accent border-accent/20"
+                        }`}
                       >
-                        {item.image && (
-                          <img
-                            src={item.image}
-                            alt={item.name}
-                            className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition"
-                          />
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-bold text-foreground truncate group-hover:text-accent transition">
-                            {item.name}
-                          </p>
-
-                          {/* Variant Attributes */}
-                          {Object.keys(selectedAttrs).length > 0 && (
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              {Object.entries(selectedAttrs).map(([k, v]) => (
-                                <span
-                                  key={k}
-                                  className="text-[9px] font-bold bg-accent/10 text-accent border border-accent/20 px-1.5 py-0.5 rounded"
-                                >
-                                  {k}: {String(v)}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-
-                          <p className="text-[11px] text-foreground/60 mt-0.5">
-                            Qty: {item.quantity} × ₹{item.price?.toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-
-                      <span className="font-mono font-black text-foreground shrink-0">
-                        ₹{(item.price * item.quantity).toLocaleString()}
+                        {order.status}
                       </span>
                     </div>
-                  );
-                })}
-              </div>
+                    <p className="text-[11px] font-semibold text-foreground/60">
+                      Buyer:{" "}
+                      <button
+                        onClick={() => order.user?._id && navigate(`/seller/users/${order.user._id}`)}
+                        className="font-bold text-foreground hover:text-accent underline transition cursor-pointer"
+                      >
+                        {order.user?.fullname || "Customer"}
+                      </button>{" "}
+                      ({order.user?.email}) • Placed{" "}
+                      {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                        day: "numeric",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </p>
+                  </div>
 
-              {/* Delivery Address & Order Total */}
-              <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-border-theme/40 text-xs">
-                <div className="text-foreground/70">
-                  <span className="font-bold">Ship to: </span>
-                  {order.shippingAddress?.street}, {order.shippingAddress?.city},{" "}
-                  {order.shippingAddress?.state} - {order.shippingAddress?.pincode}
+                  {/* Right side: Status dropdown & Collapse Toggle */}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-2">
+                      <label className="text-[11px] font-black uppercase text-foreground/60">
+                        Status:
+                      </label>
+                      <select
+                        value={order.status}
+                        onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
+                        className="bg-background border border-border-theme rounded-xl px-3 py-1.5 text-xs font-bold text-foreground outline-none focus:border-accent cursor-pointer"
+                      >
+                        <option value="Processing">Processing</option>
+                        <option value="Shipped">Shipped</option>
+                        <option value="Delivered">Delivered</option>
+                        <option value="Cancelled">Cancelled</option>
+                      </select>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(order._id)}
+                      className="px-3 py-1.5 rounded-xl bg-background border border-border-theme/60 hover:border-accent text-xs font-bold text-foreground/80 flex items-center gap-1.5 cursor-pointer transition"
+                    >
+                      <span>{isExpanded ? "Hide Items" : `Items (${order.orderItems?.length})`}</span>
+                      <i className={`text-sm ${isExpanded ? "ri-chevron-up-line" : "ri-chevron-down-line"}`} />
+                    </button>
+                  </div>
                 </div>
-                <div className="font-mono text-sm font-black text-foreground">
-                  Order Total: <span className="text-accent">₹{order.totalPrice?.toLocaleString()}</span>
+
+                {/* Collapsible Items List */}
+                {isExpanded && (
+                  <div className="space-y-2 animate-fadeIn">
+                    {order.orderItems?.map((item, idx) => {
+                      const prodId = item.product?._id || item.product;
+                      const selectedAttrs = item.selectedAttributes || item.attributes || {};
+
+                      return (
+                        <div
+                          key={idx}
+                          className="flex items-center justify-between gap-3 bg-background/50 p-3 rounded-2xl border border-border-theme/40 text-xs"
+                        >
+                          <div
+                            onClick={() => prodId && navigate(`/product/${prodId}`)}
+                            className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                          >
+                            {item.image && (
+                              <img
+                                src={item.image}
+                                alt={item.name}
+                                className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition"
+                              />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-bold text-foreground truncate group-hover:text-accent transition">
+                                {item.name}
+                              </p>
+
+                              {/* Variant Attributes */}
+                              {Object.keys(selectedAttrs).length > 0 && (
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  {Object.entries(selectedAttrs).map(([k, v]) => (
+                                    <span
+                                      key={k}
+                                      className="text-[9px] font-bold bg-accent/10 text-accent border border-accent/20 px-1.5 py-0.5 rounded"
+                                    >
+                                      {k}: {String(v)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+
+                              <p className="text-[11px] text-foreground/60 mt-0.5">
+                                Qty: {item.quantity} × ₹{item.price?.toLocaleString()}
+                              </p>
+                            </div>
+                          </div>
+
+                          <span className="font-mono font-black text-foreground shrink-0">
+                            ₹{(item.price * item.quantity).toLocaleString()}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Delivery Address & Order Total */}
+                <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-border-theme/40 text-xs">
+                  <div className="text-foreground/70">
+                    <span className="font-bold">Ship to: </span>
+                    {order.shippingAddress?.street}, {order.shippingAddress?.city},{" "}
+                    {order.shippingAddress?.state} - {order.shippingAddress?.pincode}
+                  </div>
+                  <div className="font-mono text-sm font-black text-foreground">
+                    Order Total: <span className="text-accent">₹{order.totalPrice?.toLocaleString()}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

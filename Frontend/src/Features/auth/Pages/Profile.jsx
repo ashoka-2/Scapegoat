@@ -34,7 +34,7 @@ const Profile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useSelector((state) => state.auth);
-  const { handleLogout, handleUpdateProfile, handleChangePassword } = useAuth();
+  const { handleLogout, handleUpdateProfile, handleChangePassword, handleBecomeSeller } = useAuth();
 
   const avatarInputRef = useRef(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
@@ -61,6 +61,11 @@ const Profile = () => {
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
+  // Sell on Scapegoat modal states
+  const [showSellerWarningModal, setShowSellerWarningModal] = useState(false);
+  const [showSellerSuccessModal, setShowSellerSuccessModal] = useState(false);
+  const [upgradingSeller, setUpgradingSeller] = useState(false);
+
   useEffect(() => {
     if (user) {
       const defaultAddr = user.addresses?.find((a) => a.isDefault) || user.addresses?.[0] || {};
@@ -76,8 +81,6 @@ const Profile = () => {
       });
     }
   }, [user]);
-
-
 
   if (authLoading && !user) {
     return (
@@ -127,7 +130,6 @@ const Profile = () => {
         isDefault: true,
       },
     };
-    // Include avatar URL if changed (for cloud-upload use case — for now pass dataURL or skip if unchanged)
     if (avatarPreview) {
       payload.profilePic = avatarPreview;
     }
@@ -155,10 +157,23 @@ const Profile = () => {
     }
   };
 
+  const handleConfirmBecomeSeller = async () => {
+    setUpgradingSeller(true);
+    try {
+      await handleBecomeSeller();
+      setShowSellerWarningModal(false);
+      setShowSellerSuccessModal(true);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setUpgradingSeller(false);
+    }
+  };
+
   const currentAvatar = avatarPreview || user?.profilePic;
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-10 px-4 sm:px-6 lg:px-8 selection:bg-accent selection:text-accent-content">
+    <div className="min-h-screen bg-background text-foreground py-10 px-4 sm:px-6 lg:px-8 selection:bg-accent selection:text-accent-content font-sans">
       <div className="max-w-4xl mx-auto space-y-8">
 
         {/* ── User Header Card ── */}
@@ -182,7 +197,6 @@ const Profile = () => {
                   <span>{(user?.fullname || user?.username || "U")[0].toUpperCase()}</span>
                 )}
               </div>
-              {/* Edit Overlay */}
               <div
                 className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 onClick={() => avatarInputRef.current?.click()}
@@ -245,6 +259,80 @@ const Profile = () => {
           </div>
         </div>
 
+        {/* ── Quick Action Command Bar ── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          {/* Manage My Orders */}
+          <button
+            type="button"
+            onClick={() => navigate(user?.role === "seller" ? "/seller/orders" : "/orders/my-orders")}
+            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+              <i className="ri-receipt-line text-lg" />
+            </div>
+            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
+              Manage Orders
+            </span>
+          </button>
+
+          {/* View Wishlist */}
+          <button
+            type="button"
+            onClick={() => navigate("/wishlist")}
+            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+              <i className="ri-heart-3-line text-lg" />
+            </div>
+            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
+              View Wishlist
+            </span>
+          </button>
+
+          {/* Seller Panel or Sell on Scapegoat */}
+          {user?.role === "seller" ? (
+            <button
+              type="button"
+              onClick={() => navigate("/seller/dashboard")}
+              className="p-4 bg-accent/10 border border-accent/30 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-accent text-accent-content flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i className="ri-store-3-line text-lg" />
+              </div>
+              <span className="text-xs font-black text-accent group-hover:underline transition">
+                Seller Dashboard
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowSellerWarningModal(true)}
+              className="p-4 bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
+            >
+              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
+                <i className="ri-rocket-line text-lg" />
+              </div>
+              <span className="text-xs font-black text-emerald-500 group-hover:underline transition">
+                Sell on ScapeGoat
+              </span>
+            </button>
+          )}
+
+          {/* Help Center */}
+          <button
+            type="button"
+            onClick={() => navigate("/contact")}
+            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
+          >
+            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
+              <i className="ri-customer-service-2-line text-lg" />
+            </div>
+            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
+              Help Center
+            </span>
+          </button>
+        </div>
+
         {/* ── Personal Information & Address Form ── */}
         <form
           onSubmit={handleUpdateSubmit}
@@ -266,7 +354,6 @@ const Profile = () => {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            {/* Full Name */}
             <div>
               <RequiredLabel>Full Name / Username</RequiredLabel>
               <input
@@ -279,7 +366,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Phone */}
             <div>
               <RequiredLabel>Phone Number</RequiredLabel>
               <input
@@ -292,7 +378,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Email — read only */}
             <div className="sm:col-span-2">
               <RequiredLabel locked>Email Address</RequiredLabel>
               <input
@@ -305,7 +390,7 @@ const Profile = () => {
             </div>
           </div>
 
-          {/* ── Default Shipping Address ── */}
+          {/* Default Shipping Address */}
           <div className="pt-6 border-t border-border-theme/50 space-y-4">
             <div className="flex items-center gap-2">
               <i className="ri-map-pin-2-fill text-accent text-base" />
@@ -313,7 +398,6 @@ const Profile = () => {
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* Street */}
               <div className="sm:col-span-2">
                 <RequiredLabel>Street / Flat / House No.</RequiredLabel>
                 <input
@@ -326,7 +410,6 @@ const Profile = () => {
                 />
               </div>
 
-              {/* City */}
               <div>
                 <RequiredLabel>City</RequiredLabel>
                 <input
@@ -339,7 +422,6 @@ const Profile = () => {
                 />
               </div>
 
-              {/* State */}
               <div>
                 <RequiredLabel>State / Province</RequiredLabel>
                 <input
@@ -352,7 +434,6 @@ const Profile = () => {
                 />
               </div>
 
-              {/* Country */}
               <div>
                 <RequiredLabel>Country</RequiredLabel>
                 <select
@@ -367,7 +448,6 @@ const Profile = () => {
                 </select>
               </div>
 
-              {/* Pincode */}
               <div>
                 <RequiredLabel>Pincode / ZIP Code</RequiredLabel>
                 <input
@@ -382,9 +462,126 @@ const Profile = () => {
             </div>
           </div>
         </form>
+
+        {/* ── My Reviews Section ── */}
+        <div className="bg-surface border border-border-theme/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
+          <div className="flex items-center justify-between border-b border-border-theme/50 pb-3">
+            <h2 className="text-lg font-extrabold text-foreground flex items-center gap-2">
+              <i className="ri-star-smile-line text-accent" /> My Product Reviews
+            </h2>
+            <span className="text-xs font-bold text-foreground/50">0 Published Reviews</span>
+          </div>
+
+          <div className="p-8 text-center bg-background/40 border border-dashed border-border-theme rounded-2xl space-y-2">
+            <i className="ri-chat-check-line text-4xl text-foreground/30" />
+            <p className="text-xs font-bold text-foreground/70">No reviews published yet</p>
+            <p className="text-[11px] text-foreground/40 max-w-sm mx-auto">
+              Reviews you post after purchasing products will appear here.
+            </p>
+          </div>
+        </div>
       </div>
 
+      {/* ── Sell on Scapegoat Warning Modal ── */}
+      {showSellerWarningModal && (
+        <Modal
+          isOpen={showSellerWarningModal}
+          onClose={() => setShowSellerWarningModal(false)}
+          title="Become a ScapeGoat Seller Partner"
+          showFooterActions={false}
+        >
+          <div className="space-y-6 text-sm font-sans">
+            <div className="p-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl space-y-2 text-amber-500">
+              <div className="flex items-center gap-2 font-black text-base uppercase">
+                <i className="ri-error-warning-fill text-xl" />
+                <span>Irreversible Account Action</span>
+              </div>
+              <p className="text-xs leading-relaxed text-foreground/90">
+                Upgrading your account to a <strong className="text-amber-500">Seller Partner</strong> is a permanent change. Once upgraded, your account will be granted full access to list products, manage catalog stock, process buyer orders, and view sales analytics.
+              </p>
+              <p className="text-xs font-bold text-amber-500">
+                ⚠️ You cannot revert back to a standard normal buyer account after this upgrade.
+              </p>
+            </div>
 
+            <div className="space-y-3 bg-background/50 p-4 rounded-2xl border border-border-theme">
+              <h3 className="text-xs font-black uppercase text-accent tracking-wider">What you will get:</h3>
+              <ul className="space-y-2 text-xs text-foreground/80 font-medium">
+                <li className="flex items-center gap-2">
+                  <i className="ri-checkbox-circle-fill text-emerald-500" /> Dedicated Seller Dashboard & Real-time Fulfillment Station
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="ri-checkbox-circle-fill text-emerald-500" /> Product Catalog & Inventory Stock Management
+                </li>
+                <li className="flex items-center gap-2">
+                  <i className="ri-checkbox-circle-fill text-emerald-500" /> Real-time Customer & Cart Analytics
+                </li>
+              </ul>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowSellerWarningModal(false)}
+                className="px-4 py-2.5 rounded-xl bg-surface border border-border-theme text-xs font-bold text-foreground hover:border-accent transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={upgradingSeller}
+                onClick={handleConfirmBecomeSeller}
+                className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-extrabold text-xs shadow-lg transition cursor-pointer flex items-center gap-2"
+              >
+                {upgradingSeller ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Upgrading Account...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-rocket-line" />
+                    <span>I Understand, Upgrade Me to Seller!</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Seller Upgrade Success Celebration Modal ── */}
+      {showSellerSuccessModal && (
+        <Modal
+          isOpen={showSellerSuccessModal}
+          onClose={() => setShowSellerSuccessModal(false)}
+          title="Congratulations!"
+          showFooterActions={false}
+        >
+          <div className="text-center space-y-5 p-4 font-sans">
+            <div className="w-20 h-20 rounded-full bg-emerald-500/20 text-emerald-500 mx-auto flex items-center justify-center text-4xl animate-bounce">
+              <i className="ri-verified-badge-fill" />
+            </div>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-black uppercase text-foreground">Welcome, Seller Partner!</h2>
+              <p className="text-xs text-foreground/70 max-w-md mx-auto">
+                Your account has been successfully upgraded to a verified ScapeGoat Seller. You can now start listing products and growing your brand!
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                setShowSellerSuccessModal(false);
+                navigate("/seller/dashboard");
+              }}
+              className="px-8 py-3 bg-accent text-accent-content font-black text-xs uppercase tracking-wider rounded-full shadow-xl hover:opacity-90 transition cursor-pointer"
+            >
+              Open Seller Dashboard 🚀
+            </button>
+          </div>
+        </Modal>
+      )}
 
       {/* ── Change Password Modal ── */}
       {showPasswordModal && (
@@ -397,12 +594,10 @@ const Profile = () => {
           title="Change Password"
         >
           <form onSubmit={handlePasswordSubmit} className="space-y-5">
-            {/* Required indicator */}
             <p className="text-[10px] text-foreground/50 flex items-center gap-1">
               <span className="text-red-500 font-bold">*</span> All fields required
             </p>
 
-            {/* Current Password */}
             <div>
               <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
                 Current Password <span className="text-red-500">*</span>
@@ -426,7 +621,6 @@ const Profile = () => {
               </div>
             </div>
 
-            {/* New Password */}
             <div>
               <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
                 New Password <span className="text-red-500">*</span>
@@ -455,7 +649,6 @@ const Profile = () => {
               />
             </div>
 
-            {/* Confirm Password */}
             <div>
               <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
                 Confirm New Password <span className="text-red-500">*</span>

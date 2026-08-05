@@ -11,6 +11,7 @@ import {
   changePasswordApi,
   forgotPasswordApi,
   resetPasswordApi,
+  becomeSellerApi,
 } from "../Services/auth.api.js";
 import { addToast } from "../../../utils/toast.slice.js";
 import { clearCart } from "../../Cart/State/cart.slice.js";
@@ -195,6 +196,24 @@ export const useAuth = () => {
     [dispatch]
   );
 
+  const handleBecomeSeller = useCallback(async () => {
+    dispatch(setLoading(true));
+    try {
+      const data = await becomeSellerApi();
+      if (data.user) {
+        dispatch(setUser(data.user));
+      }
+      dispatch(addToast({ message: "🎉 Congratulations! You are now a Seller Partner on ScapeGoat.", type: "success" }));
+      return data;
+    } catch (error) {
+      const message = error.response?.data?.message || "Failed to upgrade account to seller.";
+      dispatch(addToast({ message, type: "error" }));
+      throw error;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch]);
+
   return {
     handleLogin,
     handleRegister,
@@ -205,5 +224,6 @@ export const useAuth = () => {
     handleChangePassword,
     handleForgotPassword,
     handleResetPassword,
+    handleBecomeSeller,
   };
 };

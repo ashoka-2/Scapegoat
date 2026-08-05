@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useOrders } from "../Hooks/useOrders";
@@ -24,6 +24,7 @@ const MyOrders = () => {
   const { handleFetchMyOrders } = useOrders();
   const { myOrders, loading } = useSelector((state) => state.orders);
   const { user } = useSelector((state) => state.auth);
+  const [expandedOrders, setExpandedOrders] = useState({});
 
   useEffect(() => {
     handleFetchMyOrders();
@@ -45,6 +46,14 @@ const MyOrders = () => {
       socket.off("realtime_update", onStatusUpdate);
     };
   }, [user]);
+
+  const toggleExpand = (e, orderId) => {
+    e.stopPropagation();
+    setExpandedOrders((prev) => ({
+      ...prev,
+      [orderId]: !prev[orderId],
+    }));
+  };
 
   if (loading && (!myOrders || myOrders.length === 0)) {
     return (
@@ -84,77 +93,92 @@ const MyOrders = () => {
       </div>
 
       <div className="space-y-6">
-        {myOrders.map((order) => (
-          <div
-            key={order._id}
-            onClick={() => navigate(`/orders/${order._id}`)}
-            className="bg-surface border border-border-theme p-6 rounded-3xl space-y-4 shadow-xl hover:border-accent/40 transition cursor-pointer group"
-          >
-            {/* Header row: Order ID, Date & Status */}
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
-              <div className="space-y-1">
-                <p className="text-xs font-mono font-bold text-foreground/50">
-                  Order ID:{" "}
-                  <span className="text-accent font-black">
-                    #{order.orderId || order._id.slice(-6).toUpperCase()}
-                  </span>
-                </p>
-                <p className="text-[11px] font-semibold text-foreground/60">
-                  Placed on {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
-                </p>
-              </div>
+        {myOrders.map((order) => {
+          const isExpanded = expandedOrders[order._id] !== false; // Default expanded
 
-              <div className="flex items-center gap-3">
-                <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${statusBadgeColor(order.status)}`}>
-                  {order.status}
-                </span>
-                <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
-              </div>
-            </div>
-
-            {/* Items Thumbnails */}
-            <div className="flex items-center gap-3 overflow-x-auto scrollbar-none py-1">
-              {order.orderItems?.map((item, idx) => (
-                <div key={idx} className="flex items-center gap-3 bg-background/50 p-2 rounded-2xl border border-border-theme/40 shrink-0">
-                  {item.image && (
-                    <img
-                      src={item.image}
-                      alt={item.name}
-                      className="w-12 h-14 object-cover rounded-xl border border-border-theme"
-                    />
-                  )}
-                  <div className="text-xs space-y-0.5">
-                    <p className="font-bold text-foreground max-w-[160px] truncate">{item.name}</p>
-
-                    {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
-                      <div className="flex gap-1 flex-wrap">
-                        {Object.entries(item.selectedAttributes).map(([k, v]) => (
-                          <span key={k} className="text-[9px] font-bold text-accent">
-                            {k}: {String(v)}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-
-                    <p className="text-[11px] text-foreground/60">
-                      Qty: {item.quantity} × ₹{item.price}
-                    </p>
-                  </div>
+          return (
+            <div
+              key={order._id}
+              onClick={() => navigate(`/orders/${order._id}`)}
+              className="bg-surface border border-border-theme p-6 rounded-3xl space-y-4 shadow-xl hover:border-accent/40 transition cursor-pointer group"
+            >
+              {/* Header row: Order ID, Date & Status */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-mono font-bold text-foreground/50">
+                    Order ID:{" "}
+                    <span className="text-accent font-black">
+                      #{order.orderId || order._id.slice(-6).toUpperCase()}
+                    </span>
+                  </p>
+                  <p className="text-[11px] font-semibold text-foreground/60">
+                    Placed on {new Date(order.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  </p>
                 </div>
-              ))}
-            </div>
 
-            {/* Footer row: Total Price */}
-            <div className="flex items-center justify-between pt-2 border-t border-border-theme/40 text-xs">
-              <span className="font-bold text-foreground/70">
-                Payment: <span className="text-foreground uppercase font-mono font-black">{order.paymentMethod}</span>
-              </span>
-              <span className="font-black text-sm text-foreground font-mono">
-                Total: <span className="text-accent">₹{order.totalPrice?.toLocaleString()}</span>
-              </span>
+                <div className="flex items-center gap-3">
+                  <span className={`text-[10px] font-black uppercase tracking-wider px-3 py-1 rounded-full border ${statusBadgeColor(order.status)}`}>
+                    {order.status}
+                  </span>
+
+                  <button
+                    type="button"
+                    onClick={(e) => toggleExpand(e, order._id)}
+                    className="p-2 rounded-xl bg-background border border-border-theme/60 hover:border-accent text-xs font-bold text-foreground/80 flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <i className={`text-sm ${isExpanded ? "ri-chevron-up-line" : "ri-chevron-down-line"}`} />
+                  </button>
+
+                  <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+
+              {/* Items Thumbnails (Collapsible) */}
+              {isExpanded && (
+                <div className="flex items-center gap-3 overflow-x-auto scrollbar-none py-1 animate-fadeIn">
+                  {order.orderItems?.map((item, idx) => (
+                    <div key={idx} className="flex items-center gap-3 bg-background/50 p-2.5 rounded-2xl border border-border-theme/40 shrink-0">
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-12 h-14 object-cover rounded-xl border border-border-theme"
+                        />
+                      )}
+                      <div className="text-xs space-y-0.5">
+                        <p className="font-bold text-foreground max-w-[160px] truncate">{item.name}</p>
+
+                        {item.selectedAttributes && Object.keys(item.selectedAttributes).length > 0 && (
+                          <div className="flex gap-1 flex-wrap">
+                            {Object.entries(item.selectedAttributes).map(([k, v]) => (
+                              <span key={k} className="text-[9px] font-bold text-accent">
+                                {k}: {String(v)}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+
+                        <p className="text-[11px] text-foreground/60">
+                          Qty: {item.quantity} × ₹{item.price}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Footer row: Total Price */}
+              <div className="flex items-center justify-between pt-2 border-t border-border-theme/40 text-xs">
+                <span className="font-bold text-foreground/70">
+                  Payment: <span className="text-foreground uppercase font-mono font-black">{order.paymentMethod}</span>
+                </span>
+                <span className="font-black text-sm text-foreground font-mono">
+                  Total: <span className="text-accent">₹{order.totalPrice?.toLocaleString()}</span>
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

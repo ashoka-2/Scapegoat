@@ -70,3 +70,8 @@ export async function resetPasswordApi({ token, newPassword }) {
   });
   return response.data;
 }
+
+export async function becomeSellerApi() {
+  const response = await authApiInstance.put("/become-seller");
+  return response.data;
+}
