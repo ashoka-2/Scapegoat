@@ -7,6 +7,8 @@ import brandReducer from "../Features/Brands/State/brand.slice";
 import unitReducer from "../Features/Units/State/unit.slice";
 import cartReducer from "../Features/Cart/State/cart.slice";
 import wishlistReducer from "../Features/Wishlist/State/wishlist.slice";
+import messagesReducer from "../Features/Messages/State/messages.slice";
+import settingsReducer from "../Features/Settings/State/settings.slice";
 
 export const store = configureStore({
   reducer: {
@@ -18,5 +20,7 @@ export const store = configureStore({
     unit: unitReducer,
     cart: cartReducer,
     wishlist: wishlistReducer,
+    messages: messagesReducer,
+    settings: settingsReducer,
   },
 });

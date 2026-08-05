@@ -22,6 +22,13 @@ import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
 import ResetPassword from "../Features/auth/Pages/ResetPassword.jsx";
 
+// Home & Info Pages
+import About from "../Features/Home/Pages/About.jsx";
+import Contact from "../Features/Home/Pages/Contact.jsx";
+import LegalPrivacy from "../Features/Home/Pages/LegalPrivacy.jsx";
+import LegalReturns from "../Features/Home/Pages/LegalReturns.jsx";
+import LegalTerms from "../Features/Home/Pages/LegalTerms.jsx";
+
 export const routes = createBrowserRouter([
   {
     path: "/register",
@@ -70,6 +77,26 @@ export const routes = createBrowserRouter([
       {
         path: "shop",
         element: <Shop />,
+      },
+      {
+        path: "about",
+        element: <About />,
+      },
+      {
+        path: "contact",
+        element: <Contact />,
+      },
+      {
+        path: "privacy-policy",
+        element: <LegalPrivacy />,
+      },
+      {
+        path: "returns-policy",
+        element: <LegalReturns />,
+      },
+      {
+        path: "terms-of-service",
+        element: <LegalTerms />,
       },
       {
         path: "cart",

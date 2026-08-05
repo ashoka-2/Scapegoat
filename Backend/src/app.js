@@ -15,6 +15,8 @@ import categoryRouter from "./routes/category.routes.js";
 import brandRouter from "./routes/brand.routes.js";
 import unitRouter from "./routes/unit.routes.js";
 import activityRouter from "./routes/userActivity.routes.js";
+import messageRouter from "./routes/message.routes.js";
+import settingRouter from "./routes/setting.routes.js";
 
 const app = express();
 
@@ -43,5 +45,7 @@ app.use("/api/categories", categoryRouter);
 app.use("/api/brands", brandRouter);
 app.use("/api/units", unitRouter);
 app.use("/api/activity", activityRouter);
+app.use("/api/messages", messageRouter);
+app.use("/api/settings", settingRouter);
 
 export default app;
