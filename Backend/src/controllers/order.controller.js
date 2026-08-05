@@ -1,6 +1,7 @@
 import orderModel from "../models/order.model.js";
 import productModel from "../models/product.model.js";
 import cartModel from "../models/cart.model.js";
+import sellerCustomerModel from "../models/sellerCustomer.model.js";
 import { broadcastUpdate, emitToSeller } from "../services/socket.service.js";
 
 /**
@@ -131,11 +132,16 @@ export const createOrder = async (req, res) => {
             status: "Processing",
         });
 
-        // Notify sellers in real-time
+        // Notify sellers in real-time & save permanent customer connection
         const sellerIds = [...new Set(orderItems.map((item) => item.seller.toString()))];
-        sellerIds.forEach((sellerId) => {
+        for (const sellerId of sellerIds) {
             emitToSeller(sellerId, "new_order", { orderId: order._id, totalPrice: order.totalPrice });
-        });
+            await sellerCustomerModel.findOneAndUpdate(
+                { seller: sellerId, customer: userId },
+                { lastInteractionType: "order", lastInteractionAt: new Date() },
+                { upsert: true, new: true }
+            ).catch(() => {});
+        }
 
         broadcastUpdate("order_created", { orderId: order._id });
 

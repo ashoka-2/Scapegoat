@@ -1,6 +1,7 @@
 import cartModel from "../models/cart.model.js";
 import productModel from "../models/product.model.js";
-import { emitToUser } from "../services/socket.service.js";
+import sellerCustomerModel from "../models/sellerCustomer.model.js";
+import { emitToUser, emitToSeller, broadcastUpdate } from "../services/socket.service.js";
 
 /**
  * Helper to compute cart totals and item count
@@ -153,6 +154,11 @@ export const addToCart = async (req, res) => {
     emitToUser(req.user._id, "cart_updated", { action: "add", productId });
     if (product?.seller) {
       emitToSeller(product.seller.toString(), "cart_update", { userId: req.user._id, productId });
+      await sellerCustomerModel.findOneAndUpdate(
+        { seller: product.seller, customer: req.user._id },
+        { lastInteractionType: "cart", lastInteractionAt: new Date() },
+        { upsert: true, new: true }
+      ).catch(() => {});
     }
     broadcastUpdate("cart_update", { userId: req.user._id, productId });
 

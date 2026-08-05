@@ -1,13 +1,15 @@
 import {Router} from "express";
 import { validateLoginUser, validateRegisterUser, validateCompleteProfile } from "../validators/auth.validator.js";
 import passport from "passport";
-import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword, forgotPassword, resetPassword, getAllUsers} from "../controllers/auth.controller.js"
+import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword, forgotPassword, resetPassword, getAllUsers, getUserById, getSellerCustomers} from "../controllers/auth.controller.js"
 import {verifyToken, requireRole} from "../middlewares/auth.middleware.js"
 import { config } from "../config/config.js";
 
 const router = Router();
 
 router.get("/users", verifyToken, requireRole("seller", "admin"), getAllUsers);
+router.get("/users/:id", verifyToken, requireRole("seller", "admin"), getUserById);
+router.get("/customers", verifyToken, requireRole("seller", "admin"), getSellerCustomers);
 
 /**
  * @route POST /api/auth/register

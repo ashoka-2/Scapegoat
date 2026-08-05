@@ -16,17 +16,28 @@ export const useSeller = () => {
 
   const syncDashboardData = async () => {
     try {
-      const [cartsRes, wishRes, ordersRes, usersRes] = await Promise.all([
+      const [cartsRes, wishRes, ordersRes, usersRes, customersRes] = await Promise.all([
         api.fetchAllCartsApi().catch(() => ({ carts: [] })),
         api.fetchAllWishlistsApi().catch(() => ({ wishlists: [] })),
         api.fetchAllOrdersApi().catch(() => ({ orders: [] })),
         api.fetchAllUsersApi().catch(() => ({ users: [] })),
+        api.fetchSellerCustomersApi().catch(() => ({ customers: [] })),
       ]);
 
       dispatch(setAllCarts(cartsRes.carts || []));
       dispatch(setAllWishlists(wishRes.wishlists || []));
       dispatch(setAllOrders(ordersRes.orders || []));
-      dispatch(setUsers(usersRes.users || []));
+
+      // Combine directory users & permanent customers
+      const combinedUsers = [...(usersRes.users || []), ...(customersRes.customers || [])];
+      const userMap = new Map();
+      combinedUsers.forEach((u) => {
+        if (u && u._id && u.role !== "admin") {
+          userMap.set(u._id.toString(), u);
+        }
+      });
+
+      dispatch(setUsers(Array.from(userMap.values())));
     } catch (e) {
       console.error("Seller dashboard background sync error", e);
     }
@@ -36,27 +47,20 @@ export const useSeller = () => {
     if (window.sellerSocketListening) return;
     window.sellerSocketListening = true;
 
-    // Join seller private room if logged in
     const userId = user?._id || user?.id;
     if (userId) {
       socket.emit("join_room", `seller_${userId}`);
       socket.emit("join_room", `user_${userId}`);
     }
 
-    // Listen for global and targeted seller updates
+    const triggerRefresh = () => {
+      console.log("⚡ Instant socket event received -> syncing dashboard...");
+      syncDashboardData();
+    };
+
     socket.on("realtime_update", (payload) => {
       console.log("⚡ Realtime socket update received (seller):", payload.type);
-      if (
-        [
-          "cart_update",
-          "wishlist_update",
-          "order_update",
-          "order_created",
-          "settings_update",
-        ].includes(payload.type)
-      ) {
-        syncDashboardData();
-      }
+      triggerRefresh();
     });
 
     socket.on("new_order", (data) => {
@@ -67,11 +71,13 @@ export const useSeller = () => {
           type: "success",
         })
       );
-      syncDashboardData();
+      triggerRefresh();
     });
 
-    socket.on("cart_update", () => syncDashboardData());
-    socket.on("wishlist_update", () => syncDashboardData());
+    socket.on("cart_update", triggerRefresh);
+    socket.on("wishlist_update", triggerRefresh);
+    socket.on("order_created", triggerRefresh);
+    socket.on("order_status_updated", triggerRefresh);
   };
 
   const fetchDashboardData = async (user) => {
@@ -87,9 +93,21 @@ export const useSeller = () => {
     }
   };
 
+  const handleFetchUserDetail = async (id) => {
+    try {
+      const data = await api.fetchUserDetailApi(id);
+      return data.user;
+    } catch (e) {
+      const msg = e?.response?.data?.message || "Failed to fetch user details.";
+      dispatch(addToast({ message: msg, type: "error" }));
+      return null;
+    }
+  };
+
   return {
     fetchDashboardData,
     syncDashboardData,
     setupRealtimeListener,
+    handleFetchUserDetail,
   };
 };

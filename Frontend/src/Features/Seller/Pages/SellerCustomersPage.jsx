@@ -1,9 +1,11 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { useSeller } from "../Hooks/useSeller";
 import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
 
 const SellerCustomersPage = () => {
+  const navigate = useNavigate();
   const { fetchDashboardData } = useSeller();
   const { user: currentUser } = useSelector((state) => state.auth);
   const { allCarts, allWishlists, allOrders, users, loading } = useSelector((state) => state.seller);
@@ -21,7 +23,7 @@ const SellerCustomersPage = () => {
     allOrders?.forEach((o) => o.user?._id && activeUserIds.add(o.user._id));
 
     const list = users || [];
-    return list.filter((u) => activeUserIds.has(u._id));
+    return list.filter((u) => u.role !== "admin" && (activeUserIds.has(u._id) || u.lastInteractionType));
   }, [allCarts, allWishlists, allOrders, users]);
 
   const filteredCustomers = useMemo(() => {
@@ -48,7 +50,7 @@ const SellerCustomersPage = () => {
             My Customers
           </h1>
           <p className="text-xs text-foreground/60">
-            Clients who have wishlisted, added to cart, or purchased your products
+            Clients permanently linked through purchases, carts, and wishlists
           </p>
         </div>
 
@@ -68,7 +70,7 @@ const SellerCustomersPage = () => {
         <div className="bg-surface border border-border-theme p-12 rounded-3xl text-center space-y-3">
           <i className="ri-user-heart-line text-5xl text-foreground/30" />
           <h2 className="text-lg font-black uppercase text-foreground">No active customers found</h2>
-          <p className="text-xs text-foreground/50">Clients interacting with your store will appear here.</p>
+          <p className="text-xs text-foreground/50">Clients interacting with your store will appear here permanently.</p>
         </div>
       ) : (
         <div className="bg-surface border border-border-theme rounded-3xl overflow-hidden shadow-lg">
@@ -78,16 +80,19 @@ const SellerCustomersPage = () => {
                 <tr className="border-b border-border-theme text-[10px] font-black uppercase tracking-widest text-foreground/50 bg-background/50">
                   <th className="p-4">Customer</th>
                   <th className="p-4">Contact</th>
-                  <th className="p-4">Role</th>
-                  <th className="p-4">Joined</th>
+                  <th className="p-4">Account Type</th>
+                  <th className="p-4 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-theme/40 font-semibold">
                 {filteredCustomers.map((usr) => (
                   <tr key={usr._id} className="hover:bg-background/40 transition">
                     <td className="p-4">
-                      <div className="flex items-center gap-3">
-                        <div className="w-9 h-9 rounded-full overflow-hidden border border-border-theme shrink-0 bg-background flex items-center justify-center font-bold text-accent">
+                      <div
+                        onClick={() => navigate(`/seller/users/${usr._id}`)}
+                        className="flex items-center gap-3 cursor-pointer group"
+                      >
+                        <div className="w-9 h-9 rounded-full overflow-hidden border border-border-theme shrink-0 bg-background flex items-center justify-center font-bold text-accent group-hover:border-accent transition">
                           {usr.profilePic ? (
                             <img src={usr.profilePic} alt={usr.fullname} className="w-full h-full object-cover" />
                           ) : (
@@ -95,7 +100,9 @@ const SellerCustomersPage = () => {
                           )}
                         </div>
                         <div>
-                          <p className="font-bold text-foreground">{usr.fullname || "Customer"}</p>
+                          <p className="font-bold text-foreground group-hover:text-accent transition">
+                            {usr.fullname || "Customer"}
+                          </p>
                           <p className="text-[11px] text-foreground/50">{usr.email}</p>
                         </div>
                       </div>
@@ -106,12 +113,13 @@ const SellerCustomersPage = () => {
                         {usr.role}
                       </span>
                     </td>
-                    <td className="p-4 text-foreground/60 font-mono text-[11px]">
-                      {new Date(usr.createdAt).toLocaleDateString("en-IN", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
+                    <td className="p-4 text-right">
+                      <button
+                        onClick={() => navigate(`/seller/users/${usr._id}`)}
+                        className="px-3 py-1.5 bg-accent/10 text-accent border border-accent/20 rounded-xl text-xs font-bold uppercase hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                      >
+                        View Profile
+                      </button>
                     </td>
                   </tr>
                 ))}

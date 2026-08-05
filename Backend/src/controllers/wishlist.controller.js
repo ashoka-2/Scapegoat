@@ -1,6 +1,7 @@
 import wishlistModel from "../models/wishlist.model.js";
 import productModel from "../models/product.model.js";
-import { emitToUser } from "../services/socket.service.js";
+import sellerCustomerModel from "../models/sellerCustomer.model.js";
+import { emitToUser, emitToSeller, broadcastUpdate } from "../services/socket.service.js";
 
 /**
  * @desc    Get user's wishlist
@@ -166,6 +167,15 @@ export const toggleWishlist = async (req, res) => {
     });
 
     emitToUser(req.user._id, "wishlist_updated", { isWishlisted, productId });
+    if (product?.seller) {
+      emitToSeller(product.seller.toString(), "wishlist_update", { userId: req.user._id, productId });
+      await sellerCustomerModel.findOneAndUpdate(
+        { seller: product.seller, customer: req.user._id },
+        { lastInteractionType: "wishlist", lastInteractionAt: new Date() },
+        { upsert: true, new: true }
+      ).catch(() => {});
+    }
+    broadcastUpdate("wishlist_update", { userId: req.user._id, productId });
 
     return res.status(200).json({
       success: true,
@@ -199,11 +209,33 @@ export const clearWishlist = async (req, res) => {
       success: true,
       message: "Wishlist cleared successfully",
       count: 0,
+      data: wishlist,
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to clear wishlist",
     });
+  }
+};
+
+/**
+ * @desc    Get all wishlists (Sellers & Admins)
+ * @route   GET /api/wishlist/all
+ * @access  Private/Seller/Admin
+ */
+export const getAllWishlists = async (req, res) => {
+  try {
+    const wishlists = await wishlistModel.find()
+      .populate("user", "fullname email contact profilePic role")
+      .populate({
+        path: "products",
+        select: "title slug maxPrice sellingPrice images stockStatus seller",
+      })
+      .sort({ updatedAt: -1 });
+
+    return res.status(200).json({ success: true, wishlists });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message });
   }
 };

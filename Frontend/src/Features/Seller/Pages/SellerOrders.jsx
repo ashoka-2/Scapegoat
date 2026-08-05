@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
+import { useNavigate } from "react-router-dom";
 import { useOrders } from "../../Orders/Hooks/useOrders";
 import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
 
@@ -11,6 +12,7 @@ const STATUS_COLORS = {
 };
 
 const SellerOrders = () => {
+  const navigate = useNavigate();
   const { handleFetchSellerOrders, handleUpdateStatus } = useOrders();
   const { sellerOrders, loading } = useSelector((state) => state.orders);
   const [filterStatus, setFilterStatus] = useState("All");
@@ -37,7 +39,7 @@ const SellerOrders = () => {
             Customer Orders
           </h1>
           <p className="text-xs text-foreground/60">
-            View and manage customer order fulfillment for your products
+            Real-time fulfillment station for your store purchases
           </p>
         </div>
 
@@ -93,7 +95,14 @@ const SellerOrders = () => {
                     </span>
                   </div>
                   <p className="text-[11px] font-semibold text-foreground/60">
-                    Buyer: <span className="font-bold text-foreground">{order.user?.fullname || "Customer"}</span> ({order.user?.email}) • Placed{" "}
+                    Buyer:{" "}
+                    <button
+                      onClick={() => order.user?._id && navigate(`/seller/users/${order.user._id}`)}
+                      className="font-bold text-foreground hover:text-accent underline transition cursor-pointer"
+                    >
+                      {order.user?.fullname || "Customer"}
+                    </button>{" "}
+                    ({order.user?.email}) • Placed{" "}
                     {new Date(order.createdAt).toLocaleDateString("en-IN", {
                       day: "numeric",
                       month: "short",
@@ -122,31 +131,57 @@ const SellerOrders = () => {
 
               {/* Items List */}
               <div className="space-y-2">
-                {order.orderItems?.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between gap-3 bg-background/50 p-3 rounded-2xl border border-border-theme/40 text-xs"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {item.image && (
-                        <img
-                          src={item.image}
-                          alt={item.name}
-                          className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
-                        />
-                      )}
-                      <div className="min-w-0">
-                        <p className="font-bold text-foreground truncate">{item.name}</p>
-                        <p className="text-[11px] text-foreground/60">
-                          Qty: {item.quantity} × ₹{item.price?.toLocaleString()}
-                        </p>
+                {order.orderItems?.map((item, idx) => {
+                  const prodId = item.product?._id || item.product;
+                  const selectedAttrs = item.selectedAttributes || item.attributes || {};
+
+                  return (
+                    <div
+                      key={idx}
+                      className="flex items-center justify-between gap-3 bg-background/50 p-3 rounded-2xl border border-border-theme/40 text-xs"
+                    >
+                      <div
+                        onClick={() => prodId && navigate(`/product/${prodId}`)}
+                        className="flex items-center gap-3 min-w-0 cursor-pointer group"
+                      >
+                        {item.image && (
+                          <img
+                            src={item.image}
+                            alt={item.name}
+                            className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition"
+                          />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-bold text-foreground truncate group-hover:text-accent transition">
+                            {item.name}
+                          </p>
+
+                          {/* Variant Attributes */}
+                          {Object.keys(selectedAttrs).length > 0 && (
+                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                              {Object.entries(selectedAttrs).map(([k, v]) => (
+                                <span
+                                  key={k}
+                                  className="text-[9px] font-bold bg-accent/10 text-accent border border-accent/20 px-1.5 py-0.5 rounded"
+                                >
+                                  {k}: {String(v)}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+
+                          <p className="text-[11px] text-foreground/60 mt-0.5">
+                            Qty: {item.quantity} × ₹{item.price?.toLocaleString()}
+                          </p>
+                        </div>
                       </div>
+
+                      <span className="font-mono font-black text-foreground shrink-0">
+                        ₹{(item.price * item.quantity).toLocaleString()}
+                      </span>
                     </div>
-                    <span className="font-mono font-black text-foreground shrink-0">
-                      ₹{(item.price * item.quantity).toLocaleString()}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
               {/* Delivery Address & Order Total */}

@@ -1,4 +1,9 @@
 import userModel from "../models/user.model.js";
+import wishlistModel from "../models/wishlist.model.js";
+import cartModel from "../models/cart.model.js";
+import orderModel from "../models/order.model.js";
+import productModel from "../models/product.model.js";
+import sellerCustomerModel from "../models/sellerCustomer.model.js";
 import jwt from "jsonwebtoken";
 import {config } from "../config/config.js";
 import { handleServerError } from "../utils/errorHandler.js";
@@ -489,8 +494,78 @@ export const resetPassword = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
     try {
-        const users = await userModel.find().select("-password").sort({ createdAt: -1 });
+        const users = await userModel.find({ role: { $ne: "admin" } }).select("-password").sort({ createdAt: -1 });
         return res.status(200).json({ success: true, users });
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
+export const getUserById = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const user = await userModel.findById(id).select("-password").lean();
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        const wishlist = await wishlistModel.findOne({ user: id }).populate({
+            path: "products",
+            select: "title slug maxPrice sellingPrice images stockStatus category brand",
+        }).lean();
+
+        const cart = await cartModel.findOne({ user: id }).populate({
+            path: "items.product",
+            select: "title slug maxPrice sellingPrice images stockStatus",
+        }).lean();
+
+        const orders = await orderModel.find({ user: id }).populate({
+            path: "orderItems.product",
+            select: "title slug maxPrice sellingPrice images",
+        }).sort({ createdAt: -1 }).lean();
+
+        let products = [];
+        if (user.role === "seller") {
+            products = await productModel.find({ seller: id }).select("title slug maxPrice sellingPrice images status category brand").lean();
+        }
+
+        return res.status(200).json({
+            success: true,
+            user: {
+                ...user,
+                wishlist: wishlist || { products: [] },
+                cart: cart || { items: [] },
+                orders: orders || [],
+                products: products || [],
+            },
+        });
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
+export const getSellerCustomers = async (req, res) => {
+    try {
+        const sellerId = req.user._id;
+
+        // 1. Get permanent customers from sellerCustomer model
+        const relations = await sellerCustomerModel.find({ seller: sellerId }).populate("customer", "-password").lean();
+        const permanentCustomers = relations.map((r) => r.customer).filter(Boolean);
+
+        // 2. Also find current buyers from active orders
+        const orders = await orderModel.find({ "orderItems.seller": sellerId }).populate("user", "-password").lean();
+        const orderCustomers = orders.map((o) => o.user).filter(Boolean);
+
+        // Combine unique customers by ID
+        const customerMap = new Map();
+        [...permanentCustomers, ...orderCustomers].forEach((c) => {
+            if (c && c._id && c.role !== "admin") {
+                customerMap.set(c._id.toString(), c);
+            }
+        });
+
+        const customers = Array.from(customerMap.values());
+        return res.status(200).json({ success: true, customers });
     } catch (error) {
         return handleServerError(res, error);
     }

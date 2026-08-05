@@ -19,6 +19,7 @@ import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
 import SellerOrders from "../Features/Seller/Pages/SellerOrders.jsx";
 import SellerUsersPage from "../Features/Seller/Pages/SellerUsersPage.jsx";
+import SellerUserDetailPage from "../Features/Seller/Pages/SellerUserDetailPage.jsx";
 import SellerWishlistsPage from "../Features/Seller/Pages/SellerWishlistsPage.jsx";
 import SellerCustomersPage from "../Features/Seller/Pages/SellerCustomersPage.jsx";
 import SellerCartsPage from "../Features/Seller/Pages/SellerCartsPage.jsx";
@@ -213,6 +214,10 @@ export const routes = createBrowserRouter([
           {
             path: "users",
             element: <SellerUsersPage />,
+          },
+          {
+            path: "users/:id",
+            element: <SellerUserDetailPage />,
           },
           {
             path: "customers",
