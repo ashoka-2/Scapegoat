@@ -7,28 +7,50 @@ import { routes } from "./App.routes.jsx";
 import PageLoader from "../Components/PageLoader.jsx";
 import Preloader from "../Components/Preloader.jsx";
 
-import {ToastContainer} from "../Components/Toast.jsx";
+import { ToastContainer } from "../Components/Toast.jsx";
 
 import {
   AuthSkeleton,
   HomeSkeleton,
   NavbarSkeleton,
   ProfileSkeleton,
+  ShopSkeleton,
+  CartSkeleton,
+  WishlistSkeleton,
+  SingleProductSkeleton,
+  CreateProductSkeleton,
+  SellerSkeleton,
 } from "../Components/Skeletons/index.js";
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
 
-const App = () => {
+const getPageSkeleton = (path) => {
+  if (
+    path === "/login" ||
+    path === "/register" ||
+    path === "/forgot-password" ||
+    path === "/reset-password" ||
+    path === "/complete-profile"
+  ) {
+    return AuthSkeleton;
+  }
+  if (path === "/profile") return ProfileSkeleton;
+  if (path === "/shop") return ShopSkeleton;
+  if (path === "/cart") return CartSkeleton;
+  if (path === "/wishlist") return WishlistSkeleton;
+  if (path.startsWith("/product/")) return SingleProductSkeleton;
+  if (path.startsWith("/products/edit")) return CreateProductSkeleton;
+  if (path.startsWith("/seller")) return SellerSkeleton;
+  return HomeSkeleton;
+};
 
+const App = () => {
   const { fetchMe } = useAuth();
   const [showApp, setShowApp] = useState(false);
 
-
-const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
-    return sessionStorage.getItem('scapegoat_preloader_seen') === 'true';
+  const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
+    return sessionStorage.getItem("scapegoat_preloader_seen") === "true";
   });
   const [isServerReady, setIsServerReady] = useState(false);
-
-
 
   useEffect(() => {
     const saved = localStorage.getItem("theme");
@@ -43,7 +65,7 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
     setShowApp(true);
   };
 
-   useEffect(() => {
+  useEffect(() => {
     if (isServerReady) return;
     let intervalId;
 
@@ -80,24 +102,25 @@ const [hasSeenPreloader, setHasSeenPreloader] = useState(() => {
         />
       )}
 
-      {/* 2. Show Skeletons ONLY on reloads when server isn't ready yet */}
+      {/* 2. Show Dedicated Page Skeleton ONLY on reloads when server isn't ready yet */}
       {hasSeenPreloader &&
         !showApp &&
         (() => {
           const path = window.location.pathname;
-          const isAuthPage = path === "/login" || path === "/register";
+          const isAuthPage =
+            path === "/login" ||
+            path === "/register" ||
+            path === "/forgot-password" ||
+            path === "/reset-password" ||
+            path === "/complete-profile";
+
+          const TargetSkeleton = getPageSkeleton(path);
 
           return (
             <div className="min-h-screen bg-background text-foreground">
               {!isAuthPage && <NavbarSkeleton />}
               <div className={isAuthPage ? "" : "pt-20 md:pt-24"}>
-                {path === "/profile" ? (
-                  <PageLoader skeleton={ProfileSkeleton} />
-                ) : isAuthPage ? (
-                  <PageLoader skeleton={AuthSkeleton} />
-                ) : (
-                  <PageLoader skeleton={HomeSkeleton} />
-                )}
+                <PageLoader skeleton={TargetSkeleton} />
               </div>
             </div>
           );

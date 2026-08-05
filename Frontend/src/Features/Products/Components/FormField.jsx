@@ -3,6 +3,7 @@ import React from "react";
 /**
  * FormField Component
  * Theme-aware form field wrapper for inputs, textareas, and selects.
+ * Supports inline skeleton loading state.
  */
 const FormField = ({
   label,
@@ -10,6 +11,8 @@ const FormField = ({
   error,
   helperText,
   children,
+  loading = false,
+  skeletonHeight = "h-10",
   className = "",
 }) => {
   return (
@@ -20,7 +23,11 @@ const FormField = ({
           {required && <span className="text-red-500 ml-1">*</span>}
         </label>
       )}
-      {children}
+      {loading ? (
+        <div className={`w-full ${skeletonHeight} bg-foreground/15 rounded-xl animate-pulse border border-border-theme/40`} />
+      ) : (
+        children
+      )}
       {helperText && !error && (
         <p className="text-xs text-foreground/60 mt-1">{helperText}</p>
       )}

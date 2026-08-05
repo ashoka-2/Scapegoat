@@ -15,6 +15,7 @@ import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/att
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
 import RichTextEditor from "../Components/RichTextEditor";
+import CreateProductSkeleton from "../Components/Skeletons/CreateProductSkeleton";
 import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 
@@ -201,13 +202,18 @@ const CreateProduct = () => {
     logAuditAction("Barcode Generated", `Generated barcode ${code}`);
   };
 
+  const [fetchingEditProduct, setFetchingEditProduct] = useState(false);
+
   // Prepopulate form if in Edit or Duplicate Mode
   useEffect(() => {
     const targetId = editId || duplicateId;
     if (targetId) {
-      handleFetchSingleProduct(targetId).then((prod) => {
-        if (!prod) return;
-        try {
+      setFetchingEditProduct(true);
+      handleFetchSingleProduct(targetId)
+        .then((prod) => {
+          setFetchingEditProduct(false);
+          if (!prod) return;
+          try {
           const maxP = prod.maxPrice?.amount || "";
           const sellP = prod.sellingPrice?.amount || "";
           let discVal = "";
@@ -298,6 +304,9 @@ const CreateProduct = () => {
         } catch (err) {
           console.error("Error prepopulating product form:", err);
         }
+      }).catch((err) => {
+        console.error("Failed to fetch product for editing:", err);
+        setFetchingEditProduct(false);
       });
     }
   }, [editId, duplicateId, handleFetchSingleProduct]);
@@ -883,14 +892,18 @@ const CreateProduct = () => {
               </span>
             </h1>
 
-            <input
-              type="text"
-              name="title"
-              value={formData.title}
-              onChange={handleChange}
-              placeholder="Product title (e.g. Lenovo LOQ Gaming Laptop, Nike Air Force 1)"
-              className="w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-lg font-bold text-foreground outline-none transition-all focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25"
-            />
+            {fetchingEditProduct ? (
+              <div className="w-full h-12 bg-foreground/15 rounded-xl animate-pulse border border-border-theme/40" />
+            ) : (
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                placeholder="Product title (e.g. Lenovo LOQ Gaming Laptop, Nike Air Force 1)"
+                className="w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-lg font-bold text-foreground outline-none transition-all focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25"
+              />
+            )}
 
             {/* Permalink Preview */}
             <div className="text-xs font-mono text-foreground/50 flex items-center space-x-1 pl-1">
@@ -902,7 +915,7 @@ const CreateProduct = () => {
 
             {/* SKU Input Field right under Title */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-border-theme/40">
-              <FormField label="Product SKU (Stock Keeping Unit)" error={formErrors.sku}>
+              <FormField label="Product SKU (Stock Keeping Unit)" error={formErrors.sku} loading={fetchingEditProduct}>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -923,7 +936,7 @@ const CreateProduct = () => {
                 </div>
               </FormField>
 
-              <FormField label="Barcode (EAN-13)">
+              <FormField label="Barcode (EAN-13)" loading={fetchingEditProduct}>
                 <div className="flex gap-2">
                   <input
                     type="text"
@@ -964,7 +977,7 @@ const CreateProduct = () => {
               </button>
             </div>
 
-            <FormField label="Short Summary / Subtitle">
+            <FormField label="Short Summary / Subtitle" loading={fetchingEditProduct}>
               <input
                 type="text"
                 name="shortDescription"
@@ -975,7 +988,7 @@ const CreateProduct = () => {
               />
             </FormField>
 
-            <FormField label="Full Detailed Description" required error={formErrors.description}>
+            <FormField label="Full Detailed Description" required error={formErrors.description} loading={fetchingEditProduct} skeletonHeight="h-36">
               <RichTextEditor
                 value={formData.description}
                 onChange={(newVal) => setFormData((prev) => ({ ...prev, description: newVal }))}
@@ -1035,7 +1048,7 @@ const CreateProduct = () => {
                     </h3>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                      <FormField label="Regular MRP Price (₹)" required error={formErrors.maxPriceAmount}>
+                      <FormField label="Regular MRP Price (₹)" required error={formErrors.maxPriceAmount} loading={fetchingEditProduct}>
                         <input
                           type="number"
                           name="maxPriceAmount"
@@ -1047,7 +1060,7 @@ const CreateProduct = () => {
                         />
                       </FormField>
 
-                      <FormField label="Sale Price (₹)">
+                      <FormField label="Sale Price (₹)" loading={fetchingEditProduct}>
                         <input
                           type="number"
                           name="sellingPriceAmount"
@@ -1060,7 +1073,7 @@ const CreateProduct = () => {
                       </FormField>
 
                       {/* Prominent Unit Selector in Price Section */}
-                      <FormField label="Unit of Measurement">
+                      <FormField label="Unit of Measurement" loading={fetchingEditProduct}>
                         <div className="flex gap-2">
                           <select
                             name="unit"
@@ -1123,7 +1136,7 @@ const CreateProduct = () => {
 
                     {formData.manageStock ? (
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                        <FormField label="Stock Quantity">
+                        <FormField label="Stock Quantity" loading={fetchingEditProduct}>
                           <input
                             type="number"
                             name="stock"
@@ -1134,7 +1147,7 @@ const CreateProduct = () => {
                           />
                         </FormField>
 
-                        <FormField label="Low Stock Threshold">
+                        <FormField label="Low Stock Threshold" loading={fetchingEditProduct}>
                           <input
                             type="number"
                             name="lowStockThreshold"
@@ -1145,7 +1158,7 @@ const CreateProduct = () => {
                           />
                         </FormField>
 
-                        <FormField label="Stock Status">
+                        <FormField label="Stock Status" loading={fetchingEditProduct}>
                           <select
                             name="stockStatus"
                             value={formData.stockStatus}
@@ -1633,7 +1646,7 @@ const CreateProduct = () => {
               </button>
             </div>
 
-            <FormField error={formErrors.category}>
+            <FormField error={formErrors.category} loading={fetchingEditProduct}>
               <select
                 name="category"
                 value={formData.category}
@@ -1689,19 +1702,23 @@ const CreateProduct = () => {
               </button>
             </div>
 
-            <select
-              name="brand"
-              value={formData.brand}
-              onChange={handleChange}
-              className={selectClass}
-            >
-              <option value="">Select Brand / Designer</option>
-              {brands.map((b) => (
-                <option key={b._id} value={b._id}>
-                  {b.name}
-                </option>
-              ))}
-            </select>
+            {fetchingEditProduct ? (
+              <div className="w-full h-10 bg-foreground/15 rounded-xl animate-pulse border border-border-theme/40" />
+            ) : (
+              <select
+                name="brand"
+                value={formData.brand}
+                onChange={handleChange}
+                className={selectClass}
+              >
+                <option value="">Select Brand / Designer</option>
+                {brands.map((b) => (
+                  <option key={b._id} value={b._id}>
+                    {b.name}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* 4. PRODUCT MAIN IMAGE BOX (WooCommerce Product Image Card) */}
@@ -1710,7 +1727,11 @@ const CreateProduct = () => {
               <i className="ri-image-line text-accent" />
               <span>Product Primary Image</span>
             </h2>
-            <ImageDropzone images={mainImages} setImages={setMainImages} maxImages={1} />
+            {fetchingEditProduct ? (
+              <div className="w-full h-44 bg-foreground/15 rounded-2xl animate-pulse border border-border-theme/40" />
+            ) : (
+              <ImageDropzone images={mainImages} setImages={setMainImages} maxImages={1} />
+            )}
           </div>
 
           {/* 5. PRODUCT GALLERY BOX (WooCommerce Product Gallery Card) */}
@@ -1719,7 +1740,11 @@ const CreateProduct = () => {
               <i className="ri-gallery-line text-accent" />
               <span>Product Photo Gallery</span>
             </h2>
-            <ImageDropzone images={galleryImages} setImages={setGalleryImages} maxImages={6} />
+            {fetchingEditProduct ? (
+              <div className="w-full h-32 bg-foreground/15 rounded-2xl animate-pulse border border-border-theme/40" />
+            ) : (
+              <ImageDropzone images={galleryImages} setImages={setGalleryImages} maxImages={6} />
+            )}
           </div>
         </div>
       </form>
