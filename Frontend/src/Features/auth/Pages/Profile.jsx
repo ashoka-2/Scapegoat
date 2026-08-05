@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../Hooks/useAuth";
 import { addToast } from "../../../utils/toast.slice";
 import Modal from "../../../Components/Modal";
@@ -9,18 +10,20 @@ import PasswordRequirementChecker, {
 } from "../components/PasswordRequirementChecker";
 import * as reviewApi from "../../Reviews/Services/review.api";
 
+import ProfileSkeleton from "../components/Skeletons/ProfileSkeleton";
+
 const inputClass =
-  "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 text-sm";
+  "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-foreground outline-none transition-all duration-200 focus:ring-2 focus:ring-accent/20 text-sm";
 
 const RequiredLabel = ({ children, locked = false }) => (
   <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center justify-between">
     <span className="flex items-center gap-1">
       {children}
-      {!locked && <span className="text-red-500 font-bold">*</span>}
+      {!locked && <span className="text-accent font-bold">*</span>}
     </span>
     {locked && (
       <span className="text-[10px] text-foreground/40 font-normal flex items-center gap-1">
-        <i className="ri-lock-line text-xs" /> Locked for security
+        <i className="ri-lock-line text-xs" /> Locked
       </span>
     )}
   </label>
@@ -31,14 +34,24 @@ const COUNTRIES = [
   "Germany", "France", "Japan", "Singapore", "UAE", "Other"
 ];
 
+const TABS = [
+  { id: "personal", label: "Personal Info", icon: "ri-user-3-line" },
+  { id: "actions", label: "Quick Actions", icon: "ri-apps-2-line" },
+  { id: "reviews", label: "My Reviews", icon: "ri-star-line" },
+  { id: "security", label: "Security", icon: "ri-shield-keyhole-line" },
+];
+
 const Profile = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { user, loading: authLoading } = useSelector((state) => state.auth);
+  const { myOrders } = useSelector((state) => state.orders || { myOrders: [] });
+  const { wishlist } = useSelector((state) => state.wishlist || { wishlist: { products: [] } });
   const { handleLogout, handleUpdateProfile, handleChangePassword, handleBecomeSeller } = useAuth();
 
   const avatarInputRef = useRef(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
+  const [activeTab, setActiveTab] = useState("personal");
 
   const [formData, setFormData] = useState({
     fullname: "",
@@ -51,7 +64,6 @@ const Profile = () => {
     pincode: "",
   });
 
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [passData, setPassData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -62,19 +74,24 @@ const Profile = () => {
   const [showNewPass, setShowNewPass] = useState(false);
   const [showConfirmPass, setShowConfirmPass] = useState(false);
 
+  // User reviews state
+  const [userReviews, setUserReviews] = useState([]);
+  const [loadingUserReviews, setLoadingUserReviews] = useState(false);
+
   // Sell on Scapegoat modal states
   const [showSellerWarningModal, setShowSellerWarningModal] = useState(false);
   const [showSellerSuccessModal, setShowSellerSuccessModal] = useState(false);
   const [upgradingSeller, setUpgradingSeller] = useState(false);
 
-  const [userReviews, setUserReviews] = useState([]);
-
   const loadUserReviews = async () => {
+    setLoadingUserReviews(true);
     try {
       const data = await reviewApi.fetchUserReviewsApi();
       setUserReviews(data.reviews || []);
     } catch (e) {
       console.error(e);
+    } finally {
+      setLoadingUserReviews(false);
     }
   };
 
@@ -95,23 +112,8 @@ const Profile = () => {
     }
   }, [user]);
 
-  const handleDeleteUserReview = async (reviewId) => {
-    if (!window.confirm("Are you sure you want to delete this review?")) return;
-    try {
-      await reviewApi.deleteReviewApi(reviewId);
-      dispatch(addToast({ message: "Review deleted successfully.", type: "success" }));
-      loadUserReviews();
-    } catch (e) {
-      dispatch(addToast({ message: "Failed to delete review.", type: "error" }));
-    }
-  };
-
   if (authLoading && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background text-foreground">
-        <div className="w-10 h-10 border-4 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <ProfileSkeleton />;
   }
 
   const roleLabel =
@@ -121,7 +123,6 @@ const Profile = () => {
       ? "Verified Seller Partner"
       : "Member Account";
 
-  // Handle avatar image selection
   const handleAvatarChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -164,7 +165,7 @@ const Profile = () => {
   const handlePasswordSubmit = async (e) => {
     e.preventDefault();
     if (!isPasswordValid(passData.newPassword)) {
-      dispatch(addToast({ message: "New password must meet all requirements.", type: "error" }));
+      dispatch(addToast({ message: "New password must meet security rules.", type: "error" }));
       return;
     }
     if (passData.newPassword !== passData.confirmPassword) {
@@ -176,7 +177,6 @@ const Profile = () => {
       newPassword: passData.newPassword,
     });
     if (res?.success !== false) {
-      setShowPasswordModal(false);
       setPassData({ currentPassword: "", newPassword: "", confirmPassword: "" });
     }
   };
@@ -194,22 +194,33 @@ const Profile = () => {
     }
   };
 
+  const handleDeleteUserReview = async (reviewId) => {
+    if (!window.confirm("Are you sure you want to delete this review?")) return;
+    try {
+      await reviewApi.deleteReviewApi(reviewId);
+      dispatch(addToast({ message: "Review deleted successfully.", type: "success" }));
+      loadUserReviews();
+    } catch (e) {
+      dispatch(addToast({ message: "Failed to delete review.", type: "error" }));
+    }
+  };
+
   const currentAvatar = avatarPreview || user?.profilePic;
+  const ordersCount = myOrders?.length || 0;
+  const wishlistCount = wishlist?.products?.length || 0;
 
   return (
-    <div className="min-h-screen bg-background text-foreground py-10 px-4 sm:px-6 lg:px-8 selection:bg-accent selection:text-accent-content font-sans">
-      <div className="max-w-4xl mx-auto space-y-8">
+    <div className="min-h-screen bg-background text-foreground py-8 px-4 sm:px-6 lg:px-8 font-sans selection:bg-accent selection:text-accent-content">
+      <div className="max-w-4xl mx-auto space-y-6">
 
-        {/* ── User Header Card ── */}
-        <div className="bg-surface border border-border-theme/80 rounded-3xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-xl relative overflow-hidden backdrop-blur-md">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-accent/5 rounded-full blur-3xl pointer-events-none" />
-
-          <div className="flex items-center space-x-5 relative z-10">
-            {/* Clickable Avatar */}
+        {/* ── Header Section ── */}
+        <div className="bg-surface border border-border-theme/80 rounded-2xl p-6 sm:p-8 flex flex-col sm:flex-row items-center justify-between gap-6 shadow-sm">
+          <div className="flex flex-col sm:flex-row items-center sm:items-start text-center sm:text-left gap-5">
+            {/* Avatar */}
             <div className="relative group shrink-0">
               <div
-                className="w-20 h-20 rounded-full border-4 border-accent/20 overflow-hidden bg-background flex items-center justify-center font-black text-3xl text-accent shadow-lg cursor-pointer"
                 onClick={() => avatarInputRef.current?.click()}
+                className="w-20 h-20 sm:w-22 sm:h-22 rounded-full border-2 border-border-theme overflow-hidden bg-background flex items-center justify-center font-bold text-2xl text-accent shadow-sm cursor-pointer group-hover:border-accent transition-colors"
               >
                 {currentAvatar ? (
                   <img
@@ -221,12 +232,15 @@ const Profile = () => {
                   <span>{(user?.fullname || user?.username || "U")[0].toUpperCase()}</span>
                 )}
               </div>
+
               <div
-                className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
                 onClick={() => avatarInputRef.current?.click()}
+                className="absolute inset-0 rounded-full bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer text-white text-[11px] font-semibold gap-0.5"
               >
-                <i className="ri-camera-fill text-white text-lg" />
+                <i className="ri-camera-line text-lg" />
+                <span>Change</span>
               </div>
+
               <input
                 ref={avatarInputRef}
                 type="file"
@@ -236,316 +250,514 @@ const Profile = () => {
               />
             </div>
 
-            <div className="space-y-1">
-              <h1 className="text-2xl font-extrabold text-foreground tracking-tight">
-                {user?.fullname || user?.username}
-              </h1>
-              <div className="flex items-center space-x-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-widest px-3 py-1 rounded-full bg-accent/10 text-accent border border-accent/20">
+            {/* User Meta */}
+            <div className="space-y-1.5">
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-foreground tracking-tight">
+                  {user?.fullname || user?.username}
+                </h1>
+                <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-md bg-accent/10 text-accent border border-accent/20">
                   {roleLabel}
                 </span>
               </div>
+
               <p className="text-xs text-foreground/60">{user?.email}</p>
+
+              {/* Minimal Stats */}
+              <div className="flex items-center gap-3 pt-1 text-xs text-foreground/70 justify-center sm:justify-start">
+                <span><strong className="text-foreground">{ordersCount}</strong> Orders</span>
+                <span className="text-foreground/30">•</span>
+                <span><strong className="text-foreground">{wishlistCount}</strong> Wishlist</span>
+                <span className="text-foreground/30">•</span>
+                <span><strong className="text-foreground">{userReviews.length}</strong> Reviews</span>
+              </div>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto justify-end relative z-10">
+          <div className="flex items-center gap-2 w-full sm:w-auto justify-center sm:justify-end">
             {avatarPreview && (
               <button
                 type="button"
                 onClick={() => setAvatarPreview(null)}
-                className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-xs font-extrabold transition cursor-pointer"
+                className="px-3.5 py-2 rounded-xl bg-background border border-border-theme text-foreground/80 hover:text-foreground text-xs font-semibold transition cursor-pointer"
               >
-                Discard Photo
+                Discard
               </button>
             )}
-            <button
-              type="button"
-              onClick={() => avatarInputRef.current?.click()}
-              className="px-4 py-2.5 rounded-xl bg-accent/10 hover:bg-accent/20 text-accent border border-accent/20 text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5"
-            >
-              <i className="ri-camera-line" /> Change Photo
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowPasswordModal(true)}
-              className="px-4 py-2.5 rounded-xl bg-background border border-border-theme hover:border-accent text-foreground text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5"
-            >
-              <i className="ri-lock-line" /> Password
-            </button>
+
             <button
               type="button"
               onClick={handleLogout}
-              className="px-4 py-2.5 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-xs font-extrabold transition cursor-pointer flex items-center gap-1.5"
+              className="px-4 py-2 rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/20 text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
             >
-              <i className="ri-logout-box-line" /> Log Out
+              <i className="ri-logout-box-r-line" />
+              <span>Log Out</span>
             </button>
           </div>
         </div>
 
-        {/* ── Quick Action Command Bar ── */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* Manage My Orders */}
-          <button
-            type="button"
-            onClick={() => navigate(user?.role === "seller" ? "/seller/orders" : "/orders/my-orders")}
-            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
-              <i className="ri-receipt-line text-lg" />
-            </div>
-            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
-              Manage Orders
-            </span>
-          </button>
+        {/* ── Minimalist Clean Tab Bar ── */}
+        <div className="flex items-center gap-1 bg-surface border border-border-theme/80 p-1.5 rounded-2xl overflow-x-auto scrollbar-none shadow-sm">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap ${
+                  isActive
+                    ? "bg-accent text-accent-content shadow-sm"
+                    : "text-foreground/70 hover:text-foreground hover:bg-background/50"
+                }`}
+              >
+                <i className={`${tab.icon} text-sm`} />
+                <span>{tab.label}</span>
+                {tab.id === "reviews" && userReviews.length > 0 && (
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                    isActive ? "bg-accent-content text-accent" : "bg-accent/15 text-accent"
+                  }`}>
+                    {userReviews.length}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
 
-          {/* View Wishlist */}
-          <button
-            type="button"
-            onClick={() => navigate("/wishlist")}
-            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
-              <i className="ri-heart-3-line text-lg" />
-            </div>
-            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
-              View Wishlist
-            </span>
-          </button>
+        {/* ── Smooth Animated Tab Views ── */}
+        <AnimatePresence mode="wait">
+          {/* TAB 1: Personal Info & Address */}
+          {activeTab === "personal" && (
+            <motion.form
+              key="personal"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              onSubmit={handleUpdateSubmit}
+              className="bg-surface border border-border-theme/80 rounded-2xl p-6 sm:p-8 space-y-6 shadow-sm"
+            >
+              <div className="flex items-center justify-between border-b border-border-theme/50 pb-4">
+                <div>
+                  <h2 className="text-base font-extrabold text-foreground">Personal Details</h2>
+                  <p className="text-xs text-foreground/50">Manage your name, phone, and default delivery address</p>
+                </div>
+                <button
+                  type="submit"
+                  className="px-5 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <i className="ri-save-line text-sm" />
+                  <span>Save Changes</span>
+                </button>
+              </div>
 
-          {/* Seller Panel or Sell on Scapegoat */}
-          {user?.role === "seller" ? (
-            <button
-              type="button"
-              onClick={() => navigate("/seller/dashboard")}
-              className="p-4 bg-accent/10 border border-accent/30 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-accent text-accent-content flex items-center justify-center group-hover:scale-110 transition-transform">
-                <i className="ri-store-3-line text-lg" />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div>
+                  <RequiredLabel>Full Name / Username</RequiredLabel>
+                  <input
+                    type="text"
+                    required
+                    value={formData.fullname}
+                    onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
+                    className={inputClass}
+                    placeholder="John Doe"
+                  />
+                </div>
+
+                <div>
+                  <RequiredLabel>Phone Number</RequiredLabel>
+                  <input
+                    type="tel"
+                    required
+                    value={formData.contact}
+                    onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
+                    className={inputClass}
+                    placeholder="+91 98765 43210"
+                  />
+                </div>
+
+                <div className="sm:col-span-2">
+                  <RequiredLabel locked>Email Address</RequiredLabel>
+                  <input
+                    type="email"
+                    value={formData.email}
+                    readOnly
+                    disabled
+                    className={`${inputClass} opacity-50 bg-background/50 cursor-not-allowed`}
+                  />
+                </div>
               </div>
-              <span className="text-xs font-black text-accent group-hover:underline transition">
-                Seller Dashboard
-              </span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setShowSellerWarningModal(true)}
-              className="p-4 bg-emerald-500/10 border border-emerald-500/30 hover:border-emerald-500 rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
-            >
-              <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center group-hover:scale-110 transition-transform">
-                <i className="ri-rocket-line text-lg" />
+
+              {/* Shipping Address */}
+              <div className="pt-6 border-t border-border-theme/50 space-y-4">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-foreground/70 flex items-center gap-1.5">
+                  <i className="ri-map-pin-line text-accent" /> Default Shipping Address
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <RequiredLabel>Street / House No.</RequiredLabel>
+                    <input
+                      type="text"
+                      required
+                      placeholder="123 Main St, Apartment 4B"
+                      value={formData.street}
+                      onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <RequiredLabel>City</RequiredLabel>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Mumbai"
+                      value={formData.city}
+                      onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <RequiredLabel>State / Province</RequiredLabel>
+                    <input
+                      type="text"
+                      required
+                      placeholder="Maharashtra"
+                      value={formData.state}
+                      onChange={(e) => setFormData({ ...formData, state: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <RequiredLabel>Country</RequiredLabel>
+                    <select
+                      required
+                      value={formData.country}
+                      onChange={(e) => setFormData({ ...formData, country: e.target.value })}
+                      className={inputClass}
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <RequiredLabel>Pincode / ZIP Code</RequiredLabel>
+                    <input
+                      type="text"
+                      required
+                      placeholder="400001"
+                      value={formData.pincode}
+                      onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
+                      className={inputClass}
+                    />
+                  </div>
+                </div>
               </div>
-              <span className="text-xs font-black text-emerald-500 group-hover:underline transition">
-                Sell on ScapeGoat
-              </span>
-            </button>
+            </motion.form>
           )}
 
-          {/* Help Center */}
-          <button
-            type="button"
-            onClick={() => navigate("/contact")}
-            className="p-4 bg-surface border border-border-theme/80 hover:border-accent rounded-2xl flex flex-col items-center justify-center text-center space-y-2 group transition shadow-sm cursor-pointer"
-          >
-            <div className="w-10 h-10 rounded-full bg-accent/10 flex items-center justify-center text-accent group-hover:scale-110 transition-transform">
-              <i className="ri-customer-service-2-line text-lg" />
-            </div>
-            <span className="text-xs font-bold text-foreground group-hover:text-accent transition">
-              Help Center
-            </span>
-          </button>
-        </div>
-
-        {/* ── Personal Information & Address Form ── */}
-        <form
-          onSubmit={handleUpdateSubmit}
-          className="bg-surface border border-border-theme/80 rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm"
-        >
-          <div className="flex items-center justify-between border-b border-border-theme/50 pb-4">
-            <div>
-              <h2 className="text-lg font-extrabold text-foreground">Personal Information</h2>
-              <p className="text-xs text-foreground/60 flex items-center gap-1 mt-0.5">
-                <span className="text-red-500 font-bold">*</span> Required fields
-              </p>
-            </div>
-            <button
-              type="submit"
-              className="px-6 py-2.5 rounded-xl bg-accent text-accent-content font-extrabold text-xs shadow-md hover:opacity-90 transition cursor-pointer flex items-center gap-1.5"
+          {/* TAB 2: Quick Actions */}
+          {activeTab === "actions" && (
+            <motion.div
+              key="actions"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
             >
-              <i className="ri-save-line" /> Save Changes
-            </button>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-            <div>
-              <RequiredLabel>Full Name / Username</RequiredLabel>
-              <input
-                type="text"
-                required
-                value={formData.fullname}
-                onChange={(e) => setFormData({ ...formData, fullname: e.target.value })}
-                className={inputClass}
-                placeholder="John Doe"
-              />
-            </div>
-
-            <div>
-              <RequiredLabel>Phone Number</RequiredLabel>
-              <input
-                type="tel"
-                required
-                value={formData.contact}
-                onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
-                className={inputClass}
-                placeholder="+91 98765 43210"
-              />
-            </div>
-
-            <div className="sm:col-span-2">
-              <RequiredLabel locked>Email Address</RequiredLabel>
-              <input
-                type="email"
-                value={formData.email}
-                readOnly
-                disabled
-                className={`${inputClass} opacity-50 bg-background/40 cursor-not-allowed`}
-              />
-            </div>
-          </div>
-
-          {/* Default Shipping Address */}
-          <div className="pt-6 border-t border-border-theme/50 space-y-4">
-            <div className="flex items-center gap-2">
-              <i className="ri-map-pin-2-fill text-accent text-base" />
-              <h3 className="text-sm font-extrabold text-foreground">Default Shipping Address</h3>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="sm:col-span-2">
-                <RequiredLabel>Street / Flat / House No.</RequiredLabel>
-                <input
-                  type="text"
-                  required
-                  placeholder="123 Main St, Apartment 4B"
-                  value={formData.street}
-                  onChange={(e) => setFormData({ ...formData, street: e.target.value })}
-                  className={inputClass}
-                />
+              {/* Manage Orders */}
+              <div
+                onClick={() => navigate(user?.role === "seller" ? "/seller/orders" : "/my-orders")}
+                className="bg-surface border border-border-theme/80 hover:border-accent rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                    <i className="ri-receipt-line" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground group-hover:text-accent transition">
+                      Manage Orders
+                    </h3>
+                    <p className="text-xs text-foreground/50">Track & view purchase history</p>
+                  </div>
+                </div>
+                <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
               </div>
 
-              <div>
-                <RequiredLabel>City</RequiredLabel>
-                <input
-                  type="text"
-                  required
-                  placeholder="Mumbai"
-                  value={formData.city}
-                  onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                  className={inputClass}
-                />
+              {/* View Wishlist */}
+              <div
+                onClick={() => navigate("/wishlist")}
+                className="bg-surface border border-border-theme/80 hover:border-accent rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                    <i className="ri-heart-line" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground group-hover:text-accent transition">
+                      View Wishlist
+                    </h3>
+                    <p className="text-xs text-foreground/50">{wishlistCount} saved products</p>
+                  </div>
+                </div>
+                <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
               </div>
 
-              <div>
-                <RequiredLabel>State / Province</RequiredLabel>
-                <input
-                  type="text"
-                  required
-                  placeholder="Maharashtra"
-                  value={formData.state}
-                  onChange={(e) => setFormData({ ...formData, state: e.target.value })}
-                  className={inputClass}
-                />
-              </div>
-
-              <div>
-                <RequiredLabel>Country</RequiredLabel>
-                <select
-                  required
-                  value={formData.country}
-                  onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                  className={inputClass}
+              {/* Seller Dashboard or Sell on Scapegoat */}
+              {user?.role === "seller" ? (
+                <div
+                  onClick={() => navigate("/seller/dashboard")}
+                  className="bg-surface border border-accent/40 hover:border-accent rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
                 >
-                  {COUNTRIES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <RequiredLabel>Pincode / ZIP Code</RequiredLabel>
-                <input
-                  type="text"
-                  required
-                  placeholder="400001"
-                  value={formData.pincode}
-                  onChange={(e) => setFormData({ ...formData, pincode: e.target.value })}
-                  className={inputClass}
-                />
-              </div>
-            </div>
-          </div>
-        </form>
-
-        {/* ── My Reviews Section ── */}
-        <div className="bg-surface border border-border-theme/80 rounded-3xl p-6 sm:p-8 space-y-4 shadow-sm">
-          <div className="flex items-center justify-between border-b border-border-theme/50 pb-3">
-            <h2 className="text-lg font-extrabold text-foreground flex items-center gap-2">
-              <i className="ri-star-smile-line text-accent" /> My Product Reviews
-            </h2>
-            <span className="text-xs font-bold text-foreground/50">{userReviews.length} Published {userReviews.length === 1 ? "Review" : "Reviews"}</span>
-          </div>
-
-          {userReviews.length === 0 ? (
-            <div className="p-8 text-center bg-background/40 border border-dashed border-border-theme rounded-2xl space-y-2">
-              <i className="ri-chat-check-line text-4xl text-foreground/30" />
-              <p className="text-xs font-bold text-foreground/70">No reviews published yet</p>
-              <p className="text-[11px] text-foreground/40 max-w-sm mx-auto">
-                Reviews you post after purchasing products will appear here.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {userReviews.map((rev) => {
-                const prod = rev.product || {};
-                const imgUrl = prod.images?.[0]?.url || prod.images?.[0] || "https://via.placeholder.com/150";
-
-                return (
-                  <div
-                    key={rev._id}
-                    className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
-                  >
-                    <div
-                      onClick={() => prod._id && navigate(`/product/${prod._id}`)}
-                      className="flex items-center gap-3 cursor-pointer group"
-                    >
-                      <img src={imgUrl} alt={prod.title} className="w-12 h-14 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition" />
-                      <div>
-                        <p className="font-bold text-foreground group-hover:text-accent transition truncate max-w-xs">{prod.title || "Product"}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <div className="flex text-amber-400 text-xs">
-                            {Array.from({ length: rev.rating }).map((_, i) => (
-                              <i key={i} className="ri-star-fill" />
-                            ))}
-                          </div>
-                          <span className="font-black text-foreground">{rev.title}</span>
-                        </div>
-                        <p className="text-[11px] text-foreground/60 line-clamp-1 mt-0.5">{rev.comment}</p>
-                      </div>
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-accent text-accent-content flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                      <i className="ri-store-3-line" />
                     </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-accent">
+                        Seller Dashboard
+                      </h3>
+                      <p className="text-xs text-foreground/50">Manage inventory & orders</p>
+                    </div>
+                  </div>
+                  <i className="ri-arrow-right-s-line text-lg text-accent group-hover:translate-x-1 transition-transform" />
+                </div>
+              ) : (
+                <div
+                  onClick={() => setShowSellerWarningModal(true)}
+                  className="bg-surface border border-emerald-500/40 hover:border-emerald-500 rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                      <i className="ri-rocket-line" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-extrabold text-emerald-500">
+                        Sell on ScapeGoat
+                      </h3>
+                      <p className="text-xs text-foreground/50">Upgrade account to seller partner</p>
+                    </div>
+                  </div>
+                  <i className="ri-arrow-right-s-line text-lg text-emerald-500 group-hover:translate-x-1 transition-transform" />
+                </div>
+              )}
 
+              {/* Help Center */}
+              <div
+                onClick={() => navigate("/contact")}
+                className="bg-surface border border-border-theme/80 hover:border-accent rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform">
+                    <i className="ri-customer-service-2-line" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground group-hover:text-accent transition">
+                      Help Center
+                    </h3>
+                    <p className="text-xs text-foreground/50">24/7 Customer support</p>
+                  </div>
+                </div>
+                <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
+              </div>
+            </motion.div>
+          )}
+
+          {/* TAB 3: My Published Reviews */}
+          {activeTab === "reviews" && (
+            <motion.div
+              key="reviews"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="bg-surface border border-border-theme/80 rounded-2xl p-6 sm:p-8 space-y-4 shadow-sm"
+            >
+              <div className="flex items-center justify-between border-b border-border-theme/50 pb-3">
+                <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                  <i className="ri-star-line text-accent" /> My Published Reviews
+                </h2>
+                <span className="text-xs font-semibold text-foreground/50">{userReviews.length} Reviews</span>
+              </div>
+
+              {loadingUserReviews ? (
+                <div className="p-8 text-center text-xs font-bold text-foreground/50 animate-pulse">
+                  Loading your product reviews...
+                </div>
+              ) : userReviews.length === 0 ? (
+                <div className="p-8 text-center bg-background/50 border border-dashed border-border-theme rounded-xl space-y-2">
+                  <i className="ri-chat-smile-2-line text-4xl text-foreground/30" />
+                  <p className="text-xs font-semibold text-foreground/70">No reviews published yet</p>
+                  <p className="text-[11px] text-foreground/40 max-w-sm mx-auto">
+                    Reviews you post on purchased products will appear here.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {userReviews.map((rev) => {
+                    const prod = rev.product || {};
+                    const imgUrl = prod.images?.[0]?.url || prod.images?.[0] || "https://via.placeholder.com/150";
+
+                    return (
+                      <div
+                        key={rev._id}
+                        className="p-4 bg-background/50 border border-border-theme/40 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
+                      >
+                        <div
+                          onClick={() => prod._id && navigate(`/product/${prod._id}`)}
+                          className="flex items-center gap-3 cursor-pointer group min-w-0"
+                        >
+                          <img src={imgUrl} alt={prod.title} className="w-12 h-14 object-cover rounded-lg border border-border-theme shrink-0 group-hover:border-accent transition" />
+                          <div className="min-w-0 space-y-0.5">
+                            <p className="font-bold text-foreground group-hover:text-accent transition truncate max-w-xs">{prod.title || "Product"}</p>
+                            <div className="flex items-center gap-2">
+                              <div className="flex text-amber-400 text-xs">
+                                {Array.from({ length: rev.rating }).map((_, i) => (
+                                  <i key={i} className="ri-star-fill" />
+                                ))}
+                              </div>
+                              <span className="font-semibold text-foreground truncate">{rev.title}</span>
+                            </div>
+                            <p className="text-[11px] text-foreground/60 line-clamp-1">{rev.comment}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteUserReview(rev._id)}
+                          className="px-3 py-1.5 bg-red-500/10 text-red-500 border border-red-500/20 hover:bg-red-500 hover:text-white rounded-lg text-xs font-bold transition cursor-pointer shrink-0 self-end sm:self-center"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* TAB 4: Security */}
+          {activeTab === "security" && (
+            <motion.div
+              key="security"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.2 }}
+              className="bg-surface border border-border-theme/80 rounded-2xl p-6 sm:p-8 space-y-5 shadow-sm max-w-xl mx-auto"
+            >
+              <div className="border-b border-border-theme/50 pb-3">
+                <h2 className="text-base font-extrabold text-foreground flex items-center gap-2">
+                  <i className="ri-shield-keyhole-line text-accent" /> Security & Password
+                </h2>
+                <p className="text-xs text-foreground/50">Update your account login password</p>
+              </div>
+
+              <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                <div>
+                  <RequiredLabel>Current Password</RequiredLabel>
+                  <div className="relative">
+                    <input
+                      type={showCurrentPass ? "text" : "password"}
+                      required
+                      value={passData.currentPassword}
+                      onChange={(e) => setPassData({ ...passData, currentPassword: e.target.value })}
+                      className={`${inputClass} pr-10`}
+                      placeholder="Current password"
+                    />
                     <button
-                      onClick={() => handleDeleteUserReview(rev._id)}
-                      className="px-3 py-1.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition cursor-pointer shrink-0 self-end sm:self-center"
+                      type="button"
+                      onClick={() => setShowCurrentPass(!showCurrentPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm cursor-pointer"
                     >
-                      Delete
+                      <i className={showCurrentPass ? "ri-eye-off-line" : "ri-eye-line"} />
                     </button>
                   </div>
-                );
-              })}
-            </div>
+                </div>
+
+                <div>
+                  <RequiredLabel>New Password</RequiredLabel>
+                  <div className="relative">
+                    <input
+                      type={showNewPass ? "text" : "password"}
+                      required
+                      value={passData.newPassword}
+                      onChange={(e) => setPassData({ ...passData, newPassword: e.target.value })}
+                      onFocus={() => setPasswordFocused(true)}
+                      className={`${inputClass} pr-10`}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPass(!showNewPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm cursor-pointer"
+                    >
+                      <i className={showNewPass ? "ri-eye-off-line" : "ri-eye-line"} />
+                    </button>
+                  </div>
+                  <PasswordRequirementChecker
+                    password={passData.newPassword}
+                    isFocused={passwordFocused || Boolean(passData.newPassword)}
+                  />
+                </div>
+
+                <div>
+                  <RequiredLabel>Confirm New Password</RequiredLabel>
+                  <div className="relative">
+                    <input
+                      type={showConfirmPass ? "text" : "password"}
+                      required
+                      value={passData.confirmPassword}
+                      onChange={(e) => setPassData({ ...passData, confirmPassword: e.target.value })}
+                      className={`${inputClass} pr-10 ${
+                        passData.confirmPassword && passData.newPassword !== passData.confirmPassword
+                          ? "border-red-500/50 focus:border-red-500"
+                          : passData.confirmPassword && passData.newPassword === passData.confirmPassword
+                          ? "border-emerald-500/50 focus:border-emerald-500"
+                          : ""
+                      }`}
+                      placeholder="••••••••"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPass(!showConfirmPass)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm cursor-pointer"
+                    >
+                      <i className={showConfirmPass ? "ri-eye-off-line" : "ri-eye-line"} />
+                    </button>
+                  </div>
+                  {passData.confirmPassword && passData.newPassword !== passData.confirmPassword && (
+                    <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1 font-semibold">
+                      <i className="ri-close-circle-fill" /> Passwords do not match
+                    </p>
+                  )}
+                  {passData.confirmPassword && passData.newPassword === passData.confirmPassword && (
+                    <p className="text-[11px] text-emerald-500 mt-1 flex items-center gap-1 font-semibold">
+                      <i className="ri-checkbox-circle-fill" /> Passwords match
+                    </p>
+                  )}
+                </div>
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    className="px-5 py-2.5 rounded-xl bg-accent text-accent-content font-bold text-xs shadow hover:opacity-90 transition cursor-pointer flex items-center gap-1.5"
+                  >
+                    <i className="ri-lock-password-line text-sm" />
+                    <span>Update Password</span>
+                  </button>
+                </div>
+              </form>
+            </motion.div>
           )}
-        </div>
+        </AnimatePresence>
       </div>
 
       {/* ── Sell on Scapegoat Warning Modal ── */}
@@ -646,134 +858,6 @@ const Profile = () => {
               Open Seller Dashboard 🚀
             </button>
           </div>
-        </Modal>
-      )}
-
-      {/* ── Change Password Modal ── */}
-      {showPasswordModal && (
-        <Modal
-          isOpen={showPasswordModal}
-          onClose={() => {
-            setShowPasswordModal(false);
-            setPassData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-          }}
-          title="Change Password"
-          showFooterActions={false}
-        >
-          <form onSubmit={handlePasswordSubmit} className="space-y-5">
-            <p className="text-[10px] text-foreground/50 flex items-center gap-1">
-              <span className="text-red-500 font-bold">*</span> All fields required
-            </p>
-
-            <div>
-              <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
-                Current Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showCurrentPass ? "text" : "password"}
-                  required
-                  value={passData.currentPassword}
-                  onChange={(e) => setPassData({ ...passData, currentPassword: e.target.value })}
-                  className={`${inputClass} pr-10`}
-                  placeholder="Your current password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowCurrentPass(!showCurrentPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm"
-                >
-                  <i className={showCurrentPass ? "ri-eye-off-line" : "ri-eye-line"} />
-                </button>
-              </div>
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
-                New Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showNewPass ? "text" : "password"}
-                  required
-                  value={passData.newPassword}
-                  onChange={(e) => setPassData({ ...passData, newPassword: e.target.value })}
-                  onFocus={() => setPasswordFocused(true)}
-                  className={`${inputClass} pr-10`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPass(!showNewPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm"
-                >
-                  <i className={showNewPass ? "ri-eye-off-line" : "ri-eye-line"} />
-                </button>
-              </div>
-              <PasswordRequirementChecker
-                password={passData.newPassword}
-                isFocused={passwordFocused || Boolean(passData.newPassword)}
-              />
-            </div>
-
-            <div>
-              <label className="text-xs font-semibold text-foreground/80 mb-1.5 flex items-center gap-1 block">
-                Confirm New Password <span className="text-red-500">*</span>
-              </label>
-              <div className="relative">
-                <input
-                  type={showConfirmPass ? "text" : "password"}
-                  required
-                  value={passData.confirmPassword}
-                  onChange={(e) => setPassData({ ...passData, confirmPassword: e.target.value })}
-                  className={`${inputClass} pr-10 ${
-                    passData.confirmPassword && passData.newPassword !== passData.confirmPassword
-                      ? "border-red-500/50 focus:border-red-500"
-                      : passData.confirmPassword && passData.newPassword === passData.confirmPassword
-                      ? "border-emerald-500/50 focus:border-emerald-500"
-                      : ""
-                  }`}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPass(!showConfirmPass)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/40 hover:text-accent text-sm"
-                >
-                  <i className={showConfirmPass ? "ri-eye-off-line" : "ri-eye-line"} />
-                </button>
-              </div>
-              {passData.confirmPassword && passData.newPassword !== passData.confirmPassword && (
-                <p className="text-[11px] text-red-500 mt-1 flex items-center gap-1">
-                  <i className="ri-close-circle-fill" /> Passwords do not match
-                </p>
-              )}
-              {passData.confirmPassword && passData.newPassword === passData.confirmPassword && (
-                <p className="text-[11px] text-emerald-500 mt-1 flex items-center gap-1">
-                  <i className="ri-checkbox-circle-fill" /> Passwords match
-                </p>
-              )}
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setShowPasswordModal(false);
-                  setPassData({ currentPassword: "", newPassword: "", confirmPassword: "" });
-                }}
-                className="px-4 py-2 rounded-xl bg-surface border border-border-theme text-xs font-bold text-foreground cursor-pointer hover:border-accent transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-5 py-2 rounded-xl bg-accent text-accent-content text-xs font-extrabold cursor-pointer hover:opacity-90 transition"
-              >
-                Update Password
-              </button>
-            </div>
-          </form>
         </Modal>
       )}
     </div>

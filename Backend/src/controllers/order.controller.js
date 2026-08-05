@@ -266,3 +266,64 @@ export const updateOrderStatus = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/**
+ * @desc    Cancel own order (buyer only, only when Processing)
+ * @route   PUT /api/orders/:id/cancel
+ * @access  Private (order owner)
+ */
+export const cancelMyOrder = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const userId = req.user._id.toString();
+
+        const order = await orderModel.findById(id);
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found." });
+        }
+
+        // Only the buyer who placed the order can cancel
+        if (order.user.toString() !== userId) {
+            return res.status(403).json({ success: false, message: "You can only cancel your own orders." });
+        }
+
+        // Only allow cancellation when status is Processing
+        if (order.status !== "Processing") {
+            const reason =
+                order.status === "Shipped"
+                    ? "This order has already been shipped and cannot be cancelled."
+                    : order.status === "Delivered"
+                    ? "This order has already been delivered."
+                    : "This order is already cancelled.";
+            return res.status(400).json({ success: false, message: reason });
+        }
+
+        // Restore stock for all items
+        for (const item of order.orderItems) {
+            await productModel.findByIdAndUpdate(item.product, {
+                $inc: { stock: item.quantity },
+            });
+        }
+
+        order.status = "Cancelled";
+        await order.save();
+
+        // Notify sellers
+        const sellerIds = [...new Set(order.orderItems.map((item) => item.seller.toString()))];
+        for (const sellerId of sellerIds) {
+            emitToSeller(sellerId, "order_cancelled", { orderId: order._id });
+        }
+
+        emitToUser(userId, "order_status_updated", { orderId: order._id, status: "Cancelled", order });
+        broadcastUpdate("order_status_updated", { orderId: order._id, status: "Cancelled" });
+
+        return res.status(200).json({
+            success: true,
+            message: "Order cancelled successfully. Stock has been restored.",
+            order,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
