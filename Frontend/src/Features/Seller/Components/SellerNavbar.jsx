@@ -9,6 +9,7 @@ const SellerNavbar = () => {
   const menuItems = [
     { name: "Dashboard", path: "/seller/dashboard", icon: "📊" },
     { name: "Catalog", path: "/seller/catalog", icon: "📦" },
+    { name: "User Directory", path: "/seller/users", icon: "👤" },
     { name: "Customers", path: "/seller/customers", icon: "👥" },
     { name: "User Carts", path: "/seller/carts", icon: "🛒" },
     { name: "Wishlists", path: "/seller/wishlists", icon: "❤️" },

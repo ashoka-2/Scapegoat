@@ -19,6 +19,12 @@ import {
   WishlistSkeleton,
   SingleProductSkeleton,
   SellerSkeleton,
+  ContactSkeleton,
+  AboutSkeleton,
+  LegalSkeleton,
+  CheckoutSkeleton,
+  OrdersSkeleton,
+  OrderDetailsSkeleton,
 } from "../Components/Skeletons/index.js";
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
 
@@ -36,6 +42,18 @@ const getPageSkeleton = (path) => {
   if (path === "/shop") return ShopSkeleton;
   if (path === "/cart") return CartSkeleton;
   if (path === "/wishlist") return WishlistSkeleton;
+  if (path === "/about") return AboutSkeleton;
+  if (path === "/contact") return ContactSkeleton;
+  if (
+    path === "/privacy-policy" ||
+    path === "/returns-policy" ||
+    path === "/terms-of-service"
+  ) {
+    return LegalSkeleton;
+  }
+  if (path === "/checkout") return CheckoutSkeleton;
+  if (path === "/my-orders") return OrdersSkeleton;
+  if (path.startsWith("/orders/")) return OrderDetailsSkeleton;
   if (path.startsWith("/product/")) return SingleProductSkeleton;
   if (path.startsWith("/seller")) return SellerSkeleton;
   return HomeSkeleton;

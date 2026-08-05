@@ -9,6 +9,8 @@ import cartReducer from "../Features/Cart/State/cart.slice";
 import wishlistReducer from "../Features/Wishlist/State/wishlist.slice";
 import messagesReducer from "../Features/Messages/State/messages.slice";
 import settingsReducer from "../Features/Settings/State/settings.slice";
+import ordersReducer from "../Features/Orders/State/orders.slice";
+import sellerReducer from "../Features/Seller/State/seller.slice";
 
 export const store = configureStore({
   reducer: {
@@ -22,5 +24,7 @@ export const store = configureStore({
     wishlist: wishlistReducer,
     messages: messagesReducer,
     settings: settingsReducer,
+    orders: ordersReducer,
+    seller: sellerReducer,
   },
 });

@@ -5,15 +5,16 @@ import {
   removeFromWishlist,
   toggleWishlist,
   clearWishlist,
+  getAllWishlists,
 } from "../controllers/wishlist.controller.js";
-import { verifyToken } from "../middlewares/auth.middleware.js";
+import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
 // All wishlist operations require authentication
 router.use(verifyToken);
 
-// View user's wishlist
+router.get("/all", requireRole("seller", "admin"), getAllWishlists);
 router.get("/", getWishlist);
 
 // Add product to wishlist

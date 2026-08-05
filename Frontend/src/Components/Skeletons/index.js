@@ -17,3 +17,9 @@ export { default as HomeSkeleton } from "../../Features/Home/Components/Skeleton
 export { default as ShopSkeleton } from "../../Features/Products/Components/Skeletons/ShopSkeleton";
 export { default as CartSkeleton } from "../../Features/Cart/Components/Skeletons/CartSkeleton";
 export { default as SellerSkeleton } from "../../Features/Seller/Components/Skeletons/SellerSkeleton";
+export { default as ContactSkeleton } from "../../Features/Home/Components/Skeletons/ContactSkeleton";
+export { default as AboutSkeleton } from "../../Features/Home/Components/Skeletons/AboutSkeleton";
+export { default as LegalSkeleton } from "../../Features/Home/Components/Skeletons/LegalSkeleton";
+export { default as CheckoutSkeleton } from "../../Features/Orders/Components/Skeletons/CheckoutSkeleton";
+export { default as OrdersSkeleton } from "../../Features/Orders/Components/Skeletons/OrdersSkeleton";
+export { default as OrderDetailsSkeleton } from "../../Features/Orders/Components/Skeletons/OrderDetailsSkeleton";

@@ -5,15 +5,16 @@ import {
   updateQuantity,
   removeFromCart,
   clearCart,
+  getAllCarts,
 } from "../controllers/cart.controller.js";
-import { verifyToken } from "../middlewares/auth.middleware.js";
+import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 
 const router = express.Router();
 
 // All cart operations require authentication
 router.use(verifyToken);
 
-// View user's cart
+router.get("/all", requireRole("seller", "admin"), getAllCarts);
 router.get("/", getCart);
 
 // Add product/variant to cart

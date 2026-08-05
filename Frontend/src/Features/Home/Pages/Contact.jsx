@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { useSettings } from "../../Settings/Hooks/useSettings";
 import { useMessages } from "../../Messages/Hooks/useMessages";
+import { InputField, TextAreaField } from "../../../Shared/FormFields";
 
 const Contact = () => {
   const { handleGetSettings } = useSettings();
@@ -88,62 +89,46 @@ const Contact = () => {
           ) : (
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-foreground/60 mb-1.5">
-                    Your Name
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    name="name"
-                    value={form.name}
-                    onChange={handleChange}
-                    placeholder="John Doe"
-                    className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-extrabold uppercase tracking-wider text-foreground/60 mb-1.5">
-                    Email Address
-                  </label>
-                  <input
-                    required
-                    type="email"
-                    name="email"
-                    value={form.email}
-                    onChange={handleChange}
-                    placeholder="john@example.com"
-                    className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent transition-all"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-foreground/60 mb-1.5">
-                  Subject
-                </label>
-                <input
-                  type="text"
-                  name="subject"
-                  value={form.subject}
+                <InputField
+                  required
+                  label="Your Name"
+                  name="name"
+                  value={form.name}
                   onChange={handleChange}
-                  placeholder="Order Inquiry / Feedback"
-                  className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent transition-all"
+                  placeholder="John Doe"
+                  icon="ri-user-3-line"
+                />
+                <InputField
+                  required
+                  type="email"
+                  label="Email Address"
+                  name="email"
+                  value={form.email}
+                  onChange={handleChange}
+                  placeholder="john@example.com"
+                  icon="ri-mail-line"
                 />
               </div>
-              <div>
-                <label className="block text-[11px] font-extrabold uppercase tracking-wider text-foreground/60 mb-1.5">
-                  Message Content
-                </label>
-                <textarea
-                  required
-                  rows="5"
-                  name="content"
-                  value={form.content}
-                  onChange={handleChange}
-                  placeholder="How can we assist you today?"
-                  className="w-full bg-background border border-border-theme rounded-xl px-4 py-3 text-xs font-medium text-foreground outline-none focus:border-accent transition-all resize-none"
-                ></textarea>
-              </div>
+
+              <InputField
+                label="Subject"
+                name="subject"
+                value={form.subject}
+                onChange={handleChange}
+                placeholder="Order Inquiry / Feedback"
+                icon="ri-question-line"
+              />
+
+              <TextAreaField
+                required
+                rows={5}
+                label="Message Content"
+                name="content"
+                value={form.content}
+                onChange={handleChange}
+                placeholder="How can we assist you today?"
+              />
+
               <button
                 type="submit"
                 disabled={sending}

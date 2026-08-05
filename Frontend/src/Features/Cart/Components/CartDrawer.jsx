@@ -364,7 +364,7 @@ const getItemVariantImage = (item) => {
                         disabled={hasOutOfStock}
                         onClick={() => {
                           handleSetDrawerOpen(false);
-                          navigate("/cart");
+                          navigate("/checkout");
                         }}
                         className={`py-3 rounded-xl font-extrabold text-xs shadow transition flex items-center justify-center gap-1 ${
                           hasOutOfStock

@@ -1,0 +1,171 @@
+import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
+import { useOrders } from "../../Orders/Hooks/useOrders";
+import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
+
+const STATUS_COLORS = {
+  Processing: "bg-amber-500/10 text-amber-500 border-amber-500/30",
+  Shipped: "bg-blue-500/10 text-blue-500 border-blue-500/30",
+  Delivered: "bg-emerald-500/10 text-emerald-500 border-emerald-500/30",
+  Cancelled: "bg-red-500/10 text-red-500 border-red-500/30",
+};
+
+const SellerOrders = () => {
+  const { handleFetchSellerOrders, handleUpdateStatus } = useOrders();
+  const { sellerOrders, loading } = useSelector((state) => state.orders);
+  const [filterStatus, setFilterStatus] = useState("All");
+
+  useEffect(() => {
+    handleFetchSellerOrders();
+  }, []);
+
+  const filteredOrders =
+    filterStatus === "All"
+      ? sellerOrders
+      : sellerOrders.filter((o) => o.status === filterStatus);
+
+  if (loading && (!sellerOrders || sellerOrders.length === 0)) {
+    return <SellerTableSkeleton />;
+  }
+
+  return (
+    <div className="space-y-6 font-sans">
+      {/* Header & Status Filter */}
+      <div className="flex flex-wrap items-center justify-between gap-4 bg-surface border border-border-theme p-6 rounded-3xl shadow-lg">
+        <div>
+          <h1 className="text-2xl font-black uppercase tracking-tight text-foreground">
+            Customer Orders
+          </h1>
+          <p className="text-xs text-foreground/60">
+            View and manage customer order fulfillment for your products
+          </p>
+        </div>
+
+        {/* Filter Pills */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none py-1 text-xs font-bold">
+          {["All", "Processing", "Shipped", "Delivered", "Cancelled"].map((st) => (
+            <button
+              key={st}
+              onClick={() => setFilterStatus(st)}
+              className={`px-3.5 py-1.5 rounded-full border transition cursor-pointer ${
+                filterStatus === st
+                  ? "bg-accent text-accent-content border-accent"
+                  : "bg-background border-border-theme text-foreground/70 hover:border-accent/40"
+              }`}
+            >
+              {st}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Orders List / Cards */}
+      {filteredOrders.length === 0 ? (
+        <div className="bg-surface border border-border-theme p-12 rounded-3xl text-center space-y-3">
+          <i className="ri-inbox-archive-line text-5xl text-foreground/30" />
+          <h2 className="text-lg font-black uppercase text-foreground">No orders found</h2>
+          <p className="text-xs text-foreground/50">
+            {filterStatus === "All"
+              ? "You haven't received any customer orders yet."
+              : `No orders with status "${filterStatus}".`}
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {filteredOrders.map((order) => (
+            <div
+              key={order._id}
+              className="bg-surface border border-border-theme p-6 rounded-3xl space-y-5 shadow-lg"
+            >
+              {/* Top Row: Order ID, Date, Buyer & Status Control */}
+              <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-theme pb-4">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-black text-accent">
+                      #{order._id.toUpperCase()}
+                    </span>
+                    <span
+                      className={`text-[10px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full border ${
+                        STATUS_COLORS[order.status] || "bg-accent/10 text-accent border-accent/20"
+                      }`}
+                    >
+                      {order.status}
+                    </span>
+                  </div>
+                  <p className="text-[11px] font-semibold text-foreground/60">
+                    Buyer: <span className="font-bold text-foreground">{order.user?.fullname || "Customer"}</span> ({order.user?.email}) • Placed{" "}
+                    {new Date(order.createdAt).toLocaleDateString("en-IN", {
+                      day: "numeric",
+                      month: "short",
+                      year: "numeric",
+                    })}
+                  </p>
+                </div>
+
+                {/* Status Changer Select */}
+                <div className="flex items-center gap-2">
+                  <label className="text-[11px] font-black uppercase text-foreground/60">
+                    Status:
+                  </label>
+                  <select
+                    value={order.status}
+                    onChange={(e) => handleUpdateStatus(order._id, e.target.value)}
+                    className="bg-background border border-border-theme rounded-xl px-3 py-1.5 text-xs font-bold text-foreground outline-none focus:border-accent cursor-pointer"
+                  >
+                    <option value="Processing">Processing</option>
+                    <option value="Shipped">Shipped</option>
+                    <option value="Delivered">Delivered</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Items List */}
+              <div className="space-y-2">
+                {order.orderItems?.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="flex items-center justify-between gap-3 bg-background/50 p-3 rounded-2xl border border-border-theme/40 text-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      {item.image && (
+                        <img
+                          src={item.image}
+                          alt={item.name}
+                          className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
+                        />
+                      )}
+                      <div className="min-w-0">
+                        <p className="font-bold text-foreground truncate">{item.name}</p>
+                        <p className="text-[11px] text-foreground/60">
+                          Qty: {item.quantity} × ₹{item.price?.toLocaleString()}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-mono font-black text-foreground shrink-0">
+                      ₹{(item.price * item.quantity).toLocaleString()}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Delivery Address & Order Total */}
+              <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-border-theme/40 text-xs">
+                <div className="text-foreground/70">
+                  <span className="font-bold">Ship to: </span>
+                  {order.shippingAddress?.street}, {order.shippingAddress?.city},{" "}
+                  {order.shippingAddress?.state} - {order.shippingAddress?.pincode}
+                </div>
+                <div className="font-mono text-sm font-black text-foreground">
+                  Order Total: <span className="text-accent">₹{order.totalPrice?.toLocaleString()}</span>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default SellerOrders;
