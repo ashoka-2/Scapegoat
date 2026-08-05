@@ -1,9 +1,12 @@
 import React, { useState } from 'react';
 import { useAuth } from "../Hooks/useAuth"
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router-dom';
 import ContinueWithGoogle from '../components/ContinueWithGoogle.jsx';
 import { useSelector } from 'react-redux';
 import { PrimaryBtn } from '../../../Components/Buttons.jsx';
+import PasswordRequirementChecker, { isPasswordValid } from '../components/PasswordRequirementChecker.jsx';
+import { useDispatch } from 'react-redux';
+import { addToast } from '../../../utils/toast.slice.js';
 
 const appName = "ScapeGoat";
 
@@ -11,6 +14,7 @@ const Register = () => {
 
     const { handleRegister } = useAuth()
     const navigate = useNavigate()
+    const dispatch = useDispatch();
     const { loading } = useSelector((state) => state.auth);
 
     const [formData, setFormData] = useState({
@@ -22,6 +26,7 @@ const Register = () => {
     });
 
     const [showPassword, setShowPassword] = useState(false);
+    const [passwordFocused, setPasswordFocused] = useState(false);
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
@@ -41,6 +46,10 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!isPasswordValid(formData.password)) {
+            dispatch(addToast({ message: "Please meet all password requirements before submitting.", type: "error" }));
+            return;
+        }
         try {
             await handleRegister({
                 email: formData.email,
@@ -93,10 +102,17 @@ const Register = () => {
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tighter text-foreground">Elevate Your Style</h1>
                     </div>
 
+                    {/* Required field indicator */}
+                    <p className="text-[10px] text-foreground/50 mb-4 flex items-center gap-1">
+                        <span className="text-red-500 font-bold text-xs">*</span> indicates required fields
+                    </p>
+
                     <form onSubmit={handleSubmit} className="flex flex-col gap-8">
                         {/* Full Name */}
                         <div className="flex flex-col">
-                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">Full Name</label>
+                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1">
+                                Full Name <span className="text-red-500 text-xs">*</span>
+                            </label>
                             <input
                                 type="text"
                                 name="fullName"
@@ -111,7 +127,9 @@ const Register = () => {
 
                         {/* Contact Number */}
                         <div className="flex flex-col">
-                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">Contact Number</label>
+                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1">
+                                Contact Number <span className="text-red-500 text-xs">*</span>
+                            </label>
                             <div className="flex items-center gap-3 border-b-2 border-border-theme focus-within:border-accent transition-colors duration-300">
                                 <div className="flex items-center gap-1.5 px-3 py-3 bg-surface/30 text-gray-400 min-w-[75px]">
                                     <span className="text-lg">🇮🇳</span>
@@ -133,7 +151,9 @@ const Register = () => {
 
                         {/* Email */}
                         <div className="flex flex-col">
-                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">Email Address</label>
+                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1">
+                                Email Address <span className="text-red-500 text-xs">*</span>
+                            </label>
                             <input
                                 type="email"
                                 name="email"
@@ -146,15 +166,19 @@ const Register = () => {
                             />
                         </div>
 
-                        {/* Password */}
+                        {/* Password with strength checker */}
                         <div className="flex flex-col">
-                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">Password</label>
+                            <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1">
+                                Password <span className="text-red-500 text-xs">*</span>
+                            </label>
                             <div className="relative group">
                                 <input
                                     type={showPassword ? "text" : "password"}
                                     name="password"
                                     value={formData.password}
                                     onChange={handleChange}
+                                    onFocus={() => setPasswordFocused(true)}
+                                    onBlur={() => setPasswordFocused(false)}
                                     required
                                     disabled={loading}
                                     className="w-full bg-background text-foreground border-b-2 border-border-theme focus:border-accent outline-none px-4 py-3 transition-colors duration-300 focus:bg-surface lg:focus:bg-surface disabled:opacity-50"
@@ -168,6 +192,11 @@ const Register = () => {
                                     <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"}></i>
                                 </button>
                             </div>
+                            {/* Password Requirement Checker */}
+                            <PasswordRequirementChecker
+                                password={formData.password}
+                                isFocused={passwordFocused}
+                            />
                         </div>
 
                         {/* Is Seller Checkbox */}
@@ -203,9 +232,9 @@ const Register = () => {
                         <ContinueWithGoogle />
 
                         <div className="text-center mt-6">
-                            <a href="/login" className="text-sm text-gray-400 hover:text-accent transition-colors border-b border-transparent hover:border-accent py-0.5">
+                            <Link to="/login" className="text-sm text-gray-400 hover:text-accent transition-colors border-b border-transparent hover:border-accent py-0.5">
                                 Already have an account? Sign in
-                            </a>
+                            </Link>
                         </div>
                     </form>
                 </div>

@@ -1,9 +1,7 @@
 import jwt from "jsonwebtoken";
-
 import userModel from "../models/user.model.js";
-
 import { config } from "../config/config.js";
-import redisClient from "../config/redis.js"
+import redisClient from "../config/redis.js";
 
 export const verifyToken = async (req,res,next)=>{
     const token = req.cookies.token;
@@ -53,4 +51,3 @@ export const requireRole = (...allowedRoles) => {
         next();
     };
 };
-

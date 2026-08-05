@@ -18,41 +18,55 @@ export async function register({
     fullname,
     isSeller,
   });
-  return response.data
+  return response.data;
 }
 
-
 export async function login({ identifier, password }) {
-    const response = await authApiInstance.post("/login", {
-        identifier, password
-    })
-
-    return response.data
+  const response = await authApiInstance.post("/login", {
+    identifier,
+    password,
+  });
+  return response.data;
 }
 
 export async function getMe() {
-    const response = await authApiInstance.get("/getMe")
-    return response.data
+  const response = await authApiInstance.get("/getMe");
+  return response.data;
 }
 
 export async function logout() {
-    const response = await authApiInstance.post("/logout")
-    return response.data
+  const response = await authApiInstance.post("/logout");
+  return response.data;
 }
 
 export async function completeProfile({ password, contact, isSeller }) {
-    const response = await authApiInstance.post("/complete-profile", {
-        password, contact, isSeller
-    })
-    return response.data
+  const response = await authApiInstance.post("/complete-profile", {
+    password,
+    contact,
+    isSeller,
+  });
+  return response.data;
 }
 
 export async function updateProfileApi(payload) {
-    const response = await authApiInstance.put("/update-profile", payload);
-    return response.data;
+  const response = await authApiInstance.put("/update-profile", payload);
+  return response.data;
 }
 
 export async function changePasswordApi(payload) {
-    const response = await authApiInstance.put("/change-password", payload);
-    return response.data;
+  const response = await authApiInstance.put("/change-password", payload);
+  return response.data;
+}
+
+export async function forgotPasswordApi(email) {
+  const response = await authApiInstance.post("/forgot-password", { email });
+  return response.data;
+}
+
+export async function resetPasswordApi({ token, newPassword }) {
+  const response = await authApiInstance.post("/reset-password", {
+    token,
+    newPassword,
+  });
+  return response.data;
 }

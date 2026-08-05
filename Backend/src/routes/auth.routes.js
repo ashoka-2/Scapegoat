@@ -1,7 +1,7 @@
 import {Router} from "express";
 import { validateLoginUser, validateRegisterUser, validateCompleteProfile } from "../validators/auth.validator.js";
 import passport from "passport";
-import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword} from "../controllers/auth.controller.js"
+import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword, forgotPassword, resetPassword} from "../controllers/auth.controller.js"
 import {verifyToken} from "../middlewares/auth.middleware.js"
 import { config } from "../config/config.js";
 
@@ -92,5 +92,8 @@ router.post("/resend-verification", resendVerificationEmail);
  * @access Private
  */
 router.post("/complete-profile", verifyToken, validateCompleteProfile, completeProfile);
+
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
 
 export default router;

@@ -4,7 +4,9 @@ import {config } from "../config/config.js";
 import { handleServerError } from "../utils/errorHandler.js";
 import redisClient from "../config/redis.js";
 import { sendEmail } from "../services/mail.service.js";
-import { getVerificationEmailTemplate } from "../utils/emailTemplates.js";
+import { getVerificationEmailTemplate, getPasswordResetEmailTemplate } from "../utils/emailTemplates.js";
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 
 async function sendTokenResponse(user,res,message){
@@ -25,24 +27,27 @@ async function sendTokenResponse(user,res,message){
         }
     );
 
+    // Cookie persists for 7 days (fixes daily login bug)
     res.cookie("token",token,{
         httpOnly:true,
         secure:config.NODE_ENV==="production",
         sameSite:"strict",
+        maxAge: SEVEN_DAYS_MS,
     });
 
     res.status(200).json({
         message,
-        success:true,
-        user:{
-            id:user._id,
-            email:user.email,
-            contact:user.contact,
-            fullname:user.fullname,
-            role:user.role,
-            profilePic:user.profilePic,
-            profileCompleted:user.profileCompleted,
-            verified:user.verified,
+        success: true,
+        user: {
+            id: user._id,
+            email: user.email,
+            contact: user.contact,
+            fullname: user.fullname,
+            role: user.role,
+            profilePic: user.profilePic,
+            profileCompleted: user.profileCompleted,
+            verified: user.verified,
+            addresses: user.addresses || [],
         }
     });
 }
@@ -191,9 +196,6 @@ export const logout = async (req, res) => {
         res.status(500).json({ message: "Server error during logout" });
     }
 };
-
-
-
 export const googleCallback = async (req,res) => {
     const passportUser = req.user;
 
@@ -348,7 +350,7 @@ export const completeProfile = async (req, res) => {
 
 export const updateProfile = async (req, res) => {
     const userId = req.user?.id;
-    const { fullname, contact, address } = req.body;
+    const { fullname, contact, profilePic, address, addresses } = req.body;
 
     try {
         if (!userId) return res.status(401).json({ message: "Not authenticated", success: false });
@@ -358,8 +360,11 @@ export const updateProfile = async (req, res) => {
 
         if (fullname && fullname.trim()) user.fullname = fullname.trim();
         if (contact && contact.trim()) user.contact = contact.trim();
+        if (profilePic && profilePic.trim()) user.profilePic = profilePic.trim();
 
-        if (address && typeof address === "object") {
+        if (Array.isArray(addresses) && addresses.length > 0) {
+            user.addresses = addresses;
+        } else if (address && typeof address === "object") {
             const { street, city, state, country = "India", pincode } = address;
             if (street || city || pincode) {
                 user.addresses = [
@@ -406,6 +411,77 @@ export const changePassword = async (req, res) => {
         await user.save();
 
         res.status(200).json({ success: true, message: "Password updated successfully" });
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
+export const forgotPassword = async (req, res) => {
+    const { email } = req.body;
+
+    try {
+        if (!email) {
+            return res.status(400).json({ success: false, message: "Email is required" });
+        }
+
+        const user = await userModel.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return res.status(200).json({
+                success: true,
+                message: "If an account with that email exists, a password reset link has been sent.",
+            });
+        }
+
+        const resetToken = jwt.sign(
+            { id: user._id, email: user.email },
+            config.JWT_SECRET,
+            { expiresIn: "15m" }
+        );
+
+        const resetLink = `${config.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+        await sendEmail({
+            to: user.email,
+            subject: "Reset your Scapegoat password",
+            html: getPasswordResetEmailTemplate(user.fullname, resetLink),
+        });
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset link sent to your email.",
+        });
+    } catch (error) {
+        return handleServerError(res, error);
+    }
+};
+
+export const resetPassword = async (req, res) => {
+    const { token, newPassword } = req.body;
+
+    try {
+        if (!token || !newPassword) {
+            return res.status(400).json({ success: false, message: "Token and new password are required" });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(token, config.JWT_SECRET);
+        } catch (err) {
+            return res.status(400).json({ success: false, message: "Invalid or expired reset token" });
+        }
+
+        const user = await userModel.findById(decoded.id).select("+password");
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
+
+        user.password = newPassword;
+        await user.save();
+
+        return res.status(200).json({
+            success: true,
+            message: "Password reset successfully. You can now log in with your new password.",
+        });
     } catch (error) {
         return handleServerError(res, error);
     }

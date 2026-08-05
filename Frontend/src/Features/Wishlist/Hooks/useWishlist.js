@@ -1,6 +1,7 @@
+import { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
-import { setWishlist, setLoading, setError } from "../State/wishlist.slice";
+import { setWishlist, setLoading, setError, clearWishlist } from "../State/wishlist.slice";
 import * as api from "../Services/wishlist.api";
 
 export const useWishlist = () => {
@@ -25,6 +26,15 @@ export const useWishlist = () => {
       dispatch(setLoading(false));
     }
   };
+
+  // Auto-fetch wishlist when user changes (account switch or fresh login)
+  useEffect(() => {
+    if (user) {
+      getWishlist();
+    } else {
+      dispatch(clearWishlist());
+    }
+  }, [user?._id || user?.id]);
 
   const toggleWishlist = async (productId) => {
     if (!user) {

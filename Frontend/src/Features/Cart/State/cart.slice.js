@@ -31,6 +31,11 @@ const cartSlice = createSlice({
     setError: (state, action) => {
       state.error = action.payload;
     },
+    clearCart: (state) => {
+      state.cart = null;
+      state.isDrawerOpen = false;
+      state.error = null;
+    },
   },
 });
 
@@ -40,6 +45,7 @@ export const {
   setCartDrawerOpen,
   setLoading,
   setError,
+  clearCart,
 } = cartSlice.actions;
 
 export default cartSlice.reducer;

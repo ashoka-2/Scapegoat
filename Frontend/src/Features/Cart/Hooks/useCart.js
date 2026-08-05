@@ -7,6 +7,7 @@ import {
   setCartDrawerOpen,
   setLoading,
   setError,
+  clearCart,
 } from "../State/cart.slice";
 import * as api from "../Services/cart.api";
 
@@ -51,12 +52,16 @@ export const useCart = () => {
     }
   };
 
-  // Fetch Cart automatically on login/mount
+  // Fetch Cart automatically when user changes (account switch or fresh login)
   useEffect(() => {
-    if (user && (!cart || !cart.items)) {
+    if (user) {
+      // Always re-fetch on user change — clears stale data from previous account
       handleGetCart();
+    } else {
+      // Clear cart when user logs out
+      dispatch(clearCart());
     }
-  }, [user]);
+  }, [user?._id || user?.id]);
 
   // Add To Cart with Optimistic UX & Rollback
   const handleAddToCart = async (product, quantity = 1, variantId = null, selectedAttributes = null) => {

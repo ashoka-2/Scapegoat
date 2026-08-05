@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useAuth } from "../Hooks/useAuth.js";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import ContinueWithGoogle from "../components/ContinueWithGoogle.jsx";
 import { useSelector } from "react-redux";
 import { PrimaryBtn, TertiaryBtn } from "../../../Components/Buttons.jsx";
@@ -10,13 +10,12 @@ const appName = "ScapeGoat";
 const Login = () => {
 
   const {handleLogin} = useAuth();
-
   const navigate = useNavigate();
 
   const {loading} = useSelector((state)=>state.auth);
 
   const [formData,setFormData] = useState({
-    identifier:'',
+    identifier: '',
     password:''
   });
 
@@ -103,8 +102,9 @@ const Login = () => {
           <form onSubmit={handleSubmit} className="flex flex-col gap-8">
             {/* Identifier (Email or Contact) */}
             <div className="flex flex-col">
-              <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium">
+              <label className="text-sm text-gray-500 dark:text-gray-400 mb-2 font-medium flex items-center gap-1">
                 Email or Contact Number
+                <span className="text-red-500 text-xs">*</span>
               </label>
               <input
                 type="text"
@@ -121,15 +121,16 @@ const Login = () => {
             {/* Password */}
             <div className="flex flex-col">
               <div className="flex items-center justify-between mb-2">
-                <label className="text-sm text-gray-500 dark:text-gray-400 font-medium">
+                <label className="text-sm text-gray-500 dark:text-gray-400 font-medium flex items-center gap-1">
                   Password
+                  <span className="text-red-500 text-xs">*</span>
                 </label>
-                <a
-                  href="#"
+                <Link
+                  to="/forgot-password"
                   className="text-xs text-gray-400 hover:text-accent transition-colors"
                 >
                   Forgot password?
-                </a>
+                </Link>
               </div>
               <div className="relative group">
                 <input
