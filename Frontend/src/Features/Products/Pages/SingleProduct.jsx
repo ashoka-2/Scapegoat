@@ -11,6 +11,7 @@ import { useUserActivity, useDwellTracker } from "../Hooks/useUserActivity";
 import ProductCarousel from "../Components/ProductCarousel";
 import ProductCard from "../Components/ProductCard";
 import SingleProductSkeleton from "../Components/Skeletons/SingleProductSkeleton";
+import ProductReviews from "../../Reviews/Components/ProductReviews";
 import { motion } from "framer-motion";
 
 // Color name to Hex map for fallback swatches
@@ -1243,6 +1244,9 @@ const SingleProduct = () => {
           />
         </div>
       )}
+
+      {/* ── 🌟 Customer Ratings & Reviews Section (At the end of page before footer) ── */}
+      <ProductReviews productId={product._id} sellerId={product.seller?._id || product.seller} />
     </div>
   );
 };

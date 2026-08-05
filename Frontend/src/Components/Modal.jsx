@@ -157,46 +157,89 @@ const Modal = ({
             )}
 
             {/* Modal Body / Children */}
-            <form onSubmit={handleFormSubmit} className="space-y-5">
-              {children && <div className="space-y-4">{children}</div>}
+            {onSubmit ? (
+              <form onSubmit={handleFormSubmit} className="space-y-5">
+                {children && <div className="space-y-4">{children}</div>}
 
-              {/* Action Footer */}
-              {showFooterActions && (
-                <div className="pt-4 border-t border-border-theme">
-                  {customFooter ? (
-                    customFooter
-                  ) : (
-                    <div className="flex items-center justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={onClose}
-                        disabled={loading}
-                        className="px-4 py-2.5 rounded-xl border border-border-theme text-foreground/80 hover:bg-background transition font-extrabold text-xs cursor-pointer disabled:opacity-40"
-                      >
-                        {cancelText}
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={loading || isConfirmDisabled}
-                        className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5 ${confirmBtnClasses}`}
-                      >
-                        {loading ? (
-                          <>
-                            <i className="ri-loader-4-line animate-spin text-sm" />
-                            <span>Processing...</span>
-                          </>
-                        ) : (
-                          <>
-                            {confirmIcon && <i className={confirmIcon} />}
-                            <span>{confirmText}</span>
-                          </>
-                        )}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              )}
-            </form>
+                {/* Action Footer */}
+                {showFooterActions && (
+                  <div className="pt-4 border-t border-border-theme">
+                    {customFooter ? (
+                      customFooter
+                    ) : (
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          disabled={loading}
+                          className="px-4 py-2.5 rounded-xl border border-border-theme text-foreground/80 hover:bg-background transition font-extrabold text-xs cursor-pointer disabled:opacity-40"
+                        >
+                          {cancelText}
+                        </button>
+                        <button
+                          type="submit"
+                          disabled={loading || isConfirmDisabled}
+                          className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5 ${confirmBtnClasses}`}
+                        >
+                          {loading ? (
+                            <>
+                              <i className="ri-loader-4-line animate-spin text-sm" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              {confirmIcon && <i className={confirmIcon} />}
+                              <span>{confirmText}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </form>
+            ) : (
+              <div className="space-y-5">
+                {children && <div className="space-y-4">{children}</div>}
+
+                {/* Action Footer */}
+                {showFooterActions && (
+                  <div className="pt-4 border-t border-border-theme">
+                    {customFooter ? (
+                      customFooter
+                    ) : (
+                      <div className="flex items-center justify-end gap-3">
+                        <button
+                          type="button"
+                          onClick={onClose}
+                          disabled={loading}
+                          className="px-4 py-2.5 rounded-xl border border-border-theme text-foreground/80 hover:bg-background transition font-extrabold text-xs cursor-pointer disabled:opacity-40"
+                        >
+                          {cancelText}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={loading || isConfirmDisabled}
+                          className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5 ${confirmBtnClasses}`}
+                        >
+                          {loading ? (
+                            <>
+                              <i className="ri-loader-4-line animate-spin text-sm" />
+                              <span>Processing...</span>
+                            </>
+                          ) : (
+                            <>
+                              {confirmIcon && <i className={confirmIcon} />}
+                              <span>{confirmText}</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
           </motion.div>
         </div>
       )}

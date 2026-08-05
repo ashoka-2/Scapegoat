@@ -51,3 +51,16 @@ export const requireRole = (...allowedRoles) => {
         next();
     };
 };
+
+export const optionalVerifyToken = async (req, res, next) => {
+    const token = req.cookies?.token;
+    if (!token) return next();
+    try {
+        const decoded = jwt.verify(token, config.JWT_SECRET);
+        const user = await userModel.findById(decoded.id);
+        if (user && !user.isBanned) {
+            req.user = user;
+        }
+    } catch (e) {}
+    next();
+};

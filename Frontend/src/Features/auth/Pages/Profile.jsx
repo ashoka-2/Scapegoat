@@ -7,6 +7,7 @@ import Modal from "../../../Components/Modal";
 import PasswordRequirementChecker, {
   isPasswordValid,
 } from "../components/PasswordRequirementChecker";
+import * as reviewApi from "../../Reviews/Services/review.api";
 
 const inputClass =
   "w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-foreground outline-none transition-all duration-300 focus:ring-4 focus:ring-accent/10 text-sm";
@@ -66,6 +67,17 @@ const Profile = () => {
   const [showSellerSuccessModal, setShowSellerSuccessModal] = useState(false);
   const [upgradingSeller, setUpgradingSeller] = useState(false);
 
+  const [userReviews, setUserReviews] = useState([]);
+
+  const loadUserReviews = async () => {
+    try {
+      const data = await reviewApi.fetchUserReviewsApi();
+      setUserReviews(data.reviews || []);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
     if (user) {
       const defaultAddr = user.addresses?.find((a) => a.isDefault) || user.addresses?.[0] || {};
@@ -79,8 +91,20 @@ const Profile = () => {
         country: defaultAddr.country || "India",
         pincode: defaultAddr.pincode || "",
       });
+      loadUserReviews();
     }
   }, [user]);
+
+  const handleDeleteUserReview = async (reviewId) => {
+    if (!window.confirm("Are you sure you want to delete this review?")) return;
+    try {
+      await reviewApi.deleteReviewApi(reviewId);
+      dispatch(addToast({ message: "Review deleted successfully.", type: "success" }));
+      loadUserReviews();
+    } catch (e) {
+      dispatch(addToast({ message: "Failed to delete review.", type: "error" }));
+    }
+  };
 
   if (authLoading && !user) {
     return (
@@ -469,16 +493,58 @@ const Profile = () => {
             <h2 className="text-lg font-extrabold text-foreground flex items-center gap-2">
               <i className="ri-star-smile-line text-accent" /> My Product Reviews
             </h2>
-            <span className="text-xs font-bold text-foreground/50">0 Published Reviews</span>
+            <span className="text-xs font-bold text-foreground/50">{userReviews.length} Published {userReviews.length === 1 ? "Review" : "Reviews"}</span>
           </div>
 
-          <div className="p-8 text-center bg-background/40 border border-dashed border-border-theme rounded-2xl space-y-2">
-            <i className="ri-chat-check-line text-4xl text-foreground/30" />
-            <p className="text-xs font-bold text-foreground/70">No reviews published yet</p>
-            <p className="text-[11px] text-foreground/40 max-w-sm mx-auto">
-              Reviews you post after purchasing products will appear here.
-            </p>
-          </div>
+          {userReviews.length === 0 ? (
+            <div className="p-8 text-center bg-background/40 border border-dashed border-border-theme rounded-2xl space-y-2">
+              <i className="ri-chat-check-line text-4xl text-foreground/30" />
+              <p className="text-xs font-bold text-foreground/70">No reviews published yet</p>
+              <p className="text-[11px] text-foreground/40 max-w-sm mx-auto">
+                Reviews you post after purchasing products will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {userReviews.map((rev) => {
+                const prod = rev.product || {};
+                const imgUrl = prod.images?.[0]?.url || prod.images?.[0] || "https://via.placeholder.com/150";
+
+                return (
+                  <div
+                    key={rev._id}
+                    className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
+                  >
+                    <div
+                      onClick={() => prod._id && navigate(`/product/${prod._id}`)}
+                      className="flex items-center gap-3 cursor-pointer group"
+                    >
+                      <img src={imgUrl} alt={prod.title} className="w-12 h-14 object-cover rounded-xl border border-border-theme shrink-0 group-hover:border-accent transition" />
+                      <div>
+                        <p className="font-bold text-foreground group-hover:text-accent transition truncate max-w-xs">{prod.title || "Product"}</p>
+                        <div className="flex items-center gap-2 mt-0.5">
+                          <div className="flex text-amber-400 text-xs">
+                            {Array.from({ length: rev.rating }).map((_, i) => (
+                              <i key={i} className="ri-star-fill" />
+                            ))}
+                          </div>
+                          <span className="font-black text-foreground">{rev.title}</span>
+                        </div>
+                        <p className="text-[11px] text-foreground/60 line-clamp-1 mt-0.5">{rev.comment}</p>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => handleDeleteUserReview(rev._id)}
+                      className="px-3 py-1.5 bg-red-500/10 text-red-500 border border-red-500/20 rounded-xl text-xs font-bold hover:bg-red-500 hover:text-white transition cursor-pointer shrink-0 self-end sm:self-center"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -592,6 +658,7 @@ const Profile = () => {
             setPassData({ currentPassword: "", newPassword: "", confirmPassword: "" });
           }}
           title="Change Password"
+          showFooterActions={false}
         >
           <form onSubmit={handlePasswordSubmit} className="space-y-5">
             <p className="text-[10px] text-foreground/50 flex items-center gap-1">
