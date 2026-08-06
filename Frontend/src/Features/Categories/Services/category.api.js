@@ -8,8 +8,8 @@ const categoryApiInstance = axios.create({
 /**
  * Fetch all categories
  */
-export async function getAllCategoriesApi() {
-  const response = await categoryApiInstance.get("/");
+export async function getAllCategoriesApi(all = true) {
+  const response = await categoryApiInstance.get("/", { params: { all } });
   return response.data;
 }
 

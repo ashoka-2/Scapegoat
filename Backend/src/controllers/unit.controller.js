@@ -6,10 +6,12 @@ import productModel from "../models/product.model.js";
  */
 export const getAllUnits = async (req, res) => {
   try {
-    const units = await unitModel.find({ isActive: true }).lean();
+    const filter = req.query.all === "true" || req.user?.role === "admin" ? {} : { isActive: true };
+    const units = await unitModel.find(filter).sort({ name: 1 }).lean();
     return res.status(200).json({
       success: true,
       data: units,
+      units,
     });
   } catch (error) {
     return res.status(500).json({
@@ -41,7 +43,10 @@ export const createUnit = async (req, res) => {
     }
 
     const existing = await unitModel.findOne({
-      $or: [{ name: name.trim() }, { abbreviation: abbreviation.trim().toLowerCase() }],
+      $or: [
+        { name: { $regex: new RegExp(`^${name.trim()}$`, "i") } },
+        { abbreviation: abbreviation.trim().toLowerCase() },
+      ],
     });
 
     if (existing) {

@@ -103,7 +103,7 @@ orderSchema.pre("save", async function () {
 
 // Fast lookups for Customer order history
 orderSchema.index({ user: 1, createdAt: -1 });
-orderSchema.index({ orderId: 1 });
+
 // Fast lookups for Seller dashboard (find all orders containing items from a specific seller)
 orderSchema.index({ "orderItems.seller": 1, createdAt: -1 });
 // Fast lookups for Admin filtering by status

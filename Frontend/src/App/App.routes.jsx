@@ -6,9 +6,11 @@ import Profile from "../Features/auth/Pages/Profile.jsx";
 import CompleteProfile from "../Features/auth/Pages/CompleteProfile.jsx";
 import Protected from "../Features/auth/components/Protected.jsx";
 import SellerRoute from "../Features/auth/components/SellerRoute.jsx";
+import AdminRoute from "../Features/auth/components/AdminRoute.jsx";
 import GuestRoute from "../Features/auth/components/GuestRoute.jsx";
 import MainLayout from "./MainLayout.jsx";
 import SellerLayout from "../Features/Seller/Components/SellerLayout.jsx";
+import AdminLayout from "../Features/Admin/Components/AdminLayout.jsx";
 
 // Product & Seller Pages
 import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";
@@ -27,6 +29,19 @@ import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
 import ResetPassword from "../Features/auth/Pages/ResetPassword.jsx";
+
+// Admin Pages
+import AdminDashboard from "../Features/Admin/Pages/AdminDashboard.jsx";
+import AdminUsersPage from "../Features/Admin/Pages/AdminUsersPage.jsx";
+import AdminUserDetailPage from "../Features/Admin/Pages/AdminUserDetailPage.jsx";
+import AdminCategoriesPage from "../Features/Admin/Pages/AdminCategoriesPage.jsx";
+import AdminBrandsPage from "../Features/Admin/Pages/AdminBrandsPage.jsx";
+import AdminUnitsPage from "../Features/Admin/Pages/AdminUnitsPage.jsx";
+import AdminProductsPage from "../Features/Admin/Pages/AdminProductsPage.jsx";
+import AdminProductDetailPage from "../Features/Admin/Pages/AdminProductDetailPage.jsx";
+import AdminOrdersPage from "../Features/Admin/Pages/AdminOrdersPage.jsx";
+import AdminInboxPage from "../Features/Admin/Pages/AdminInboxPage.jsx";
+import AdminSettingsPage from "../Features/Admin/Pages/AdminSettingsPage.jsx";
 
 // Home & Info Pages
 import About from "../Features/Home/Pages/About.jsx";
@@ -76,6 +91,62 @@ export const routes = createBrowserRouter([
   {
     path: "/reset-password",
     element: <ResetPassword />,
+  },
+  {
+    path: "/admin",
+    element: (
+      <Protected>
+        <AdminRoute>
+          <AdminLayout />
+        </AdminRoute>
+      </Protected>
+    ),
+    children: [
+      {
+        path: "dashboard",
+        element: <AdminDashboard />,
+      },
+      {
+        path: "users",
+        element: <AdminUsersPage />,
+      },
+      {
+        path: "users/:id",
+        element: <AdminUserDetailPage />,
+      },
+      {
+        path: "products",
+        element: <AdminProductsPage />,
+      },
+      {
+        path: "products/:id",
+        element: <AdminProductDetailPage />,
+      },
+      {
+        path: "orders",
+        element: <AdminOrdersPage />,
+      },
+      {
+        path: "categories",
+        element: <AdminCategoriesPage />,
+      },
+      {
+        path: "brands",
+        element: <AdminBrandsPage />,
+      },
+      {
+        path: "units",
+        element: <AdminUnitsPage />,
+      },
+      {
+        path: "inbox",
+        element: <AdminInboxPage />,
+      },
+      {
+        path: "settings",
+        element: <AdminSettingsPage />,
+      },
+    ],
   },
   {
     path: "/",

@@ -5,7 +5,7 @@ import { Navigate } from "react-router-dom";
 /**
  * AdminRoute Guard Component
  * Restricts access strictly to Admins.
- * Redirects non-admin users to home page.
+ * Redirects buyers and non-admin sellers to home page.
  */
 const AdminRoute = ({ children }) => {
   const { user, loading } = useSelector((state) => state.auth);
@@ -16,7 +16,7 @@ const AdminRoute = ({ children }) => {
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-4 border-accent border-t-transparent rounded-full animate-spin" />
           <span className="text-xs font-bold uppercase tracking-widest text-accent animate-pulse">
-            Verifying Admin Credentials...
+            Verifying Admin Privileges...
           </span>
         </div>
       </div>

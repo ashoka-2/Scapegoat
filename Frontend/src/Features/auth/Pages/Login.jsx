@@ -41,7 +41,7 @@ const Login = () => {
         password: formData.password,
       });
       if (loggedInUser?.role === "admin") {
-        navigate("/admin");
+        navigate("/admin/dashboard");
       } else {
         navigate("/");
       }

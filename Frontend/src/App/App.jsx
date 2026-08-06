@@ -55,7 +55,7 @@ const getPageSkeleton = (path) => {
   if (path === "/my-orders") return OrdersSkeleton;
   if (path.startsWith("/orders/")) return OrderDetailsSkeleton;
   if (path.startsWith("/product/")) return SingleProductSkeleton;
-  if (path.startsWith("/seller")) return SellerSkeleton;
+  if (path.startsWith("/seller") || path.startsWith("/admin")) return SellerSkeleton;
   return HomeSkeleton;
 };
 

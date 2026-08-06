@@ -8,8 +8,8 @@ const brandApiInstance = axios.create({
 /**
  * Fetch all brands
  */
-export async function getAllBrandsApi() {
-  const response = await brandApiInstance.get("/");
+export async function getAllBrandsApi(all = true) {
+  const response = await brandApiInstance.get("/", { params: { all } });
   return response.data;
 }
 

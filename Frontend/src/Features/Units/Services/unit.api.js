@@ -8,8 +8,8 @@ const unitApiInstance = axios.create({
 /**
  * Fetch all units
  */
-export async function getAllUnitsApi() {
-  const response = await unitApiInstance.get("/");
+export async function getAllUnitsApi(all = true) {
+  const response = await unitApiInstance.get("/", { params: { all } });
   return response.data;
 }
 

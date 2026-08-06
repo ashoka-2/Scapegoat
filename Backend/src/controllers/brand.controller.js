@@ -6,10 +6,12 @@ import productModel from "../models/product.model.js";
  */
 export const getAllBrands = async (req, res) => {
   try {
-    const brands = await brandModel.find({ isActive: true }).lean();
+    const filter = req.query.all === "true" || req.user?.role === "admin" ? {} : { isActive: true };
+    const brands = await brandModel.find(filter).sort({ name: 1 }).lean();
     return res.status(200).json({
       success: true,
       data: brands,
+      brands,
     });
   } catch (error) {
     return res.status(500).json({
@@ -33,7 +35,7 @@ export const createBrand = async (req, res) => {
       });
     }
 
-    const existing = await brandModel.findOne({ name: name.trim() });
+    const existing = await brandModel.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } });
     if (existing) {
       return res.status(400).json({
         success: false,

@@ -19,6 +19,7 @@ import messageRouter from "./routes/message.routes.js";
 import settingRouter from "./routes/setting.routes.js";
 import orderRouter from "./routes/order.routes.js";
 import reviewRouter from "./routes/review.routes.js";
+import adminRouter from "./routes/admin.routes.js";
 
 const app = express();
 
@@ -51,5 +52,6 @@ app.use("/api/messages", messageRouter);
 app.use("/api/settings", settingRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/reviews", reviewRouter);
+app.use("/api/admin", adminRouter);
 
 export default app;
