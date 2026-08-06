@@ -260,11 +260,38 @@ export const getDashboardStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    const [orderAgg, userRegAgg, wishlistAgg, cartAgg] = await Promise.all([
+    // Pipeline E: Fetch detailed items (orders, users, products) in parallel for interval inspection
+    const ordersDetailsPromise = orderModel
+      .find({ status: { $ne: "Cancelled" }, ...dateMatch })
+      .populate("user", "fullname email avatar")
+      .populate("orderItems.product", "title images price sellingPrice")
+      .sort({ createdAt: -1 })
+      .limit(150)
+      .lean();
+
+    const usersDetailsPromise = userModel
+      .find({ ...dateMatch })
+      .select("fullname email contact role isBanned createdAt avatar")
+      .sort({ createdAt: -1 })
+      .limit(150)
+      .lean();
+
+    const productsDetailsPromise = productModel
+      .find({ ...dateMatch })
+      .populate("category", "name")
+      .select("title images sellingPrice price stock createdAt status category")
+      .sort({ createdAt: -1 })
+      .limit(150)
+      .lean();
+
+    const [orderAgg, userRegAgg, wishlistAgg, cartAgg, recentOrdersInPeriod, recentUsersInPeriod, recentProductsInPeriod] = await Promise.all([
       orderAggPromise,
       userRegAggPromise,
       wishlistAggPromise,
       cartAggPromise,
+      ordersDetailsPromise,
+      usersDetailsPromise,
+      productsDetailsPromise,
     ]);
 
     // Generate at least 10 consecutive date slots if no custom date filter is applied
@@ -311,6 +338,35 @@ export const getDashboardStats = async (req, res) => {
 
     const chartData = allDateKeys.map((dateKey) => {
       const o = orderMap.get(dateKey) || {};
+
+      // Match specific items for this date interval
+      const dateOrders = recentOrdersInPeriod.filter((ord) => {
+        const d = new Date(ord.createdAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const key = timeframe === "daily" ? `${y}-${m}-${day}` : timeframe === "yearly" ? `${y}` : `${y}-${m}`;
+        return key === dateKey;
+      });
+
+      const dateUsers = recentUsersInPeriod.filter((u) => {
+        const d = new Date(u.createdAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const key = timeframe === "daily" ? `${y}-${m}-${day}` : timeframe === "yearly" ? `${y}` : `${y}-${m}`;
+        return key === dateKey;
+      });
+
+      const dateProducts = recentProductsInPeriod.filter((p) => {
+        const d = new Date(p.createdAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const key = timeframe === "daily" ? `${y}-${m}-${day}` : timeframe === "yearly" ? `${y}` : `${y}-${m}`;
+        return key === dateKey;
+      });
+
       return {
         dateLabel: dateKey,
         revenue: o.revenue || 0,
@@ -319,6 +375,11 @@ export const getDashboardStats = async (req, res) => {
         newUsers: userRegMap.get(dateKey) || 0,
         wishlistAdds: wishlistMap.get(dateKey) || 0,
         cartItems: cartMap.get(dateKey) || 0,
+        specificItems: {
+          orders: dateOrders,
+          users: dateUsers,
+          products: dateProducts,
+        },
       };
     });
 

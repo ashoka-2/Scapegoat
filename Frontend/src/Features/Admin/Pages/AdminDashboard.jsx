@@ -20,6 +20,15 @@ const AdminDashboard = () => {
   const [activeMetric, setActiveMetric] = useState("revenue"); // "revenue" | "orders" | "wishlist" | "cart" | "users"
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [selectedBarDate, setSelectedBarDate] = useState(null);
+  const [selectedBarTab, setSelectedBarTab] = useState(null); // "revenue" | "orders" | "users" | "wishlist" | "cart"
+
+  const getImageUrl = (img) => {
+    if (!img) return "https://placehold.co/100x100?text=No+Image";
+    if (typeof img === "string") return img;
+    if (typeof img === "object" && img.url) return img.url;
+    return "https://placehold.co/100x100?text=No+Image";
+  };
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
@@ -376,7 +385,7 @@ const AdminDashboard = () => {
 
         {/* Performance Visualization Graph */}
         {chartData.length > 0 ? (
-          <div className="h-64 flex items-end justify-between gap-3 pt-8 pb-3 px-3 border-b border-border-theme/50 overflow-x-auto">
+          <div className="h-72 flex items-end justify-between gap-3 pt-12 pb-6 px-3 border-b border-border-theme/50 overflow-x-auto scrollbar-none relative">
             {chartData.map((item, idx) => {
               const val =
                 activeMetric === "revenue"
@@ -404,43 +413,65 @@ const AdminDashboard = () => {
                 1
               );
 
-              const heightPercent = Math.max(12, Math.round((val / maxVal) * 100));
+              // If val is 0, heightPercent is 0 (shows as baseline dot). Otherwise scale between 16% and 100%.
+              const heightPercent = val === 0 ? 0 : Math.max(16, Math.round((val / maxVal) * 100));
+              const isSelected = selectedBarDate === item.dateLabel;
 
               return (
                 <div
                   key={idx}
-                  className="flex-1 min-w-[55px] flex flex-col items-center gap-2 group h-full justify-end relative"
+                  onClick={() => setSelectedBarDate(isSelected ? null : item.dateLabel)}
+                  className={`flex-1 min-w-[55px] flex flex-col items-center gap-2 group h-full justify-end relative cursor-pointer transition-all ${
+                    isSelected ? "scale-105" : "hover:scale-102"
+                  }`}
+                  title={`Click to inspect specific items for ${item.dateLabel}`}
                 >
-                  {/* Rich Hover Floating Tooltip */}
-                  <div className="absolute -top-14 hidden group-hover:flex flex-col items-center bg-surface border border-accent/40 px-3 py-1.5 rounded-xl shadow-xl z-20 whitespace-nowrap text-[10px] font-mono pointer-events-none animate-in fade-in">
+                  {/* Floating Backdrop Tooltip (Never clipped, z-30) */}
+                  <div className="absolute -top-16 hidden group-hover:flex flex-col items-center bg-surface/95 border border-accent/40 px-3 py-1.5 rounded-xl shadow-2xl z-30 whitespace-nowrap text-[10px] font-mono pointer-events-none animate-in fade-in backdrop-blur-xl">
                     <span className="font-extrabold text-foreground">{item.dateLabel}</span>
                     <span className="text-accent font-bold">
-                      {activeMetric === "revenue" ? `₹${val.toLocaleString()}` : `${val.toLocaleString()} ${activeMetric}`}
+                      {val === 0
+                        ? "0 Recorded"
+                        : activeMetric === "revenue"
+                        ? `₹${val.toLocaleString()}`
+                        : `${val.toLocaleString()} ${activeMetric}`}
                     </span>
                     <div className="text-[9px] text-foreground/50">
-                      Orders: {item.orders} | Users: +{item.newUsers}
+                      Click to inspect items
                     </div>
                   </div>
 
-                  <div className="text-[10px] font-mono font-bold text-accent opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
-                    {activeMetric === "revenue" ? `₹${val.toLocaleString()}` : val.toLocaleString()}
+                  {/* Top Bar Value Display */}
+                  <div className={`text-[10px] font-mono font-bold transition whitespace-nowrap ${isSelected ? "text-accent opacity-100 scale-110" : "text-accent opacity-0 group-hover:opacity-100"}`}>
+                    {val === 0 ? "-" : activeMetric === "revenue" ? `₹${val.toLocaleString()}` : val.toLocaleString()}
                   </div>
 
-                  <div
-                    style={{ height: `${heightPercent}%` }}
-                    className={`w-full max-w-[48px] rounded-t-xl group-hover:brightness-125 transition-all duration-300 relative shadow-sm ${
-                      activeMetric === "revenue"
-                        ? "bg-gradient-to-t from-emerald-500/40 to-emerald-500"
-                        : activeMetric === "orders"
-                        ? "bg-gradient-to-t from-amber-500/40 to-amber-500"
-                        : activeMetric === "users"
-                        ? "bg-gradient-to-t from-blue-500/40 to-blue-500"
-                        : activeMetric === "wishlist"
-                        ? "bg-gradient-to-t from-rose-500/40 to-rose-500"
-                        : "bg-gradient-to-t from-purple-500/40 to-purple-500"
-                    }`}
-                  />
-                  <span className="text-[10px] font-mono font-bold text-foreground/70 tracking-wider truncate max-w-[65px]">
+                  {/* Bar Body */}
+                  {val === 0 ? (
+                    <div className="h-1.5 w-full max-w-[40px] bg-foreground/15 rounded-full transition-all group-hover:bg-accent/40" />
+                  ) : (
+                    <div
+                      style={{ height: `${heightPercent}%` }}
+                      className={`w-full max-w-[48px] rounded-t-xl group-hover:brightness-125 transition-all duration-300 relative shadow-sm ${
+                        isSelected
+                          ? "ring-2 ring-accent shadow-[0_0_20px_rgba(var(--accent-rgb),0.5)] brightness-125"
+                          : ""
+                      } ${
+                        activeMetric === "revenue"
+                          ? "bg-gradient-to-t from-emerald-500/40 to-emerald-500"
+                          : activeMetric === "orders"
+                          ? "bg-gradient-to-t from-amber-500/40 to-amber-500"
+                          : activeMetric === "users"
+                          ? "bg-gradient-to-t from-blue-500/40 to-blue-500"
+                          : activeMetric === "wishlist"
+                          ? "bg-gradient-to-t from-rose-500/40 to-rose-500"
+                          : "bg-gradient-to-t from-purple-500/40 to-purple-500"
+                      }`}
+                    />
+                  )}
+
+                  {/* Date Label with ample breathing space */}
+                  <span className={`text-[10px] font-mono font-bold tracking-wider truncate max-w-[65px] pt-1 ${isSelected ? "text-accent" : "text-foreground/70"}`}>
                     {item.dateLabel}
                   </span>
                 </div>
@@ -452,6 +483,370 @@ const AdminDashboard = () => {
             No MongoDB analytics data recorded for the selected timeframe or date range.
           </div>
         )}
+
+        {/* Selected Interval Detailed Breakdown Drawer / Card with Specific Items */}
+        {selectedBarDate && (() => {
+          const selectedItem = chartData.find((i) => i.dateLabel === selectedBarDate);
+          if (!selectedItem) return null;
+
+          const specificOrders = selectedItem.specificItems?.orders || [];
+          const specificUsers = selectedItem.specificItems?.users || [];
+          const specificProducts = selectedItem.specificItems?.products || [];
+
+          // Active tab inside breakdown card defaults to activeMetric if not manually overridden
+          const currentTab = selectedBarTab || activeMetric;
+
+          return (
+            <div className="bg-background/90 border border-accent/40 rounded-2xl p-5 space-y-5 shadow-2xl animate-in fade-in zoom-in-95 mt-4">
+              {/* Header */}
+              <div className="flex items-center justify-between border-b border-border-theme/40 pb-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-accent/15 text-accent flex items-center justify-center font-bold">
+                    <i className="ri-calendar-check-line text-lg" />
+                  </div>
+                  <div>
+                    <h3 className="text-xs font-black uppercase text-foreground flex items-center gap-2">
+                      Interval Analytics Breakdown: <span className="text-accent bg-accent/10 px-2 py-0.5 rounded-lg border border-accent/20">{selectedItem.dateLabel}</span>
+                    </h3>
+                    <p className="text-[10px] text-foreground/50">
+                      Click any metric summary card below to filter specific items for {selectedItem.dateLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBarDate(null);
+                    setSelectedBarTab(null);
+                  }}
+                  className="p-1.5 rounded-lg text-foreground/40 hover:text-foreground hover:bg-surface transition cursor-pointer"
+                  title="Close Breakdown"
+                >
+                  <i className="ri-close-line text-lg" />
+                </button>
+              </div>
+
+              {/* 5 Key Metric Summary Cards (Interactive Filter Tabs) */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+                {/* Gross Revenue Card */}
+                <div
+                  onClick={() => setSelectedBarTab("revenue")}
+                  className={`p-3 rounded-xl border transition cursor-pointer space-y-1 ${
+                    currentTab === "revenue" || currentTab === "orders"
+                      ? "bg-emerald-500/10 border-emerald-500 shadow-xs"
+                      : "bg-surface border-border-theme/50 hover:border-emerald-500/40"
+                  }`}
+                >
+                  <span className="text-[10px] font-extrabold uppercase text-emerald-500 tracking-wider flex items-center gap-1">
+                    <i className="ri-money-rupee-circle-line" /> Gross Revenue
+                  </span>
+                  <p className="text-sm font-mono font-black text-foreground">
+                    ₹{(selectedItem.revenue || 0).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Orders Card */}
+                <div
+                  onClick={() => setSelectedBarTab("orders")}
+                  className={`p-3 rounded-xl border transition cursor-pointer space-y-1 ${
+                    currentTab === "orders"
+                      ? "bg-amber-500/10 border-amber-500 shadow-xs"
+                      : "bg-surface border-border-theme/50 hover:border-amber-500/40"
+                  }`}
+                >
+                  <span className="text-[10px] font-extrabold uppercase text-amber-500 tracking-wider flex items-center gap-1">
+                    <i className="ri-shopping-bag-3-line" /> Orders
+                  </span>
+                  <p className="text-sm font-mono font-black text-foreground">
+                    {selectedItem.orders || 0}
+                  </p>
+                  {selectedItem.deliveredOrders > 0 && (
+                    <span className="text-[9px] text-emerald-500 font-semibold block">
+                      {selectedItem.deliveredOrders} Delivered
+                    </span>
+                  )}
+                </div>
+
+                {/* New Users Card */}
+                <div
+                  onClick={() => setSelectedBarTab("users")}
+                  className={`p-3 rounded-xl border transition cursor-pointer space-y-1 ${
+                    currentTab === "users"
+                      ? "bg-blue-500/10 border-blue-500 shadow-xs"
+                      : "bg-surface border-border-theme/50 hover:border-blue-500/40"
+                  }`}
+                >
+                  <span className="text-[10px] font-extrabold uppercase text-blue-500 tracking-wider flex items-center gap-1">
+                    <i className="ri-user-add-line" /> New Users
+                  </span>
+                  <p className="text-sm font-mono font-black text-foreground">
+                    +{selectedItem.newUsers || 0}
+                  </p>
+                </div>
+
+                {/* Wishlist Adds Card */}
+                <div
+                  onClick={() => setSelectedBarTab("wishlist")}
+                  className={`p-3 rounded-xl border transition cursor-pointer space-y-1 ${
+                    currentTab === "wishlist"
+                      ? "bg-rose-500/10 border-rose-500 shadow-xs"
+                      : "bg-surface border-border-theme/50 hover:border-rose-500/40"
+                  }`}
+                >
+                  <span className="text-[10px] font-extrabold uppercase text-rose-500 tracking-wider flex items-center gap-1">
+                    <i className="ri-heart-3-line" /> Wishlist Adds
+                  </span>
+                  <p className="text-sm font-mono font-black text-foreground">
+                    {selectedItem.wishlistAdds || 0}
+                  </p>
+                </div>
+
+                {/* Cart Adds Card */}
+                <div
+                  onClick={() => setSelectedBarTab("cart")}
+                  className={`p-3 rounded-xl border transition cursor-pointer space-y-1 col-span-2 sm:col-span-1 ${
+                    currentTab === "cart"
+                      ? "bg-purple-500/10 border-purple-500 shadow-xs"
+                      : "bg-surface border-border-theme/50 hover:border-purple-500/40"
+                  }`}
+                >
+                  <span className="text-[10px] font-extrabold uppercase text-purple-500 tracking-wider flex items-center gap-1">
+                    <i className="ri-shopping-cart-2-line" /> Cart Adds
+                  </span>
+                  <p className="text-sm font-mono font-black text-foreground">
+                    {selectedItem.cartItems || 0}
+                  </p>
+                </div>
+              </div>
+
+              {/* ── Specific Items List Display for Selected Tab ── */}
+              <div className="space-y-4 pt-3 border-t border-border-theme/40">
+                {/* 1. Orders Tab Content */}
+                {(currentTab === "revenue" || currentTab === "orders") && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase text-amber-500 flex items-center gap-1.5">
+                        <i className="ri-shopping-bag-3-line" /> Specific Orders Placed on {selectedItem.dateLabel} ({specificOrders.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/admin/orders")}
+                        className="text-[11px] font-bold text-accent hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        View in Admin Orders Page →
+                      </button>
+                    </div>
+
+                    {specificOrders.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {specificOrders.map((ord) => (
+                          <div
+                            key={ord._id}
+                            className="bg-surface p-3.5 rounded-2xl border border-border-theme space-y-2 text-xs shadow-xs"
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono font-black text-foreground">
+                                #{ord._id.slice(-6).toUpperCase()}
+                              </span>
+                              <span className={`px-2 py-0.5 rounded-md text-[9px] font-extrabold uppercase ${
+                                ord.status === "Delivered"
+                                  ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                  : ord.status === "Shipped"
+                                  ? "bg-blue-500/10 text-blue-500 border border-blue-500/20"
+                                  : "bg-amber-500/10 text-amber-500 border border-amber-500/20"
+                              }`}>
+                                {ord.status}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center justify-between text-[11px] text-foreground/70">
+                              <span>Buyer: <strong className="text-foreground">{ord.user?.fullname || ord.user?.email || "Customer"}</strong></span>
+                              <span className="font-mono font-black text-emerald-500 text-xs">
+                                ₹{(ord.totalPrice || 0).toLocaleString()}
+                              </span>
+                            </div>
+
+                            {/* Order Items Preview */}
+                            {ord.orderItems?.length > 0 && (
+                              <div className="flex items-center gap-1.5 pt-1 overflow-x-auto scrollbar-none">
+                                {ord.orderItems.map((item, i) => (
+                                  <img
+                                    key={i}
+                                    src={getImageUrl(item.product?.images?.[0] || item.image)}
+                                    alt={item.product?.title || "Item"}
+                                    className="w-7 h-7 rounded-md object-cover border border-border-theme/40 bg-background"
+                                    title={item.product?.title}
+                                  />
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-border-theme/40 flex justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setSelectedReceiptOrder(ord)}
+                                className="px-3 py-1 rounded-xl bg-accent/10 text-accent border border-accent/20 text-[10px] font-bold hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                              >
+                                Inspect Full Receipt
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center text-xs text-foreground/40 italic bg-surface/50 rounded-xl border border-border-theme/40">
+                        No specific order records logged for {selectedItem.dateLabel}.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 2. New Users Tab Content */}
+                {currentTab === "users" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase text-blue-500 flex items-center gap-1.5">
+                        <i className="ri-user-add-line" /> Specific Users Registered on {selectedItem.dateLabel} ({specificUsers.length})
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/admin/users")}
+                        className="text-[11px] font-bold text-blue-500 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        View in Admin Users Page →
+                      </button>
+                    </div>
+
+                    {specificUsers.length > 0 ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                        {specificUsers.map((u) => (
+                          <div
+                            key={u._id}
+                            onClick={() => navigate(`/admin/users/${u._id}`)}
+                            className="bg-surface p-3 rounded-2xl border border-border-theme flex items-center justify-between gap-3 text-xs hover:border-accent cursor-pointer transition shadow-xs"
+                          >
+                            <div className="flex items-center gap-2.5 min-w-0">
+                              <div className="w-8 h-8 rounded-xl bg-accent/15 text-accent font-bold flex items-center justify-center text-xs shrink-0">
+                                {u.fullname?.charAt(0)?.toUpperCase() || "U"}
+                              </div>
+                              <div className="min-w-0">
+                                <span className="font-bold text-foreground block truncate">
+                                  {u.fullname || "User"}
+                                </span>
+                                <span className="text-[10px] text-foreground/50 truncate block">
+                                  {u.email}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="px-2 py-0.5 rounded-md text-[9px] font-bold uppercase bg-background border border-border-theme text-foreground/70 shrink-0">
+                              {u.role}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="py-6 text-center text-xs text-foreground/40 italic bg-surface/50 rounded-xl border border-border-theme/40">
+                        No new user signups logged for {selectedItem.dateLabel}.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* 3. Wishlist Tab Content */}
+                {currentTab === "wishlist" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase text-rose-500 flex items-center gap-1.5">
+                        <i className="ri-heart-3-line" /> Wishlist Activity Recorded for {selectedItem.dateLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/admin/products")}
+                        className="text-[11px] font-bold text-rose-500 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        View in Admin Products Page →
+                      </button>
+                    </div>
+
+                    <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-foreground/70">Total Wishlist Additions:</span>
+                        <strong className="text-rose-500 text-sm font-mono">{selectedItem.wishlistAdds || 0} items</strong>
+                      </div>
+                      <p className="text-[11px] text-foreground/50">
+                        Wishlist additions summarize customer product saves during {selectedItem.dateLabel}.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                {/* 4. Cart Tab Content */}
+                {currentTab === "cart" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-extrabold uppercase text-purple-500 flex items-center gap-1.5">
+                        <i className="ri-shopping-cart-2-line" /> Cart Activity Recorded for {selectedItem.dateLabel}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => navigate("/admin/products")}
+                        className="text-[11px] font-bold text-purple-500 hover:underline cursor-pointer flex items-center gap-1"
+                      >
+                        View in Admin Products Page →
+                      </button>
+                    </div>
+
+                    <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-foreground/70">Total Cart Items Added:</span>
+                        <strong className="text-purple-500 text-sm font-mono">{selectedItem.cartItems || 0} items</strong>
+                      </div>
+                      <p className="text-[11px] text-foreground/50">
+                        Cart items summarize active cart additions during {selectedItem.dateLabel}.
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Action Bar */}
+              <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-border-theme/30">
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/orders")}
+                  className="px-3 py-1.5 rounded-xl bg-accent/10 text-accent border border-accent/20 text-[11px] font-bold hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <i className="ri-shopping-bag-3-line" /> View in Admin Orders Page →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/products")}
+                  className="px-3 py-1.5 rounded-xl bg-emerald-500/10 text-emerald-500 border border-emerald-500/20 text-[11px] font-bold hover:bg-emerald-500 hover:text-white transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <i className="ri-box-3-line" /> View in Admin Products Page →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/admin/users")}
+                  className="px-3 py-1.5 rounded-xl bg-blue-500/10 text-blue-500 border border-blue-500/20 text-[11px] font-bold hover:bg-blue-500 hover:text-white transition cursor-pointer flex items-center gap-1.5"
+                >
+                  <i className="ri-group-line" /> View in Admin Users Page →
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBarDate(null);
+                    setSelectedBarTab(null);
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-surface text-foreground/60 border border-border-theme text-[11px] font-bold hover:text-foreground transition cursor-pointer ml-auto"
+                >
+                  Deselect
+                </button>
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Top Best Selling Products & Recent Transactions Grid ── */}
