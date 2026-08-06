@@ -57,7 +57,7 @@ const SellerMetadataManager = () => {
     handleFetchUnits();
   }, [handleFetchCategories, handleFetchBrands, handleFetchUnits]);
 
-  const parentCategories = categories.filter((c) => !c.parentCategory);
+  const parentCategories = categories.filter((c) => !c.parentCategory || !c.parentCategory._id);
 
   // Category Form Submit
   const handleCategorySubmit = async (e) => {

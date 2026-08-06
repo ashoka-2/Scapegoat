@@ -86,8 +86,10 @@ const AdminCategoriesPage = () => {
     await handleDeleteCategory(id);
   };
 
-  // Potential Parent Categories (Exclude self if editing)
-  const availableParents = categories.filter((c) => !editingId || c._id !== editingId);
+  // Potential Parent Categories (ONLY main categories, excluding self if editing)
+  const availableParents = categories.filter(
+    (c) => (!c.parentCategory || !c.parentCategory._id) && (!editingId || c._id !== editingId)
+  );
 
   return (
     <div className="space-y-6 font-sans">
