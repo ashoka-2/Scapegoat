@@ -27,6 +27,7 @@ import {
   OrderDetailsSkeleton,
 } from "../Components/Skeletons/index.js";
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
+import { useActiveHeartbeat } from "../Hooks/useActiveHeartbeat.js";
 
 const getPageSkeleton = (path) => {
   if (
@@ -60,6 +61,7 @@ const getPageSkeleton = (path) => {
 };
 
 const App = () => {
+  useActiveHeartbeat();
   const { fetchMe } = useAuth();
   const [showApp, setShowApp] = useState(false);
 

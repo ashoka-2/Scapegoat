@@ -1,80 +1,53 @@
-/**
- * Enhanced User-Agent & Device Parser Utility
- * Accurately identifies Browser (including Brave, Edge, Chrome, Safari, Firefox),
- * OS (Windows, macOS, iOS, Android, Linux), Device Type (Desktop, Mobile, Tablet),
- * and specific Device Model (iPhone, Samsung Galaxy, Google Pixel, Xiaomi, OnePlus, MacBook, Windows PC).
- */
+import { UAParser } from "ua-parser-js";
 
+/**
+ * Standard User-Agent & Device Parser using ua-parser-js
+ * Identifies Browser, OS, Device Category (Desktop, Mobile, Tablet),
+ * and exact Mobile Vendor & Model (e.g. Samsung Galaxy S23, Apple iPhone, Xiaomi Redmi Note 12).
+ */
 export const parseUserAgent = (uaString = "", ip = "", headers = {}) => {
-  const ua = (uaString || "").toLowerCase();
-  const secChUa = (headers["sec-ch-ua"] || "").toLowerCase();
+  const parser = new UAParser(uaString);
+  const result = parser.getResult();
 
   // 1. Browser Detection
-  let browser = "Chrome";
-  if (secChUa.includes("brave") || ua.includes("brave") || headers["x-brave-api"]) {
+  let browser = result.browser.name || "Chrome";
+  const secChUa = (headers["sec-ch-ua"] || "").toLowerCase();
+  if (secChUa.includes("brave") || (uaString || "").toLowerCase().includes("brave")) {
     browser = "Brave";
-  } else if (secChUa.includes("edg") || ua.includes("edg/")) {
-    browser = "Edge";
-  } else if (ua.includes("samsungbrowser")) {
-    browser = "Samsung Internet";
-  } else if (ua.includes("opr/") || ua.includes("opera")) {
-    browser = "Opera";
-  } else if (ua.includes("firefox") || ua.includes("fxios")) {
-    browser = "Firefox";
-  } else if (ua.includes("crios") || (ua.includes("chrome") && !ua.includes("chromium"))) {
-    browser = "Chrome";
-  } else if (ua.includes("safari") && !ua.includes("chrome") && !ua.includes("android")) {
-    browser = "Safari";
   }
 
   // 2. OS Detection
-  let os = "Windows";
-  if (ua.includes("android")) {
-    os = "Android";
-  } else if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) {
-    os = "iOS";
-  } else if (ua.includes("mac os") || ua.includes("macintosh")) {
-    os = "macOS";
-  } else if (ua.includes("linux")) {
-    os = "Linux";
-  } else if (ua.includes("windows") || ua.includes("win64") || ua.includes("win32")) {
-    os = "Windows";
-  }
+  const os = result.os.name || "Windows";
+  const isMobileOS = os === "Android" || os === "iOS";
 
-  // 3. Device Category
+  // 3. Device Category (Desktop, Mobile, Tablet)
   let device = "Desktop";
-  if (ua.includes("ipad") || ua.includes("tablet") || (ua.includes("android") && !ua.includes("mobile"))) {
+  const secChMobile = (headers["sec-ch-ua-mobile"] || "").toLowerCase();
+  const isMobileHeader = secChMobile.includes("1") || secChMobile.includes("true") || secChMobile.includes("?1");
+  const isMobileUA = /mobi|android|iphone|ipad|ipod|touch|fennec|opera mini/i.test(uaString);
+
+  if (result.device.type === "mobile" || isMobileOS || isMobileHeader || isMobileUA) {
+    device = (result.device.type === "tablet" || /ipad|tablet/i.test(uaString)) ? "Tablet" : "Mobile";
+  } else if (result.device.type === "tablet") {
     device = "Tablet";
-  } else if (ua.includes("mobi") || ua.includes("iphone") || ua.includes("android")) {
-    device = "Mobile";
   }
 
-  // 4. Detailed Device Model Detection
+  // 4. Model Construction
   let model = "Desktop PC";
   if (device === "Mobile" || device === "Tablet") {
-    if (ua.includes("iphone")) {
-      model = "Apple iPhone";
-    } else if (ua.includes("ipad")) {
-      model = "Apple iPad";
-    } else if (ua.includes("samsung") || ua.includes("sm-")) {
-      model = "Samsung Galaxy";
-    } else if (ua.includes("pixel")) {
-      model = "Google Pixel";
-    } else if (ua.includes("redmi") || ua.includes("xiaomi") || ua.includes("poco")) {
-      model = "Xiaomi / Redmi";
-    } else if (ua.includes("oneplus")) {
-      model = "OnePlus";
-    } else if (ua.includes("oppo")) {
-      model = "Oppo";
-    } else if (ua.includes("vivo")) {
-      model = "Vivo";
-    } else if (ua.includes("realme")) {
-      model = "Realme";
+    const vendor = result.device.vendor || "";
+    const devModel = result.device.model || "";
+    if (vendor && devModel) {
+      model = `${vendor} ${devModel}`;
+    } else if (vendor) {
+      model = `${vendor} Mobile`;
+    } else if (devModel) {
+      model = devModel;
     } else {
-      model = `${os} Mobile`;
+      model = `${os} Smartphone`;
     }
   } else {
-    if (os === "macOS") model = "Apple Mac / MacBook";
+    if (os === "macOS" || os === "Mac OS") model = "Apple Mac / MacBook";
     else if (os === "Windows") model = "Windows PC";
     else if (os === "Linux") model = "Linux Workstation";
   }

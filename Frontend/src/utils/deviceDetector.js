@@ -1,14 +1,16 @@
+import { UAParser } from "ua-parser-js";
+
 /**
- * Client-Side Accurate Device & Browser Detector
- * Detects Brave Browser via navigator.brave.isBrave(),
- * OS, Device Type (Desktop, Mobile, Tablet), and Mobile Hardware Models.
+ * Client-Side Device & Browser Detector powered by ua-parser-js
+ * Detects Brave Browser via native navigator.brave.isBrave(), High-Entropy Hardware Models,
+ * OS, Device Type (Desktop, Mobile, Tablet), and Mobile Hardware Vendors/Models.
  */
-
 export const getClientDeviceInfo = async () => {
-  let browser = "Chrome";
-  const ua = (navigator.userAgent || "").toLowerCase();
+  const parser = new UAParser(navigator.userAgent);
+  const result = parser.getResult();
 
-  // 1. Precise Brave Browser Detection
+  // 1. Precise Brave Browser Detection via Client Web API
+  let browser = result.browser.name || "Chrome";
   if (navigator.brave && typeof navigator.brave.isBrave === "function") {
     try {
       const isBrave = await navigator.brave.isBrave();
@@ -16,46 +18,51 @@ export const getClientDeviceInfo = async () => {
     } catch (e) {}
   }
 
-  // 2. Fallback Browser Detection if not Brave
-  if (browser !== "Brave") {
-    if (ua.includes("edg/")) browser = "Edge";
-    else if (ua.includes("samsungbrowser")) browser = "Samsung Internet";
-    else if (ua.includes("opr/") || ua.includes("opera")) browser = "Opera";
-    else if (ua.includes("firefox")) browser = "Firefox";
-    else if (ua.includes("safari") && !ua.includes("chrome")) browser = "Safari";
-    else if (ua.includes("chrome")) browser = "Chrome";
+  // 2. Operating System
+  const os = result.os.name || "Windows";
+  const isMobileOS = os === "Android" || os === "iOS";
+
+  // 3. Device Category (Desktop, Mobile, Tablet)
+  let device = "Desktop";
+  const isTouch = navigator.maxTouchPoints > 0;
+  const isMobileHint = navigator.userAgentData?.mobile === true;
+  const isMobileUA = /mobi|android|iphone|ipad|ipod|touch/i.test(navigator.userAgent);
+
+  if (result.device.type === "mobile" || isMobileOS || isMobileHint || isMobileUA) {
+    device = result.device.type === "tablet" || /ipad|tablet/i.test(navigator.userAgent) ? "Tablet" : "Mobile";
+  } else if (result.device.type === "tablet") {
+    device = "Tablet";
   }
 
-  // 3. Operating System Detection
-  let os = "Windows";
-  if (ua.includes("android")) os = "Android";
-  else if (ua.includes("iphone") || ua.includes("ipad") || ua.includes("ipod")) os = "iOS";
-  else if (ua.includes("mac os") || ua.includes("macintosh")) os = "macOS";
-  else if (ua.includes("linux")) os = "Linux";
-  else if (ua.includes("windows")) os = "Windows";
+  // 4. Model Construction with High-Entropy Fallback
+  let model = os === "macOS" || os === "Mac OS" ? "Apple Mac" : os === "Windows" ? "Windows PC" : "Linux PC";
 
-  // 4. Device Category & Hardware Model
-  let device = "Desktop";
-  let model = os === "macOS" ? "Apple Mac" : os === "Windows" ? "Windows PC" : "Linux PC";
+  // Try High-Entropy Client Hints for exact OS model string if available
+  let highEntropyModel = "";
+  if (navigator.userAgentData && typeof navigator.userAgentData.getHighEntropyValues === "function") {
+    try {
+      const entropy = await navigator.userAgentData.getHighEntropyValues(["model"]);
+      if (entropy && entropy.model && entropy.model.trim()) {
+        highEntropyModel = entropy.model.trim();
+      }
+    } catch (e) {}
+  }
 
-  const isTouch = navigator.maxTouchPoints > 0;
-  const isMobileUA = /mobi|android|iphone|ipad/i.test(ua);
+  if (device === "Mobile" || device === "Tablet") {
+    const vendor = result.device.vendor || "";
+    const devModel = result.device.model || "";
 
-  if (isMobileUA || (isTouch && window.innerWidth <= 768)) {
-    device = "Mobile";
-    if (ua.includes("iphone")) model = "Apple iPhone";
-    else if (ua.includes("ipad")) model = "Apple iPad";
-    else if (ua.includes("samsung") || ua.includes("sm-")) model = "Samsung Galaxy";
-    else if (ua.includes("pixel")) model = "Google Pixel";
-    else if (ua.includes("redmi") || ua.includes("xiaomi") || ua.includes("poco")) model = "Xiaomi / Redmi";
-    else if (ua.includes("oneplus")) model = "OnePlus";
-    else if (ua.includes("oppo")) model = "Oppo";
-    else if (ua.includes("vivo")) model = "Vivo";
-    else if (ua.includes("realme")) model = "Realme";
-    else model = `${os} Mobile`;
-  } else if (isTouch && window.innerWidth <= 1024) {
-    device = "Tablet";
-    model = ua.includes("ipad") ? "Apple iPad" : `${os} Tablet`;
+    if (highEntropyModel) {
+      model = highEntropyModel;
+    } else if (vendor && devModel) {
+      model = `${vendor} ${devModel}`;
+    } else if (vendor) {
+      model = `${vendor} Mobile`;
+    } else if (devModel) {
+      model = devModel;
+    } else {
+      model = `${os} Smartphone`;
+    }
   }
 
   return {

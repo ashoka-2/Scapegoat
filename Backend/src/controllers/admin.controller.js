@@ -10,7 +10,10 @@ import reviewModel from "../models/review.model.js";
 import userActivityModel from "../models/userActivity.model.js";
 import cartModel from "../models/cart.model.js";
 import wishlistModel from "../models/wishlist.model.js";
-import { broadcastUpdate, getActiveShoppersAndGuests } from "../services/socket.service.js";
+import {
+  broadcastUpdate,
+  getActiveShoppersAndGuests,
+} from "../services/socket.service.js";
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
@@ -42,11 +45,14 @@ export const getDashboardStats = async (req, res) => {
     ]);
 
     // 2. Product Metrics
-    const [totalProducts, activeProducts, outOfStockProducts] = await Promise.all([
-      productModel.countDocuments(),
-      productModel.countDocuments({ status: { $in: ["active", "published"] } }),
-      productModel.countDocuments({ stock: 0 }),
-    ]);
+    const [totalProducts, activeProducts, outOfStockProducts] =
+      await Promise.all([
+        productModel.countDocuments(),
+        productModel.countDocuments({
+          status: { $in: ["active", "published"] },
+        }),
+        productModel.countDocuments({ stock: 0 }),
+      ]);
 
     // 3. Order Metrics & Revenue
     const [
@@ -70,7 +76,12 @@ export const getDashboardStats = async (req, res) => {
         { $group: { _id: null, total: { $sum: "$totalPrice" } } },
       ]),
       orderModel.aggregate([
-        { $match: { status: { $ne: "Cancelled" }, createdAt: { $gte: startOfToday } } },
+        {
+          $match: {
+            status: { $ne: "Cancelled" },
+            createdAt: { $gte: startOfToday },
+          },
+        },
         { $group: { _id: null, total: { $sum: "$totalPrice" } } },
       ]),
     ]);
@@ -79,12 +90,13 @@ export const getDashboardStats = async (req, res) => {
     const revenueToday = revenueTodayResult[0]?.total || 0;
 
     // 4. Catalog & Message Metrics
-    const [totalCategories, totalBrands, totalUnits, unreadMessages] = await Promise.all([
-      categoryModel.countDocuments(),
-      brandModel.countDocuments(),
-      unitModel.countDocuments(),
-      messageModel.countDocuments({ isRead: false }),
-    ]);
+    const [totalCategories, totalBrands, totalUnits, unreadMessages] =
+      await Promise.all([
+        categoryModel.countDocuments(),
+        brandModel.countDocuments(),
+        unitModel.countDocuments(),
+        messageModel.countDocuments({ isRead: false }),
+      ]);
 
     // 5. Recent Activity (Orders & Messages)
     const recentOrders = await orderModel
@@ -110,28 +122,51 @@ export const getDashboardStats = async (req, res) => {
         isBanned: false,
         lastActiveAt: { $gte: twoMinsAgo },
       })
-      .select("fullname email profilePic role contact lastActiveAt lastLoginAt deviceInfo createdAt")
+      .select(
+        "fullname email profilePic role contact lastActiveAt lastLoginAt deviceInfo createdAt",
+      )
       .sort({ lastActiveAt: -1 })
       .limit(10)
       .lean();
 
+    const liveSocketsMap = new Map();
+    liveSockets.forEach((s) => {
+      if (s.userId) liveSocketsMap.set(s.userId.toString(), s);
+    });
+
     const dbUserIds = new Set(dbActiveUsers.map((u) => u._id.toString()));
-    const activeVisitorsList = [
-      ...dbActiveUsers.map((u) => ({
+
+    const activeVisitorsList = dbActiveUsers.map((u) => {
+      const liveSock = liveSocketsMap.get(u._id.toString());
+      const dev = liveSock?.deviceInfo || u.deviceInfo || {};
+
+      const isMob =
+        dev.os === "Android" || dev.os === "iOS" || dev.device === "Mobile";
+      const devCategory = isMob ? "Mobile" : dev.device || "Desktop";
+
+      return {
         ...u,
         isGuest: false,
         deviceInfo: {
-          device: u.deviceInfo?.device || "Desktop",
-          browser: u.deviceInfo?.browser || "Chrome",
-          os: u.deviceInfo?.os || "Windows",
-          model: u.deviceInfo?.model || "Desktop PC",
-          ip: u.deviceInfo?.ip || "127.0.0.1",
+          device: devCategory,
+          browser: dev.browser || "Chrome",
+          os: dev.os || (isMob ? "Android" : "Windows"),
+          model: dev.model || (isMob ? "Mobile Device" : "Desktop PC"),
+          ip: dev.ip || "127.0.0.1",
         },
-      })),
-    ];
+      };
+    });
 
     liveSockets.forEach((sock) => {
-      if (sock.isGuest || (sock.userId && !dbUserIds.has(sock.userId.toString()))) {
+      if (
+        sock.isGuest ||
+        (sock.userId && !dbUserIds.has(sock.userId.toString()))
+      ) {
+        const dev = sock.deviceInfo || {};
+        const isMob =
+          dev.os === "Android" || dev.os === "iOS" || dev.device === "Mobile";
+        const devCategory = isMob ? "Mobile" : dev.device || "Desktop";
+
         activeVisitorsList.push({
           _id: sock._id,
           fullname: sock.fullname || "Guest Visitor",
@@ -140,12 +175,12 @@ export const getDashboardStats = async (req, res) => {
           role: sock.role || "guest",
           isGuest: sock.isGuest ?? true,
           lastActiveAt: sock.lastActiveAt,
-          deviceInfo: sock.deviceInfo || {
-            device: "Desktop",
-            browser: "Chrome",
-            os: "Windows",
-            model: "Desktop PC",
-            ip: "127.0.0.1",
+          deviceInfo: {
+            device: devCategory,
+            browser: dev.browser || "Chrome",
+            os: dev.os || (isMob ? "Android" : "Windows"),
+            model: dev.model || (isMob ? "Mobile Device" : "Desktop PC"),
+            ip: dev.ip || "127.0.0.1",
           },
         });
       }
@@ -217,8 +252,10 @@ export const getDashboardStats = async (req, res) => {
       if (p.price?.salePrice) return p.price.salePrice;
       if (p.price?.mrp) return p.price.mrp;
       if (p.variants?.[0]?.price?.amount) return p.variants[0].price.amount;
-      if (p.variants?.[0]?.price?.salePrice) return p.variants[0].price.salePrice;
-      if (typeof p.variants?.[0]?.price === "number") return p.variants[0].price;
+      if (p.variants?.[0]?.price?.salePrice)
+        return p.variants[0].price.salePrice;
+      if (typeof p.variants?.[0]?.price === "number")
+        return p.variants[0].price;
       return 0;
     };
 
@@ -228,7 +265,9 @@ export const getDashboardStats = async (req, res) => {
       const prods = await productModel
         .find({ _id: { $in: prodIds } })
         .populate("category", "name")
-        .select("title images sellingPrice maxPrice price stock rating numReviews category status variants")
+        .select(
+          "title images sellingPrice maxPrice price stock rating numReviews category status variants",
+        )
         .lean();
 
       const prodMap = new Map(prods.map((p) => [p._id.toString(), p]));
@@ -255,7 +294,9 @@ export const getDashboardStats = async (req, res) => {
         .populate("category", "name")
         .sort({ views: -1, createdAt: -1 })
         .limit(5)
-        .select("title images sellingPrice maxPrice price stock rating numReviews category variants")
+        .select(
+          "title images sellingPrice maxPrice price stock rating numReviews category variants",
+        )
         .lean();
 
       topProducts = fallbackProds.map((p) => ({
@@ -330,7 +371,8 @@ export const getAllUsers = async (req, res) => {
     const query = { _id: { $ne: req.user._id } };
 
     if (role && role !== "all") query.role = role;
-    if (isBanned !== undefined && isBanned !== "all") query.isBanned = isBanned === "true";
+    if (isBanned !== undefined && isBanned !== "all")
+      query.isBanned = isBanned === "true";
 
     if (search && search.trim()) {
       const searchRegex = new RegExp(search.trim(), "i");
@@ -374,29 +416,56 @@ export const getUserById = async (req, res) => {
     const { id } = req.params;
 
     if (!id || !mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ success: false, message: "Invalid User ID format" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid User ID format" });
     }
 
     const user = await userModel.findById(id).select("-password").lean();
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
-    const [orders, activity, reviews, cart, wishlist, sellerProducts] = await Promise.all([
-      orderModel
-        .find({ $or: [{ user: id }, { "items.seller": id }] })
-        .populate("items.product", "title images price")
-        .sort({ createdAt: -1 })
-        .limit(20)
-        .lean()
-        .catch(() => []),
-      userActivityModel ? userActivityModel.findOne({ user: id }).lean().catch(() => null) : Promise.resolve(null),
-      reviewModel.find({ user: id }).populate("product", "title images").lean().catch(() => []),
-      cartModel.findOne({ user: id }).populate("items.product", "title images price stock").lean().catch(() => null),
-      wishlistModel.findOne({ user: id }).populate("products", "title images price stock rating").lean().catch(() => null),
-      user.role === "seller" ? productModel.find({ seller: id }).lean().catch(() => []) : Promise.resolve([]),
-    ]);
+    const [orders, activity, reviews, cart, wishlist, sellerProducts] =
+      await Promise.all([
+        orderModel
+          .find({ $or: [{ user: id }, { "items.seller": id }] })
+          .populate("items.product", "title images price")
+          .sort({ createdAt: -1 })
+          .limit(20)
+          .lean()
+          .catch(() => []),
+        userActivityModel
+          ? userActivityModel
+              .findOne({ user: id })
+              .lean()
+              .catch(() => null)
+          : Promise.resolve(null),
+        reviewModel
+          .find({ user: id })
+          .populate("product", "title images")
+          .lean()
+          .catch(() => []),
+        cartModel
+          .findOne({ user: id })
+          .populate("items.product", "title images price stock")
+          .lean()
+          .catch(() => null),
+        wishlistModel
+          .findOne({ user: id })
+          .populate("products", "title images price stock rating")
+          .lean()
+          .catch(() => null),
+        user.role === "seller"
+          ? productModel
+              .find({ seller: id })
+              .lean()
+              .catch(() => [])
+          : Promise.resolve([]),
+      ]);
 
     return res.status(200).json({
       success: true,
@@ -422,17 +491,19 @@ export const updateUserRole = async (req, res) => {
     const { role } = req.body;
 
     if (!["buyer", "seller", "admin"].includes(role)) {
-      return res.status(400).json({ success: false, message: "Invalid role specified" });
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid role specified" });
     }
 
-    const user = await userModel.findByIdAndUpdate(
-      id,
-      { $set: { role } },
-      { new: true }
-    ).select("-password");
+    const user = await userModel
+      .findByIdAndUpdate(id, { $set: { role } }, { new: true })
+      .select("-password");
 
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     broadcastUpdate("user_role_updated", { userId: user._id, role: user.role });
@@ -456,17 +527,24 @@ export const toggleBanUser = async (req, res) => {
 
     const user = await userModel.findById(id);
     if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
     }
 
     if (user._id.toString() === req.user._id.toString()) {
-      return res.status(400).json({ success: false, message: "You cannot ban yourself" });
+      return res
+        .status(400)
+        .json({ success: false, message: "You cannot ban yourself" });
     }
 
     user.isBanned = !user.isBanned;
     await user.save();
 
-    broadcastUpdate("user_banned_status", { userId: user._id, isBanned: user.isBanned });
+    broadcastUpdate("user_banned_status", {
+      userId: user._id,
+      isBanned: user.isBanned,
+    });
 
     return res.status(200).json({
       success: true,
@@ -547,7 +625,9 @@ export const getProductDetailAdmin = async (req, res) => {
       .lean();
 
     if (!product) {
-      return res.status(404).json({ success: false, message: "Product not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Product not found" });
     }
 
     const reviews = await reviewModel
@@ -622,7 +702,8 @@ export const getAllMessages = async (req, res) => {
     const query = {};
 
     if (type && type !== "all") query.type = type;
-    if (isRead !== undefined && isRead !== "all") query.isRead = isRead === "true";
+    if (isRead !== undefined && isRead !== "all")
+      query.isRead = isRead === "true";
 
     const skip = (parseInt(page) - 1) * parseInt(limit);
 
@@ -657,13 +738,18 @@ export const markMessageRead = async (req, res) => {
     const message = await messageModel.findById(id);
 
     if (!message) {
-      return res.status(404).json({ success: false, message: "Message not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Message not found" });
     }
 
     message.isRead = !message.isRead;
     await message.save();
 
-    broadcastUpdate("inbox_updated", { messageId: message._id, isRead: message.isRead });
+    broadcastUpdate("inbox_updated", {
+      messageId: message._id,
+      isRead: message.isRead,
+    });
 
     return res.status(200).json({
       success: true,
@@ -751,7 +837,9 @@ export const updateReviewAdmin = async (req, res) => {
 
     const review = await reviewModel.findById(id);
     if (!review) {
-      return res.status(404).json({ success: false, message: "Review not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Review not found" });
     }
 
     if (rating !== undefined) review.rating = Number(rating);
@@ -763,7 +851,13 @@ export const updateReviewAdmin = async (req, res) => {
     // Recalculate product rating summary
     const stats = await reviewModel.aggregate([
       { $match: { product: review.product } },
-      { $group: { _id: "$product", avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$product",
+          avgRating: { $avg: "$rating" },
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     if (stats.length > 0) {
@@ -794,13 +888,21 @@ export const deleteReviewAdmin = async (req, res) => {
     const review = await reviewModel.findByIdAndDelete(id);
 
     if (!review) {
-      return res.status(404).json({ success: false, message: "Review not found" });
+      return res
+        .status(404)
+        .json({ success: false, message: "Review not found" });
     }
 
     // Recalculate product rating summary
     const stats = await reviewModel.aggregate([
       { $match: { product: review.product } },
-      { $group: { _id: "$product", avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+      {
+        $group: {
+          _id: "$product",
+          avgRating: { $avg: "$rating" },
+          count: { $sum: 1 },
+        },
+      },
     ]);
 
     if (stats.length > 0) {
