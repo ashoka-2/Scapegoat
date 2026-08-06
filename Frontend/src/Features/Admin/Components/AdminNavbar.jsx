@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useAdmin } from "../Hooks/useAdmin";
+// import ThemeToggle from "../../../Components/ThemeToggle";
 
 const AdminNavbar = () => {
   const location = useLocation();
@@ -15,9 +16,21 @@ const AdminNavbar = () => {
   }, []);
 
   const menuItems = [
-    { name: "Dashboard", path: "/admin/dashboard", icon: "ri-dashboard-3-line" },
-    { name: "User Directory", path: "/admin/users", icon: "ri-user-settings-line" },
-    { name: "Catalog Products", path: "/admin/products", icon: "ri-box-3-line" },
+    {
+      name: "Dashboard",
+      path: "/admin/dashboard",
+      icon: "ri-dashboard-3-line",
+    },
+    {
+      name: "User Directory",
+      path: "/admin/users",
+      icon: "ri-user-settings-line",
+    },
+    {
+      name: "Catalog Products",
+      path: "/admin/products",
+      icon: "ri-box-3-line",
+    },
     { name: "All Orders", path: "/admin/orders", icon: "ri-receipt-line" },
     { name: "Categories", path: "/admin/categories", icon: "ri-folders-line" },
     { name: "Brands", path: "/admin/brands", icon: "ri-price-tag-3-line" },
@@ -28,7 +41,11 @@ const AdminNavbar = () => {
       icon: "ri-mail-line",
       badgeCount: stats?.inbox?.unread || 0,
     },
-    { name: "Site Settings", path: "/admin/settings", icon: "ri-settings-4-line" },
+    {
+      name: "Site Settings",
+      path: "/admin/settings",
+      icon: "ri-settings-4-line",
+    },
   ];
 
   const isActive = (path) => location.pathname === path;
@@ -46,7 +63,9 @@ const AdminNavbar = () => {
                 className="w-full h-full object-cover"
               />
             ) : (
-              <span>{(user?.fullname || user?.username || "A")[0].toUpperCase()}</span>
+              <span>
+                {(user?.fullname || user?.username || "A")[0].toUpperCase()}
+              </span>
             )}
           </div>
           <div className="min-w-0">
@@ -54,10 +73,12 @@ const AdminNavbar = () => {
               {user?.fullname || user?.username}
             </p>
             <p className="text-[9px] font-black text-red-500 uppercase tracking-widest mt-0.5 flex items-center gap-1">
-              <i className="ri-shield-flash-line text-xs" /> SUPER ADMIN
+              <i className="ri-shield-flash-line text-xs" /> ADMIN
             </p>
           </div>
         </div>
+
+        {/* <ThemeToggle /> */}
       </div>
 
       {/* Nav Links */}

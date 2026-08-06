@@ -1,20 +1,36 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useDispatch } from "react-redux";
 import { useAdmin } from "../Hooks/useAdmin";
 import socket from "../../../utils/socket";
+import { addToast } from "../../../utils/toast.slice";
 import AdminDashboardSkeleton from "../Components/Skeletons/AdminDashboardSkeleton";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { stats, loading, fetchDashboardStats } = useAdmin();
   const [showActiveUsersModal, setShowActiveUsersModal] = useState(false);
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Calendar & Timeframe Filters for Revenue Track
   const [timeframe, setTimeframe] = useState("monthly");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await fetchDashboardStats({ timeframe, startDate, endDate });
+      dispatch(addToast({ message: "Dashboard overview refreshed successfully! 🎉", type: "success" }));
+    } catch (err) {
+      dispatch(addToast({ message: "Failed to refresh dashboard stats.", type: "error" }));
+    } finally {
+      setTimeout(() => setIsRefreshing(false), 500);
+    }
+  };
 
   useEffect(() => {
     fetchDashboardStats({ timeframe, startDate, endDate });
@@ -93,10 +109,12 @@ const AdminDashboard = () => {
           </button>
 
           <button
-            onClick={() => fetchDashboardStats({ timeframe, startDate, endDate })}
-            className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 transition cursor-pointer flex items-center gap-2 shadow-sm"
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+            className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 transition cursor-pointer flex items-center gap-2 shadow-sm disabled:opacity-50"
           >
-            <i className="ri-refresh-line text-sm" /> Refresh
+            <i className={`ri-refresh-line text-sm ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? "Refreshing..." : "Refresh"}
           </button>
         </div>
       </div>

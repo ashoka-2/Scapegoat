@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from "react-router-dom";
 import AdminNavbar from "./AdminNavbar";
 import { useAuth } from "../../auth/Hooks/useAuth";
 import { useActiveHeartbeat } from "../../../Hooks/useActiveHeartbeat.js";
+import ThemeToggle from "../../../Components/ThemeToggle";
 
 const AdminLayout = () => {
   useActiveHeartbeat();
@@ -33,6 +34,8 @@ const AdminLayout = () => {
         </div>
 
         <div className="flex items-center space-x-3">
+          <ThemeToggle />
+
           <button
             onClick={onLogout}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-500/10 text-red-500 hover:bg-red-500 hover:text-white border border-red-500/20 text-xs font-bold transition cursor-pointer"

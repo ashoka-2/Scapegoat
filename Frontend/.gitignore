@@ -25,3 +25,5 @@ dist-ssr
 
 
 .env
+
+FRONTEND_FEATURES_CHECKLIST.md
