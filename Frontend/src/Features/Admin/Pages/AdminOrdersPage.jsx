@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useAdmin } from "../Hooks/useAdmin";
-import AdminTableSkeleton from "../Components/Skeletons/AdminTableSkeleton";
+import AdminOrdersSkeleton from "../Components/Skeletons/AdminOrdersSkeleton";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
 
 const AdminOrdersPage = () => {
@@ -49,7 +49,7 @@ const AdminOrdersPage = () => {
 
       {/* Orders Table */}
       {loading ? (
-        <AdminTableSkeleton />
+        <AdminOrdersSkeleton />
       ) : (
         <div className="bg-surface border border-border-theme rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">

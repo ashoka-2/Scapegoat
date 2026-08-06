@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminReviewCard from "../Components/AdminReviewCard";
+import AdminProductDetailSkeleton from "../Components/Skeletons/AdminProductDetailSkeleton";
 
 const AdminProductDetailPage = () => {
   const { id } = useParams();
@@ -31,11 +32,7 @@ const AdminProductDetailPage = () => {
   };
 
   if (loading || !currentProduct || currentProduct.product?._id !== id) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <AdminProductDetailSkeleton />;
   }
 
   const { product, reviews } = currentProduct;

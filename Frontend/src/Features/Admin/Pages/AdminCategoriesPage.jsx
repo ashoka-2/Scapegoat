@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useCategory } from "../../Categories/Hooks/useCategory";
+import AdminCategoriesSkeleton from "../Components/Skeletons/AdminCategoriesSkeleton";
 
 const AdminCategoriesPage = () => {
   const {
@@ -110,17 +111,16 @@ const AdminCategoriesPage = () => {
         </button>
       </div>
 
-      {/* Categories Table */}
-      <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
-        {loading && categories.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 font-mono animate-pulse">
-            Loading categories...
-          </div>
-        ) : categories.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 italic">
-            No categories created yet. Click "Add Category / Subcategory" to get started.
-          </div>
-        ) : (
+      {/* Categories Content */}
+      {loading && categories.length === 0 ? (
+        <AdminCategoriesSkeleton />
+      ) : (
+        <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
+          {categories.length === 0 ? (
+            <div className="py-12 text-center text-xs text-foreground/40 italic">
+              No categories created yet. Click "Add Category / Subcategory" to get started.
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -220,6 +220,7 @@ const AdminCategoriesPage = () => {
           </div>
         )}
       </div>
+    )}
 
       {/* Screen-Centered Modal Form */}
       {isModalOpen && (

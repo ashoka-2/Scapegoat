@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useBrand } from "../../Brands/Hooks/useBrand";
+import AdminBrandsSkeleton from "../Components/Skeletons/AdminBrandsSkeleton";
 
 const AdminBrandsPage = () => {
   const {
@@ -101,17 +102,16 @@ const AdminBrandsPage = () => {
         </button>
       </div>
 
-      {/* Brands Table */}
-      <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
-        {loading && brands.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 font-mono animate-pulse">
-            Loading brands...
-          </div>
-        ) : brands.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 italic">
-            No brands created yet. Click "Add New Brand" to get started.
-          </div>
-        ) : (
+      {/* Brands Content */}
+      {loading && brands.length === 0 ? (
+        <AdminBrandsSkeleton />
+      ) : (
+        <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
+          {brands.length === 0 ? (
+            <div className="py-12 text-center text-xs text-foreground/40 italic">
+              No brands created yet. Click "Add New Brand" to get started.
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -189,6 +189,7 @@ const AdminBrandsPage = () => {
           </div>
         )}
       </div>
+    )}
 
       {/* Screen-Centered Modal Form */}
       {isModalOpen && (

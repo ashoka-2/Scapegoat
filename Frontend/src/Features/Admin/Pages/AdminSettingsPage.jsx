@@ -2,6 +2,29 @@ import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
+import AdminSettingsSkeleton from "../Components/Skeletons/AdminSettingsSkeleton";
+import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+
+// Fix Leaflet default marker icon broken in Webpack/Vite
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl:
+    "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
+  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
+  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+});
+
+// Map click handler component
+const MapClickHandler = ({ onMapClick }) => {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+};
 
 const AdminSettingsPage = () => {
   const dispatch = useDispatch();
@@ -25,6 +48,7 @@ const AdminSettingsPage = () => {
     mapLat: 19.076,
     mapLng: 72.8777,
     mapZoom: 14,
+    mapEmbedUrl: "",
   });
 
   // 3. Footer & Social Links State (Dynamic list matching Snitch architecture)
@@ -69,6 +93,7 @@ const AdminSettingsPage = () => {
             mapLat: contact.mapLat ?? contactForm.mapLat,
             mapLng: contact.mapLng ?? contactForm.mapLng,
             mapZoom: contact.mapZoom ?? contactForm.mapZoom,
+            mapEmbedUrl: contact.mapEmbedUrl || "",
           });
         }
         if (footer) {
@@ -227,11 +252,7 @@ const AdminSettingsPage = () => {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-[60vh] flex items-center justify-center">
-        <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
+    return <AdminSettingsSkeleton />;
   }
 
   return (
@@ -380,43 +401,62 @@ const AdminSettingsPage = () => {
               />
             </div>
 
-            {/* Map Latitude & Longitude Selection */}
-            <div className="space-y-1.5">
-              <label className="text-foreground/70 text-[10px] font-extrabold uppercase">Map Latitude (Lat)</label>
-              <input
-                type="number"
-                step="any"
-                value={contactForm.mapLat}
-                onChange={(e) => setContactForm({ ...contactForm, mapLat: parseFloat(e.target.value) || 0 })}
-                className="w-full bg-background border border-border-theme rounded-xl px-4 py-2.5 text-foreground font-mono focus:outline-none focus:border-accent"
-              />
+            {/* Interactive Leaflet Map Location Picker */}
+            <div className="sm:col-span-2 space-y-2 pt-2">
+              <div className="flex items-center justify-between">
+                <label className="text-foreground/70 text-[10px] font-extrabold uppercase flex items-center gap-1.5">
+                  <i className="ri-map-pin-2-line text-accent" /> Store Location Map (Click anywhere on the map to set location)
+                </label>
+                <span className="text-[9px] bg-accent/10 text-accent px-2 py-0.5 rounded-full font-black uppercase tracking-wider border border-accent/20">
+                  Click map to move pin
+                </span>
+              </div>
+
+              <div className="w-full h-80 rounded-2xl overflow-hidden border-2 border-accent/30 shadow-xl relative z-0">
+                <MapContainer
+                  center={[contactForm.mapLat || 19.076, contactForm.mapLng || 72.8777]}
+                  zoom={contactForm.mapZoom || 14}
+                  style={{ height: "100%", width: "100%" }}
+                  key={`${contactForm.mapLat}-${contactForm.mapLng}`}
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <Marker
+                    position={[contactForm.mapLat || 19.076, contactForm.mapLng || 72.8777]}
+                  />
+                  <MapClickHandler
+                    onMapClick={(lat, lng) =>
+                      setContactForm((prev) => ({
+                        ...prev,
+                        mapLat: parseFloat(lat.toFixed(6)),
+                        mapLng: parseFloat(lng.toFixed(6)),
+                      }))
+                    }
+                  />
+                </MapContainer>
+              </div>
+
+              <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-[10px] font-mono text-foreground/60 bg-background/60 p-2.5 rounded-xl border border-border-theme/40">
+                <span>Selected Lat: <strong className="text-accent">{contactForm.mapLat}</strong></span>
+                <span>Selected Lng: <strong className="text-accent">{contactForm.mapLng}</strong></span>
+                <span className="text-[9px] text-foreground/40 font-sans">This location will be shown to users on the Contact page map.</span>
+              </div>
             </div>
 
-            <div className="space-y-1.5">
-              <label className="text-foreground/70 text-[10px] font-extrabold uppercase">Map Longitude (Lng)</label>
+            {/* Custom Map Embed URL Option */}
+            <div className="sm:col-span-2 space-y-1.5 pt-2">
+              <label className="text-foreground/70 text-[10px] font-extrabold uppercase flex items-center justify-between">
+                <span>Custom Map Embed URL (Optional Google Maps / OpenStreetMap iFrame Override)</span>
+                <span className="text-[9px] text-accent font-bold">Optional</span>
+              </label>
               <input
-                type="number"
-                step="any"
-                value={contactForm.mapLng}
-                onChange={(e) => setContactForm({ ...contactForm, mapLng: parseFloat(e.target.value) || 0 })}
-                className="w-full bg-background border border-border-theme rounded-xl px-4 py-2.5 text-foreground font-mono focus:outline-none focus:border-accent"
-              />
-            </div>
-          </div>
-
-          {/* Interactive Map Preview Box */}
-          <div className="p-4 bg-background/50 border border-border-theme rounded-2xl space-y-2">
-            <span className="text-[10px] font-extrabold uppercase text-accent flex items-center gap-1.5">
-              <i className="ri-map-pin-2-line" /> Map Coordinates Preview: Lat {contactForm.mapLat}, Lng {contactForm.mapLng}
-            </span>
-            <div className="w-full h-40 bg-surface border border-border-theme rounded-xl flex items-center justify-center text-foreground/50 text-xs font-mono">
-              <iframe
-                title="Google Maps Location Preview"
-                width="100%"
-                height="100%"
-                frameBorder="0"
-                style={{ border: 0, borderRadius: "12px" }}
-                src={`https://maps.google.com/maps?q=${contactForm.mapLat},${contactForm.mapLng}&z=15&output=embed`}
+                type="text"
+                value={contactForm.mapEmbedUrl}
+                onChange={(e) => setContactForm({ ...contactForm, mapEmbedUrl: e.target.value })}
+                placeholder="e.g. https://www.google.com/maps/embed?pb=... or https://maps.google.com/maps?q=19.076,72.8777&z=15&output=embed"
+                className="w-full bg-background border border-border-theme rounded-xl px-4 py-2.5 text-foreground text-xs font-mono focus:outline-none focus:border-accent"
               />
             </div>
           </div>

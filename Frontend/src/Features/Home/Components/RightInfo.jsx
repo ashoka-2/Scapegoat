@@ -26,7 +26,12 @@ const ProductCardItem = ({ product }) => {
 
   const handleAddToCart = async () => {
     if (!user) {
-      dispatch(addToast({ message: "Please log in to add items to your cart", type: "info" }));
+      dispatch(
+        addToast({
+          message: "Please log in to add items to your cart",
+          type: "info",
+        }),
+      );
       navigate("/login");
       return;
     }
@@ -37,7 +42,10 @@ const ProductCardItem = ({ product }) => {
         setIsDragged(true);
         setTimeout(() => {
           setIsDragged(false);
-          controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 20 } });
+          controls.start({
+            x: 0,
+            transition: { type: "spring", stiffness: 300, damping: 20 },
+          });
         }, 1500);
       } catch (err) {
         console.error("Cart error", err);
@@ -52,7 +60,10 @@ const ProductCardItem = ({ product }) => {
         controls.start({ x: dragContainerRef.current.clientWidth - 40 });
       }
     } else {
-      controls.start({ x: 0, transition: { type: "spring", stiffness: 400, damping: 25 } });
+      controls.start({
+        x: 0,
+        transition: { type: "spring", stiffness: 400, damping: 25 },
+      });
     }
   };
 
@@ -60,8 +71,15 @@ const ProductCardItem = ({ product }) => {
   const origP = product?.maxPrice?.amount || product?.price?.amount;
 
   const hasDiscount = saleP && origP && Number(saleP) < Number(origP);
-  const isOutOfStock = product?.stock !== undefined ? product.stock <= 0 : product?.stockStatus === "outofstock";
-  const badgeText = hasDiscount ? "SALE" : isOutOfStock ? "OUT OF STOCK" : "NEW DROP";
+  const isOutOfStock =
+    product?.stock !== undefined
+      ? product.stock <= 0
+      : product?.stockStatus === "outofstock";
+  const badgeText = hasDiscount
+    ? "SALE"
+    : isOutOfStock
+      ? "OUT OF STOCK"
+      : "NEW DROP";
 
   const displayImage =
     product?.images?.[0]?.url ||
@@ -73,10 +91,10 @@ const ProductCardItem = ({ product }) => {
       ? product.shortDescription.slice(0, 28) + "..."
       : product.shortDescription
     : product?.description
-    ? product.description.length > 28
-      ? product.description.slice(0, 28) + "..."
-      : product.description
-    : "Premium urban drop.";
+      ? product.description.length > 28
+        ? product.description.slice(0, 28) + "..."
+        : product.description
+      : "Premium urban drop.";
 
   const priceVal = saleP || origP || 0;
   const displayPrice = `₹${Number(priceVal).toLocaleString("en-IN")}`;
@@ -97,9 +115,16 @@ const ProductCardItem = ({ product }) => {
           {badgeText}
         </div>
       </div>
-      <div className="px-2 pb-2 text-center" onClick={(e) => e.stopPropagation()}>
-        <h4 className="font-bold text-sm mb-0.5 tracking-tight truncate text-foreground">{product?.title || "Product"}</h4>
-        <p className="text-[10px] text-foreground/60 font-serif italic mb-4 truncate">{displaySubtitle}</p>
+      <div
+        className="px-2 pb-2 text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h4 className="font-bold text-sm mb-0.5 tracking-tight truncate text-foreground">
+          {product?.title || "Product"}
+        </h4>
+        <p className="text-[10px] text-foreground/60 font-serif italic mb-4 truncate">
+          {displaySubtitle}
+        </p>
 
         {/* Draggable Slide-to-Cart Button */}
         <div
@@ -133,7 +158,9 @@ const ProductCardItem = ({ product }) => {
           >
             <i
               className={
-                isDragged ? "ri-check-line text-lg font-black" : "ri-arrow-right-s-line text-lg pointer-events-none"
+                isDragged
+                  ? "ri-check-line text-lg font-black"
+                  : "ri-arrow-right-s-line text-lg pointer-events-none"
               }
             ></i>
           </motion.div>
@@ -151,7 +178,10 @@ const FeatureCard = () => {
   const hasFetchedRef = useRef(false);
 
   useEffect(() => {
-    if (!hasFetchedRef.current && (!reduxProducts || reduxProducts.length === 0)) {
+    if (
+      !hasFetchedRef.current &&
+      (!reduxProducts || reduxProducts.length === 0)
+    ) {
       hasFetchedRef.current = true;
       handleFetchAllProducts();
     }
@@ -175,7 +205,7 @@ const FeatureCard = () => {
       gsap.fromTo(
         desktopCardRef.current,
         { opacity: 0, y: 15, scale: 0.98 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" }
+        { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" },
       );
     }
   }, [currentIndex, featuredProducts.length]);
@@ -242,9 +272,14 @@ const RightInfo = ({
     <div className="w-full flex flex-col lg:text-white text-foreground z-10 relative lg:items-end">
       <div className="flex justify-center lg:justify-between gap-10 sm:gap-14 lg:gap-0 mt-0 lg:mt-0 mb-4 lg:mb-4 px-2 lg:px-0 lg:w-[240px]">
         {features.map((feature, idx) => (
-          <div key={idx} className="flex flex-col items-center gap-2 group cursor-pointer lg:w-1/3">
+          <div
+            key={idx}
+            className="flex flex-col items-center gap-2 group cursor-pointer lg:w-1/3"
+          >
             <div className="lg:bg-white/10 bg-accent/10 dark:bg-accent/10 w-16 h-16 lg:w-11 lg:h-11 rounded-[16px] lg:rounded-full group-hover:bg-white/20 transition-colors backdrop-blur-md shadow-sm border border-border-theme flex items-center justify-center">
-              <i className={`${feature.iconClass} text-2xl lg:text-lg lg:text-white text-accent dark:text-accent`}></i>
+              <i
+                className={`${feature.iconClass} text-2xl lg:text-lg lg:text-white text-accent dark:text-accent`}
+              ></i>
             </div>
             <p className="text-[9px] lg:text-[7px] text-center font-black opacity-80 lg:text-white/80 dark:text-gray-400 tracking-[0.2em] whitespace-pre-line uppercase">
               {feature.title}

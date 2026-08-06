@@ -52,7 +52,10 @@ const Contact = () => {
     );
   }
 
-  const mapUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${contactData.mapLng - 0.01},${contactData.mapLat - 0.01},${contactData.mapLng + 0.01},${contactData.mapLat + 0.01}&layer=mapnik&marker=${contactData.mapLat},${contactData.mapLng}`;
+  const mapUrl =
+    contactData.mapEmbedUrl && contactData.mapEmbedUrl.trim()
+      ? contactData.mapEmbedUrl.trim()
+      : `https://www.openstreetmap.org/export/embed.html?bbox=${contactData.mapLng - 0.01},${contactData.mapLat - 0.01},${contactData.mapLng + 0.01},${contactData.mapLat + 0.01}&layer=mapnik&marker=${contactData.mapLat},${contactData.mapLng}`;
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto font-sans">

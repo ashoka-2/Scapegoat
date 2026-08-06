@@ -32,7 +32,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const profileDropdownRef = useRef();
 
   const { user, loading: authLoading } = useSelector((state) => state.auth);
-  const { wishlist, loading: wishlistLoading } = useSelector((state) => state.wishlist || {});
+  const { wishlist, loading: wishlistLoading } = useSelector(
+    (state) => state.wishlist || {},
+  );
   const wishlistCount = wishlist?.products?.length || 0;
   const { handleLogout } = useAuth();
   const { totalItems, loading: cartLoading, handleToggleDrawer } = useCart();
@@ -42,10 +44,16 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   // Close profile dropdown & search dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (profileWrapperRef.current && !profileWrapperRef.current.contains(event.target)) {
+      if (
+        profileWrapperRef.current &&
+        !profileWrapperRef.current.contains(event.target)
+      ) {
         setProfileMenuOpen(false);
       }
-      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target)) {
+      if (
+        searchContainerRef.current &&
+        !searchContainerRef.current.contains(event.target)
+      ) {
         setIsSearchOpen(false);
       }
     };
@@ -138,11 +146,18 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         .fromTo(
           menuItemsRef.current,
           { y: 80, opacity: 0, skewY: 5 },
-          { y: 0, opacity: 1, skewY: 0, duration: 0.8, stagger: 0.1, ease: "power4.out" },
-          "-=0.6"
+          {
+            y: 0,
+            opacity: 1,
+            skewY: 0,
+            duration: 0.8,
+            stagger: 0.1,
+            ease: "power4.out",
+          },
+          "-=0.6",
         );
     },
-    { scope: menuRef }
+    { scope: menuRef },
   );
 
   useEffect(() => {
@@ -208,9 +223,15 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             aria-label="Toggle Menu"
           >
             <div className="flex flex-col gap-1.5 items-end">
-              <span className={`h-[1.5px] bg-foreground transition-all duration-500 ${mobileMenuOpen ? "w-5 rotate-45 translate-y-[7.5px]" : "w-5"}`}></span>
-              <span className={`h-[1.5px] bg-foreground transition-all duration-300 ${mobileMenuOpen ? "w-0 opacity-0" : "w-3"}`}></span>
-              <span className={`h-[1.5px] bg-foreground transition-all duration-500 ${mobileMenuOpen ? "w-5 -rotate-45 -translate-y-[7.5px]" : "w-5"}`}></span>
+              <span
+                className={`h-[1.5px] bg-foreground transition-all duration-500 ${mobileMenuOpen ? "w-5 rotate-45 translate-y-[7.5px]" : "w-5"}`}
+              ></span>
+              <span
+                className={`h-[1.5px] bg-foreground transition-all duration-300 ${mobileMenuOpen ? "w-0 opacity-0" : "w-3"}`}
+              ></span>
+              <span
+                className={`h-[1.5px] bg-foreground transition-all duration-500 ${mobileMenuOpen ? "w-5 -rotate-45 -translate-y-[7.5px]" : "w-5"}`}
+              ></span>
             </div>
           </button>
 
@@ -238,7 +259,10 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         {/* Navbar Middle/Right: AI Live Searchbar & Cart Controls */}
         <div className="flex items-center gap-3">
           {/* Embedded Navbar Search Bar */}
-          <div ref={searchContainerRef} className="relative hidden sm:block w-48 md:w-64">
+          <div
+            ref={searchContainerRef}
+            className="relative hidden sm:block w-48 md:w-64"
+          >
             <div className="flex items-center bg-surface border border-border-theme rounded-full px-3 py-1.5 focus-within:border-accent transition">
               <i className="ri-search-line text-xs text-foreground/40 mr-2" />
               <input
@@ -281,8 +305,12 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 {searchResults.length > 0 ? (
                   <div className="space-y-1.5 max-h-60 overflow-y-auto scrollbar-thin">
                     {searchResults.map((prod) => {
-                      const img = prod.images?.[0]?.url || prod.images?.[0] || "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100";
-                      const price = prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
+                      const img =
+                        prod.images?.[0]?.url ||
+                        prod.images?.[0] ||
+                        "https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=100";
+                      const price =
+                        prod.sellingPrice?.amount || prod.maxPrice?.amount || 0;
 
                       return (
                         <div
@@ -294,13 +322,18 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                           }}
                           className="flex items-center space-x-3 p-2 rounded-xl hover:bg-background/80 transition cursor-pointer group"
                         >
-                          <img src={img} alt={prod.title} className="w-10 h-10 object-cover rounded-lg shrink-0 border border-border-theme" />
+                          <img
+                            src={img}
+                            alt={prod.title}
+                            className="w-10 h-10 object-cover rounded-lg shrink-0 border border-border-theme"
+                          />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-foreground truncate group-hover:text-accent transition">
                               {prod.title}
                             </p>
                             <p className="text-[10px] font-mono text-foreground/60">
-                              ₹{Number(price).toLocaleString("en-IN")} • {prod.category?.name || "General"}
+                              ₹{Number(price).toLocaleString("en-IN")} •{" "}
+                              {prod.category?.name || "General"}
                             </p>
                           </div>
                         </div>
@@ -310,7 +343,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 ) : (
                   !isSearching && (
                     <p className="text-xs text-foreground/50 p-2 text-center">
-                      Press <kbd className="px-1.5 py-0.5 bg-background border rounded text-[10px]">Enter</kbd> to search in catalog
+                      Press{" "}
+                      <kbd className="px-1.5 py-0.5 bg-background border rounded text-[10px]">
+                        Enter
+                      </kbd>{" "}
+                      to search in catalog
                     </p>
                   )
                 )}
@@ -332,7 +369,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             className="hidden md:flex hover:text-accent transition-all hover:rotate-90 p-2 text-foreground items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30 cursor-pointer"
             aria-label="Toggle Theme"
           >
-            {isDarkMode ? <i className="ri-sun-fill text-xl"></i> : <i className="ri-moon-fill text-xl"></i>}
+            {isDarkMode ? (
+              <i className="ri-sun-fill text-xl"></i>
+            ) : (
+              <i className="ri-moon-fill text-xl"></i>
+            )}
           </button>
 
           {/* Wishlist Link Button */}
@@ -360,21 +401,37 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 onClick={() => setProfileMenuOpen(!profileMenuOpen)}
                 className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-accent transition-all shadow-lg active:scale-95 cursor-pointer"
               >
-                <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                <img
+                  src={user.profilePic}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
               </button>
 
               <div
                 ref={profileDropdownRef}
                 className="absolute top-[calc(100%+24px)] right-0 w-72 bg-background/80 backdrop-blur-3xl border border-border-theme/40 rounded-[28px] shadow-[0_40px_80px_rgba(0,0,0,0.5)] py-4 z-50 overflow-hidden"
-                style={{ opacity: 0, display: "none", transform: "translateY(10px) scale(0.95)" }}
+                style={{
+                  opacity: 0,
+                  display: "none",
+                  transform: "translateY(10px) scale(0.95)",
+                }}
               >
                 <div className="px-6 py-4 border-b border-border-theme/20 mb-2 flex items-center gap-4">
                   <div className="w-12 h-12 rounded-full overflow-hidden border border-border-theme/50 shadow-inner">
-                    <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                    <img
+                      src={user.profilePic}
+                      alt="Profile"
+                      className="w-full h-full object-cover"
+                    />
                   </div>
                   <div>
-                    <p className="font-black text-lg truncate leading-tight">{user.fullname}</p>
-                    <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">Verified User</p>
+                    <p className="font-black text-lg truncate leading-tight">
+                      {user.fullname}
+                    </p>
+                    <p className="text-[10px] text-gray-500 font-bold tracking-widest uppercase mt-0.5">
+                      Verified User
+                    </p>
                   </div>
                 </div>
 
@@ -388,7 +445,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                       <div className="w-8 h-8 rounded-full bg-surface-variant/30 flex items-center justify-center group-hover:bg-accent group-hover:text-accent-content transition-all">
                         <i className="ri-user-line text-lg"></i>
                       </div>
-                      <span className="font-bold text-sm group-hover:text-accent transition-all">My Profile</span>
+                      <span className="font-bold text-sm group-hover:text-accent transition-all">
+                        My Profile
+                      </span>
                     </div>
                     <i className="ri-arrow-right-s-line text-gray-400 group-hover:text-accent group-hover:translate-x-1 transition-all"></i>
                   </Link>
@@ -402,7 +461,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                       <div className="w-8 h-8 rounded-full bg-surface-variant/30 flex items-center justify-center group-hover:bg-accent group-hover:text-accent-content transition-all">
                         <i className="ri-shopping-bag-3-line text-lg"></i>
                       </div>
-                      <span className="font-bold text-sm group-hover:text-accent transition-all">My Cart</span>
+                      <span className="font-bold text-sm group-hover:text-accent transition-all">
+                        My Cart
+                      </span>
                     </div>
                     <i className="ri-arrow-right-s-line text-gray-400 group-hover:text-accent group-hover:translate-x-1 transition-all"></i>
                   </Link>
@@ -417,7 +478,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                         <div className="w-8 h-8 rounded-full bg-surface-variant/30 flex items-center justify-center group-hover:bg-accent group-hover:text-accent-content transition-all">
                           <i className="ri-store-2-line text-lg"></i>
                         </div>
-                        <span className="font-bold text-sm group-hover:text-accent transition-all">Seller Panel</span>
+                        <span className="font-bold text-sm group-hover:text-accent transition-all">
+                          Seller Panel
+                        </span>
                       </div>
                       <i className="ri-arrow-right-s-line text-gray-400 group-hover:text-accent group-hover:translate-x-1 transition-all"></i>
                     </Link>
@@ -436,7 +499,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                       <div className="w-8 h-8 rounded-full bg-red-500/10 flex items-center justify-center group-hover:bg-red-500 group-hover:text-white transition-all">
                         <i className="ri-logout-circle-line text-lg"></i>
                       </div>
-                      <span className="font-bold text-sm tracking-widest uppercase">Logout</span>
+                      <span className="font-bold text-sm tracking-widest uppercase">
+                        Logout
+                      </span>
                     </div>
                   </button>
                 </div>
@@ -482,7 +547,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
               onClick={toggleTheme}
               className="hover:text-accent transition-all hover:rotate-90 p-2 text-foreground flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30"
             >
-              {isDarkMode ? <i className="ri-sun-fill text-xl"></i> : <i className="ri-moon-fill text-xl"></i>}
+              {isDarkMode ? (
+                <i className="ri-sun-fill text-xl"></i>
+              ) : (
+                <i className="ri-moon-fill text-xl"></i>
+              )}
             </button>
             {user ? (
               <Link
@@ -490,7 +559,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 onClick={() => setMobileMenuOpen(false)}
                 className="w-10 h-10 rounded-full overflow-hidden border-2 border-transparent hover:border-accent transition-all shadow-lg"
               >
-                <img src={user.profilePic} alt="Profile" className="w-full h-full object-cover" />
+                <img
+                  src={user.profilePic}
+                  alt="Profile"
+                  className="w-full h-full object-cover"
+                />
               </Link>
             ) : (
               <Link
@@ -519,7 +592,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
           <div className="flex flex-col gap-6 sm:gap-10">
             <div className="md:hidden lg:flex items-center gap-4 mb-4 sm:mb-8 opacity-60">
               <span className="w-8 h-[1px] bg-accent"></span>
-              <p className="text-[10px] font-black tracking-[0.6em] uppercase text-gray-500">Digital Navigation</p>
+              <p className="text-[10px] font-black tracking-[0.6em] uppercase text-gray-500">
+                Digital Navigation
+              </p>
             </div>
             {menuLinks.map((link, index) => (
               <Link
@@ -530,7 +605,9 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 className="group relative flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 opacity-0"
               >
                 <div className="flex items-center gap-4 sm:gap-6 w-full border-b border-border-theme/10 sm:border-transparent pb-3 sm:pb-0">
-                  <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">{link.id}</span>
+                  <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">
+                    {link.id}
+                  </span>
                   <div className="overflow-hidden flex-1 flex justify-between items-center group-hover:pl-2 sm:group-hover:pl-0 transition-all duration-500">
                     <h2 className="text-4xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
                       {link.name.toUpperCase()}

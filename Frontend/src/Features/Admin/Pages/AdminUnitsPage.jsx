@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useUnit } from "../../Units/Hooks/useUnit";
+import AdminUnitsSkeleton from "../Components/Skeletons/AdminUnitsSkeleton";
 
 const AdminUnitsPage = () => {
   const {
@@ -106,17 +107,16 @@ const AdminUnitsPage = () => {
         </button>
       </div>
 
-      {/* Units Table */}
-      <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
-        {loading && units.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 font-mono animate-pulse">
-            Loading measurement units...
-          </div>
-        ) : units.length === 0 ? (
-          <div className="py-12 text-center text-xs text-foreground/40 italic">
-            No units created yet. Click "Add New Unit" to get started.
-          </div>
-        ) : (
+      {/* Units Content */}
+      {loading && units.length === 0 ? (
+        <AdminUnitsSkeleton />
+      ) : (
+        <div className="bg-surface border border-border-theme rounded-3xl p-6 shadow-sm overflow-hidden">
+          {units.length === 0 ? (
+            <div className="py-12 text-center text-xs text-foreground/40 italic">
+              No units created yet. Click "Add New Unit" to get started.
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead>
@@ -188,6 +188,7 @@ const AdminUnitsPage = () => {
           </div>
         )}
       </div>
+    )}
 
       {/* Screen-Centered Modal Form */}
       {isModalOpen && (

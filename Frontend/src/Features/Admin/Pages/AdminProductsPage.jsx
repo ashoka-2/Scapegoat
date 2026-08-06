@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
-import AdminTableSkeleton from "../Components/Skeletons/AdminTableSkeleton";
+import AdminProductsSkeleton from "../Components/Skeletons/AdminProductsSkeleton";
 
 const AdminProductsPage = () => {
   const navigate = useNavigate();
@@ -81,7 +81,7 @@ const AdminProductsPage = () => {
 
       {/* Products Table */}
       {loading ? (
-        <AdminTableSkeleton />
+        <AdminProductsSkeleton />
       ) : (
         <div className="bg-surface border border-border-theme rounded-2xl overflow-hidden shadow-sm">
           <div className="overflow-x-auto">

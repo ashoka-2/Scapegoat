@@ -6,59 +6,15 @@ import { RouterProvider } from "react-router-dom";
 import { routes } from "./App.routes.jsx";
 import PageLoader from "../Shared/PageLoader.jsx";
 import Preloader from "../Shared/Preloader.jsx";
-
 import { ToastContainer } from "../Components/Toast.jsx";
-
+import { NavbarSkeleton } from "../Components/Skeletons/index.js";
 import {
-  AuthSkeleton,
-  HomeSkeleton,
-  NavbarSkeleton,
-  ProfileSkeleton,
-  ShopSkeleton,
-  CartSkeleton,
-  WishlistSkeleton,
-  SingleProductSkeleton,
-  SellerSkeleton,
-  ContactSkeleton,
-  AboutSkeleton,
-  LegalSkeleton,
-  CheckoutSkeleton,
-  OrdersSkeleton,
-  OrderDetailsSkeleton,
-} from "../Components/Skeletons/index.js";
+  getPageSkeleton,
+  shouldHideNavbarSkeleton,
+} from "../Components/Skeletons/skeletonRouter.js";
+
 import { useAuth } from "../Features/auth/Hooks/useAuth.js";
 import { useActiveHeartbeat } from "../Hooks/useActiveHeartbeat.js";
-
-const getPageSkeleton = (path) => {
-  if (
-    path === "/login" ||
-    path === "/register" ||
-    path === "/forgot-password" ||
-    path === "/reset-password" ||
-    path === "/complete-profile"
-  ) {
-    return AuthSkeleton;
-  }
-  if (path === "/profile") return ProfileSkeleton;
-  if (path === "/shop") return ShopSkeleton;
-  if (path === "/cart") return CartSkeleton;
-  if (path === "/wishlist") return WishlistSkeleton;
-  if (path === "/about") return AboutSkeleton;
-  if (path === "/contact") return ContactSkeleton;
-  if (
-    path === "/privacy-policy" ||
-    path === "/returns-policy" ||
-    path === "/terms-of-service"
-  ) {
-    return LegalSkeleton;
-  }
-  if (path === "/checkout") return CheckoutSkeleton;
-  if (path === "/my-orders") return OrdersSkeleton;
-  if (path.startsWith("/orders/")) return OrderDetailsSkeleton;
-  if (path.startsWith("/product/")) return SingleProductSkeleton;
-  if (path.startsWith("/seller") || path.startsWith("/admin")) return SellerSkeleton;
-  return HomeSkeleton;
-};
 
 const App = () => {
   useActiveHeartbeat();
@@ -89,14 +45,17 @@ const App = () => {
 
     const checkServer = async () => {
       try {
-        await fetchMe();
+        await axios.get("http://localhost:3000/api/auth/me", {
+          withCredentials: true,
+          timeout: 2000,
+        });
         setIsServerReady(true);
-        if (hasSeenPreloader) {
-          setShowApp(true);
-        }
-      } catch (error) {
-        if (error.response) {
+        fetchMe();
+        if (hasSeenPreloader) setShowApp(true);
+      } catch (err) {
+        if (err.response) {
           setIsServerReady(true);
+          fetchMe();
           if (hasSeenPreloader) setShowApp(true);
         } else {
           intervalId = setTimeout(checkServer, 2000);
@@ -125,19 +84,13 @@ const App = () => {
         !showApp &&
         (() => {
           const path = window.location.pathname;
-          const isAuthPage =
-            path === "/login" ||
-            path === "/register" ||
-            path === "/forgot-password" ||
-            path === "/reset-password" ||
-            path === "/complete-profile";
-
+          const hideNavbarSkeleton = shouldHideNavbarSkeleton(path);
           const TargetSkeleton = getPageSkeleton(path);
 
           return (
             <div className="min-h-screen bg-background text-foreground">
-              {!isAuthPage && <NavbarSkeleton />}
-              <div className={isAuthPage ? "" : "pt-20 md:pt-24"}>
+              {!hideNavbarSkeleton && <NavbarSkeleton />}
+              <div className={hideNavbarSkeleton ? "" : "pt-20 md:pt-24"}>
                 <PageLoader skeleton={TargetSkeleton} />
               </div>
             </div>

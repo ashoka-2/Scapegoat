@@ -33,6 +33,11 @@ const contactSettingSchema = new mongoose.Schema(
             min: [1, "Zoom must be at least 1"],
             max: [20, "Zoom cannot exceed 20"],
         },
+        mapEmbedUrl: {
+            type: String,
+            default: "",
+            trim: true,
+        },
     },
     { timestamps: true }
 );
