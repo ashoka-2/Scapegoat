@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
+import AdminReviewCard from "../Components/AdminReviewCard";
 
 const AdminProductDetailPage = () => {
   const { id } = useParams();
@@ -274,21 +275,11 @@ const AdminProductDetailPage = () => {
         <div className="space-y-3">
           {reviews?.length > 0 ? (
             reviews.map((rev) => (
-              <div key={rev._id} className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-7 h-7 rounded-full bg-accent/20 flex items-center justify-center text-accent font-black text-xs">
-                      {(rev.user?.fullname || "U")[0].toUpperCase()}
-                    </div>
-                    <span className="text-xs font-bold text-foreground">{rev.user?.fullname || "Verified Buyer"}</span>
-                  </div>
-                  <span className="text-xs font-mono font-black text-amber-500">
-                    {"★".repeat(rev.rating)} ({rev.rating}/5)
-                  </span>
-                </div>
-                <p className="text-xs font-bold text-foreground">{rev.title}</p>
-                <p className="text-xs text-foreground/80">{rev.comment}</p>
-              </div>
+              <AdminReviewCard
+                key={rev._id}
+                review={rev}
+                onUpdateSuccess={() => fetchProductDetailAdmin(id)}
+              />
             ))
           ) : (
             <p className="text-xs text-foreground/40 italic py-4 text-center">No reviews submitted for this product yet.</p>

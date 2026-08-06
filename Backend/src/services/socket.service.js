@@ -1,5 +1,8 @@
 import { Server } from "socket.io";
 import { config } from "../config/config.js";
+import mongoose from "mongoose";
+import userModel from "../models/user.model.js";
+import { parseUserAgent } from "../utils/userAgentParser.js";
 
 let io;
 
@@ -16,10 +19,36 @@ export const setupSocket = (httpServer) => {
         console.log(`Socket client connected: ${socket.id}`);
 
         // Join private room (e.g. "user_64a7b..." or "seller_64a7b...")
-        socket.on("join_room", (roomName) => {
+        socket.on("join_room", async (roomName, metadata = {}) => {
             if (roomName) {
                 socket.join(roomName);
                 console.log(`Socket ${socket.id} joined room: ${roomName}`);
+
+                const rawUserId = roomName.replace("user_", "").replace("seller_", "");
+                if (mongoose.Types.ObjectId.isValid(rawUserId)) {
+                    const uaString = socket.handshake.headers["user-agent"] || metadata.userAgent || "";
+                    const ip = socket.handshake.address || "";
+                    const parsedDevice = parseUserAgent(uaString, ip, socket.handshake.headers);
+
+                    userModel.findByIdAndUpdate(rawUserId, {
+                        lastActiveAt: new Date(),
+                        deviceInfo: parsedDevice,
+                    }).catch(() => {});
+                }
+            }
+        });
+
+        // User heartbeat activity ping
+        socket.on("user_ping", async (data = {}) => {
+            if (data.userId && mongoose.Types.ObjectId.isValid(data.userId)) {
+                const uaString = socket.handshake.headers["user-agent"] || data.userAgent || "";
+                const ip = socket.handshake.address || "";
+                const parsedDevice = parseUserAgent(uaString, ip, socket.handshake.headers);
+
+                userModel.findByIdAndUpdate(data.userId, {
+                    lastActiveAt: new Date(),
+                    deviceInfo: parsedDevice,
+                }).catch(() => {});
             }
         });
 

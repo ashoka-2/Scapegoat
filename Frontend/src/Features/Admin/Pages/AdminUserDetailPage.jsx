@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
+import AdminReviewCard from "../Components/AdminReviewCard";
 
 const AdminUserDetailPage = () => {
   const { id } = useParams();
@@ -16,10 +17,24 @@ const AdminUserDetailPage = () => {
     }
   }, [id]);
 
-  if (loading || !currentUser || currentUser.user?._id !== id) {
+  if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
         <div className="w-10 h-10 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!currentUser || !currentUser.user || currentUser.user._id !== id) {
+    return (
+      <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-4">
+        <p className="text-sm font-bold text-foreground/70">User record not found or invalid user ID.</p>
+        <button
+          onClick={() => navigate("/admin/users")}
+          className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs cursor-pointer"
+        >
+          Return to Users Directory
+        </button>
       </div>
     );
   }
@@ -73,6 +88,22 @@ const AdminUserDetailPage = () => {
             <p className="text-xs font-mono text-foreground/50">
               Contact: {user.contact || "N/A"} • Joined: {new Date(user.createdAt).toLocaleDateString()}
             </p>
+
+            {/* Device & Activity Tracker */}
+            <div className="flex items-center gap-3 pt-2 text-[11px] font-semibold text-foreground/70 flex-wrap">
+              <span className="flex items-center gap-1 bg-background/60 border border-border-theme px-2.5 py-1 rounded-lg">
+                <i className={user.deviceInfo?.device === "Mobile" ? "ri-smartphone-line text-accent" : "ri-computer-line text-accent"} />
+                {user.deviceInfo?.browser || "Chrome"} on {user.deviceInfo?.os || "Windows"} ({user.deviceInfo?.device || "Desktop"})
+              </span>
+
+              <span className="flex items-center gap-1 bg-background/60 border border-border-theme px-2.5 py-1 rounded-lg font-mono">
+                <i className="ri-wifi-line text-emerald-500" /> IP: {user.deviceInfo?.ip || "127.0.0.1"}
+              </span>
+
+              <span className="flex items-center gap-1 bg-background/60 border border-border-theme px-2.5 py-1 rounded-lg font-mono">
+                <i className="ri-time-line text-amber-500" /> Last Active: {user.lastActiveAt ? new Date(user.lastActiveAt).toLocaleString() : "Recently"}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -324,18 +355,11 @@ const AdminUserDetailPage = () => {
           <div className="space-y-3">
             {reviews?.length > 0 ? (
               reviews.map((rev) => (
-                <div key={rev._id} className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-foreground truncate max-w-[200px]">
-                      {rev.product?.title || "Product"}
-                    </span>
-                    <div className="flex items-center text-amber-500 text-xs font-mono font-black">
-                      {"★".repeat(rev.rating)} ({rev.rating}/5)
-                    </div>
-                  </div>
-                  <p className="text-xs font-bold text-foreground">{rev.title}</p>
-                  <p className="text-[11px] text-foreground/70 italic">{rev.comment}</p>
-                </div>
+                <AdminReviewCard
+                  key={rev._id}
+                  review={rev}
+                  onUpdateSuccess={() => fetchUserById(id)}
+                />
               ))
             ) : (
               <p className="text-xs text-foreground/40 italic py-8 text-center">No reviews submitted by this user.</p>

@@ -108,6 +108,8 @@ export const register = async (req,res) =>{
 
 
 
+import { parseUserAgent } from "../utils/userAgentParser.js";
+
 export const login = async (req,res)=>{
     const {identifier,password} = req.body;
 
@@ -144,6 +146,14 @@ export const login = async (req,res)=>{
             });
         }
 
+        // Save device info & login timestamps
+        const uaHeader = req.headers["user-agent"] || "";
+        const clientIp = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+        user.deviceInfo = parseUserAgent(uaHeader, clientIp, req.headers);
+        user.lastLoginAt = new Date();
+        user.lastActiveAt = new Date();
+        await user.save();
+
         await sendTokenResponse(user,res,"User Logged In successfully")
 
     }
@@ -170,6 +180,13 @@ export const getMe = async (req,res) => {
             err: "user not found",
         });
     }
+
+    // Update active timestamp and device info on heartbeats
+    const uaHeader = req.headers["user-agent"] || "";
+    const clientIp = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+    user.deviceInfo = parseUserAgent(uaHeader, clientIp, req.headers);
+    user.lastActiveAt = new Date();
+    await user.save();
 
     res.status(200).json({
         success: true,

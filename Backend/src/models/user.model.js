@@ -63,6 +63,22 @@ const userSchema = new mongoose.Schema({
         type: Boolean,
         default: false,
     },
+    lastActiveAt: {
+        type: Date,
+        default: Date.now,
+    },
+    lastLoginAt: {
+        type: Date,
+        default: Date.now,
+    },
+    deviceInfo: {
+        device: { type: String, default: "Desktop" },
+        browser: { type: String, default: "Chrome" },
+        os: { type: String, default: "Windows" },
+        model: { type: String, default: "Desktop PC" },
+        ip: { type: String, default: "127.0.0.1" },
+        userAgent: { type: String, default: "" },
+    },
     addresses: [addressSchema]
 },{
     timestamps:true

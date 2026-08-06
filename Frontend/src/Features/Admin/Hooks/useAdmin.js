@@ -32,10 +32,10 @@ export const useAdmin = () => {
   const dispatch = useDispatch();
   const adminState = useSelector((state) => state.admin);
 
-  const fetchDashboardStats = async () => {
+  const fetchDashboardStats = async (params = {}) => {
     dispatch(setAdminLoading(true));
     try {
-      const data = await getDashboardStatsApi();
+      const data = await getDashboardStatsApi(params);
       if (data.success) {
         dispatch(setDashboardStats(data.stats));
       }

@@ -3,6 +3,8 @@ import userModel from "../models/user.model.js";
 import { config } from "../config/config.js";
 import redisClient from "../config/redis.js";
 
+import { parseUserAgent } from "../utils/userAgentParser.js";
+
 export const verifyToken = async (req,res,next)=>{
     const token = req.cookies.token;
 
@@ -27,6 +29,13 @@ export const verifyToken = async (req,res,next)=>{
                 message:"Not authenticated or account is banned."
             })
         }
+
+        // Asynchronously update activity timestamp & deviceInfo (including Brave & mobile models)
+        const uaHeader = req.headers["user-agent"] || "";
+        const clientIp = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+        user.lastActiveAt = new Date();
+        user.deviceInfo = parseUserAgent(uaHeader, clientIp, req.headers);
+        user.save().catch(() => {});
 
         req.user = user;
         next();
@@ -59,6 +68,11 @@ export const optionalVerifyToken = async (req, res, next) => {
         const decoded = jwt.verify(token, config.JWT_SECRET);
         const user = await userModel.findById(decoded.id);
         if (user && !user.isBanned) {
+            const uaHeader = req.headers["user-agent"] || "";
+            const clientIp = req.ip || req.headers["x-forwarded-for"] || req.socket?.remoteAddress || "";
+            user.lastActiveAt = new Date();
+            user.deviceInfo = parseUserAgent(uaHeader, clientIp, req.headers);
+            user.save().catch(() => {});
             req.user = user;
         }
     } catch (e) {}

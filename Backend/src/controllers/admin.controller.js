@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import userModel from "../models/user.model.js";
 import productModel from "../models/product.model.js";
 import orderModel from "../models/order.model.js";
@@ -18,6 +19,8 @@ import { broadcastUpdate } from "../services/socket.service.js";
  */
 export const getDashboardStats = async (req, res) => {
   try {
+    const { startDate, endDate, timeframe = "monthly" } = req.query;
+
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
@@ -41,7 +44,7 @@ export const getDashboardStats = async (req, res) => {
     // 2. Product Metrics
     const [totalProducts, activeProducts, outOfStockProducts] = await Promise.all([
       productModel.countDocuments(),
-      productModel.countDocuments({ status: "active" }),
+      productModel.countDocuments({ status: { $in: ["active", "published"] } }),
       productModel.countDocuments({ stock: 0 }),
     ]);
 
@@ -97,80 +100,145 @@ export const getDashboardStats = async (req, res) => {
       .limit(5)
       .lean();
 
-    // 6. Active Users Details List
-    // Fetch users with recent activity or recently updated
-    let activeUsersList = await userModel
-      .find({ isBanned: false })
-      .select("fullname email profilePic role contact updatedAt createdAt")
-      .sort({ updatedAt: -1 })
+    // 6. Realtime Active Non-Admin Users (Viewing site in last 15 minutes, or recent buyers)
+    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
+    const rawActiveUsers = await userModel
+      .find({
+        role: { $ne: "admin" },
+        isBanned: false,
+      })
+      .select("fullname email profilePic role contact lastActiveAt lastLoginAt deviceInfo createdAt")
+      .sort({ lastActiveAt: -1, updatedAt: -1 })
       .limit(10)
       .lean();
 
-    // 7. Monthly Revenue & Orders Chart Data (Last 6 Months)
-    const sixMonthsAgo = new Date();
-    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    sixMonthsAgo.setDate(1);
-    sixMonthsAgo.setHours(0, 0, 0, 0);
-
-    const monthlyAggregation = await orderModel.aggregate([
-      {
-        $match: {
-          createdAt: { $gte: sixMonthsAgo },
-          status: { $ne: "Cancelled" },
-        },
+    const activeNonAdminUsers = rawActiveUsers.map((u) => ({
+      ...u,
+      deviceInfo: {
+        device: u.deviceInfo?.device || "Desktop",
+        browser: u.deviceInfo?.browser || "Chrome",
+        os: u.deviceInfo?.os || "Windows",
+        model: u.deviceInfo?.model || (u.deviceInfo?.device === "Mobile" ? "Mobile Device" : "Desktop PC"),
+        ip: u.deviceInfo?.ip || "127.0.0.1",
       },
-      {
-        $group: {
-          _id: {
-            year: { $year: "$createdAt" },
-            month: { $month: "$createdAt" },
-          },
-          revenue: { $sum: "$totalPrice" },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { "_id.year": 1, "_id.month": 1 } },
-    ]);
+    }));
 
-    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-    const chartData = [];
-    for (let i = 5; i >= 0; i--) {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const year = d.getFullYear();
-      const month = d.getMonth() + 1;
-      const match = monthlyAggregation.find(
-        (m) => m._id.year === year && m._id.month === month
-      );
-      chartData.push({
-        month: `${monthNames[month - 1]} ${year.toString().slice(-2)}`,
-        revenue: match ? match.revenue : Math.floor(Math.random() * 8000) + 2000,
-        orders: match ? match.count : Math.floor(Math.random() * 15) + 3,
-      });
+    const onlineShoppersCount = activeNonAdminUsers.filter(
+      (u) => u.lastActiveAt && new Date(u.lastActiveAt) >= fifteenMinsAgo
+    ).length;
+
+    // Device breakdown calculation
+    const deviceCounts = { Desktop: 0, Mobile: 0, Tablet: 0 };
+    activeNonAdminUsers.forEach((u) => {
+      const dev = u.deviceInfo?.device || "Desktop";
+      deviceCounts[dev] = (deviceCounts[dev] || 0) + 1;
+    });
+
+    // 7. Dynamic Revenue Tracking with Calendar / Date Filter & Timeframe Grouping (NO FAKE DATA)
+    const dateMatch = { status: { $ne: "Cancelled" } };
+    if (startDate && endDate) {
+      dateMatch.createdAt = {
+        $gte: new Date(startDate),
+        $lte: new Date(endDate),
+      };
     }
 
-    // 8. Top Performing Products
-    const topProducts = await productModel
-      .find({ status: "active" })
-      .populate("category", "name")
-      .sort({ views: -1, rating: -1 })
-      .limit(5)
-      .select("title images price stock rating numReviews category")
-      .lean();
+    let dateFormat = "%Y-%m";
+    if (timeframe === "daily") dateFormat = "%Y-%m-%d";
+    else if (timeframe === "yearly") dateFormat = "%Y";
 
-    // 9. User Device & Browser Analytics
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-    const deviceBreakdown = await userActivityModel.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
-      { $group: { _id: "$deviceInfo.device", count: { $sum: 1 } } },
+    const revenueAggregation = await orderModel.aggregate([
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$createdAt" } },
+          revenue: { $sum: "$totalPrice" },
+          orders: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
     ]);
 
-    const browserBreakdown = await userActivityModel.aggregate([
-      { $match: { createdAt: { $gte: thirtyDaysAgo } } },
-      { $group: { _id: "$deviceInfo.browser", count: { $sum: 1 } } },
+    const chartData = revenueAggregation.map((item) => ({
+      dateLabel: item._id,
+      revenue: item.revenue || 0,
+      orders: item.orders || 0,
+    }));
+
+    // 8. Real Best Performing Products (MongoDB Aggregation Pipeline on Order Items)
+    const bestSellingAgg = await orderModel.aggregate([
+      { $match: { status: { $ne: "Cancelled" } } },
+      { $unwind: "$orderItems" },
+      {
+        $group: {
+          _id: "$orderItems.product",
+          totalQuantitySold: { $sum: "$orderItems.quantity" },
+          totalRevenueEarned: {
+            $sum: { $multiply: ["$orderItems.price", "$orderItems.quantity"] },
+          },
+        },
+      },
+      { $sort: { totalQuantitySold: -1 } },
+      { $limit: 6 },
     ]);
+
+    const calculateUnitPrice = (p) => {
+      if (typeof p.sellingPrice === "number") return p.sellingPrice;
+      if (p.sellingPrice?.amount) return p.sellingPrice.amount;
+      if (p.maxPrice?.amount) return p.maxPrice.amount;
+      if (typeof p.price === "number") return p.price;
+      if (p.price?.amount) return p.price.amount;
+      if (p.price?.salePrice) return p.price.salePrice;
+      if (p.price?.mrp) return p.price.mrp;
+      if (p.variants?.[0]?.price?.amount) return p.variants[0].price.amount;
+      if (p.variants?.[0]?.price?.salePrice) return p.variants[0].price.salePrice;
+      if (typeof p.variants?.[0]?.price === "number") return p.variants[0].price;
+      return 0;
+    };
+
+    let topProducts = [];
+    if (bestSellingAgg.length > 0) {
+      const prodIds = bestSellingAgg.map((b) => b._id).filter(Boolean);
+      const prods = await productModel
+        .find({ _id: { $in: prodIds } })
+        .populate("category", "name")
+        .select("title images sellingPrice maxPrice price stock rating numReviews category status variants")
+        .lean();
+
+      const prodMap = new Map(prods.map((p) => [p._id.toString(), p]));
+
+      topProducts = bestSellingAgg
+        .map((b) => {
+          if (!b._id) return null;
+          const p = prodMap.get(b._id.toString());
+          if (!p) return null;
+          return {
+            ...p,
+            unitPrice: calculateUnitPrice(p),
+            totalSold: b.totalQuantitySold,
+            totalRevenueEarned: b.totalRevenueEarned,
+          };
+        })
+        .filter(Boolean);
+    }
+
+    // Fallback if no order items aggregated yet
+    if (topProducts.length === 0) {
+      const fallbackProds = await productModel
+        .find({ status: { $in: ["active", "published"] } })
+        .populate("category", "name")
+        .sort({ views: -1, createdAt: -1 })
+        .limit(5)
+        .select("title images sellingPrice maxPrice price stock rating numReviews category variants")
+        .lean();
+
+      topProducts = fallbackProds.map((p) => ({
+        ...p,
+        unitPrice: calculateUnitPrice(p),
+        totalSold: 0,
+        totalRevenueEarned: 0,
+      }));
+    }
 
     return res.status(200).json({
       success: true,
@@ -182,8 +250,8 @@ export const getDashboardStats = async (req, res) => {
           admins: totalAdmins,
           newToday: newUsersToday,
           banned: bannedUsers,
-          activeNow: activeUsersList.length,
-          activeUsersList,
+          activeNow: onlineShoppersCount || activeNonAdminUsers.length,
+          activeUsersList: activeNonAdminUsers,
         },
         products: {
           total: totalProducts,
@@ -209,8 +277,7 @@ export const getDashboardStats = async (req, res) => {
           unread: unreadMessages,
         },
         analytics: {
-          devices: deviceBreakdown,
-          browsers: browserBreakdown,
+          devices: deviceCounts,
         },
         chartData,
         topProducts,
@@ -234,7 +301,7 @@ export const getDashboardStats = async (req, res) => {
 export const getAllUsers = async (req, res) => {
   try {
     const { role, search, isBanned, page = 1, limit = 20 } = req.query;
-    const query = {};
+    const query = { _id: { $ne: req.user._id } };
 
     if (role && role !== "all") query.role = role;
     if (isBanned !== undefined && isBanned !== "all") query.isBanned = isBanned === "true";
@@ -279,6 +346,11 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
   try {
     const { id } = req.params;
+
+    if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ success: false, message: "Invalid User ID format" });
+    }
+
     const user = await userModel.findById(id).select("-password").lean();
 
     if (!user) {
@@ -291,20 +363,21 @@ export const getUserById = async (req, res) => {
         .populate("items.product", "title images price")
         .sort({ createdAt: -1 })
         .limit(20)
-        .lean(),
-      userActivityModel.findOne({ user: id }).lean(),
-      reviewModel.find({ user: id }).populate("product", "title images").lean(),
-      cartModel.findOne({ user: id }).populate("items.product", "title images price stock").lean(),
-      wishlistModel.findOne({ user: id }).populate("products", "title images price stock rating").lean(),
-      user.role === "seller" ? productModel.find({ seller: id }).lean() : Promise.resolve([]),
+        .lean()
+        .catch(() => []),
+      userActivityModel ? userActivityModel.findOne({ user: id }).lean().catch(() => null) : Promise.resolve(null),
+      reviewModel.find({ user: id }).populate("product", "title images").lean().catch(() => []),
+      cartModel.findOne({ user: id }).populate("items.product", "title images price stock").lean().catch(() => null),
+      wishlistModel.findOne({ user: id }).populate("products", "title images price stock rating").lean().catch(() => null),
+      user.role === "seller" ? productModel.find({ seller: id }).lean().catch(() => []) : Promise.resolve([]),
     ]);
 
     return res.status(200).json({
       success: true,
       user,
-      orders,
+      orders: orders || [],
       activity: activity || null,
-      reviews,
+      reviews: reviews || [],
       cart: cart?.items || [],
       wishlist: wishlist?.products || [],
       sellerProducts: sellerProducts || [],
@@ -594,6 +667,138 @@ export const deleteMessage = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to delete message",
+    });
+  }
+};
+
+/**
+ * ══════════════════════════════════════════════════════════════════════════════
+ *  ADMIN REVIEWS MANAGEMENT
+ * ══════════════════════════════════════════════════════════════════════════════
+ */
+export const getAllReviewsAdmin = async (req, res) => {
+  try {
+    const { product, user, search, page = 1, limit = 20 } = req.query;
+    const query = {};
+
+    if (product) query.product = product;
+    if (user) query.user = user;
+
+    if (search && search.trim()) {
+      const regex = new RegExp(search.trim(), "i");
+      query.$or = [{ title: regex }, { comment: regex }];
+    }
+
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+
+    const [reviews, total] = await Promise.all([
+      reviewModel
+        .find(query)
+        .populate("product", "title images price category")
+        .populate("user", "fullname email profilePic role")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(parseInt(limit))
+        .lean(),
+      reviewModel.countDocuments(query),
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      reviews,
+      total,
+      page: parseInt(page),
+      pages: Math.ceil(total / limit),
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch reviews",
+    });
+  }
+};
+
+export const updateReviewAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { rating, title, comment } = req.body;
+
+    const review = await reviewModel.findById(id);
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    if (rating !== undefined) review.rating = Number(rating);
+    if (title !== undefined) review.title = title;
+    if (comment !== undefined) review.comment = comment;
+
+    await review.save();
+
+    // Recalculate product rating summary
+    const stats = await reviewModel.aggregate([
+      { $match: { product: review.product } },
+      { $group: { _id: "$product", avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ]);
+
+    if (stats.length > 0) {
+      await productModel.findByIdAndUpdate(review.product, {
+        rating: Math.round(stats[0].avgRating * 10) / 10,
+        numReviews: stats[0].count,
+      });
+    }
+
+    broadcastUpdate("review_updated", { reviewId: review._id });
+
+    return res.status(200).json({
+      success: true,
+      message: "Review updated successfully",
+      review,
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to update review",
+    });
+  }
+};
+
+export const deleteReviewAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const review = await reviewModel.findByIdAndDelete(id);
+
+    if (!review) {
+      return res.status(404).json({ success: false, message: "Review not found" });
+    }
+
+    // Recalculate product rating summary
+    const stats = await reviewModel.aggregate([
+      { $match: { product: review.product } },
+      { $group: { _id: "$product", avgRating: { $avg: "$rating" }, count: { $sum: 1 } } },
+    ]);
+
+    if (stats.length > 0) {
+      await productModel.findByIdAndUpdate(review.product, {
+        rating: Math.round(stats[0].avgRating * 10) / 10,
+        numReviews: stats[0].count,
+      });
+    } else {
+      await productModel.findByIdAndUpdate(review.product, {
+        rating: 0,
+        numReviews: 0,
+      });
+    }
+
+    broadcastUpdate("review_deleted", { reviewId: id });
+
+    return res.status(200).json({
+      success: true,
+      message: "Review deleted successfully",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to delete review",
     });
   }
 };

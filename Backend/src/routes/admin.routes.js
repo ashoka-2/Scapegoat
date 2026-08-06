@@ -12,6 +12,9 @@ import {
   getAllMessages,
   markMessageRead,
   deleteMessage,
+  getAllReviewsAdmin,
+  updateReviewAdmin,
+  deleteReviewAdmin,
 } from "../controllers/admin.controller.js";
 
 const adminRouter = express.Router();
@@ -34,6 +37,11 @@ adminRouter.get("/products/:id", getProductDetailAdmin);
 
 // Order Management
 adminRouter.get("/orders", getAllOrdersAdmin);
+
+// Review Management
+adminRouter.get("/reviews", getAllReviewsAdmin);
+adminRouter.put("/reviews/:id", updateReviewAdmin);
+adminRouter.delete("/reviews/:id", deleteReviewAdmin);
 
 // Message / Inbox Management
 adminRouter.get("/messages", getAllMessages);
