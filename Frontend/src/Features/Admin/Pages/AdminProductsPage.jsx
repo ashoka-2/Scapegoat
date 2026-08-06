@@ -104,7 +104,14 @@ const AdminProductsPage = () => {
                     const priceVal =
                       typeof p.price === "number"
                         ? p.price
-                        : p.price?.amount ?? p.price?.salePrice ?? p.price?.mrp ?? p.variants?.[0]?.price?.amount ?? p.variants?.[0]?.price ?? 0;
+                        : p.price?.amount ??
+                          p.price?.salePrice ??
+                          p.price?.mrp ??
+                          p.sellingPrice?.amount ??
+                          p.maxPrice?.amount ??
+                          p.variants?.[0]?.price?.amount ??
+                          p.variants?.[0]?.price?.salePrice ??
+                          (typeof p.variants?.[0]?.price === "number" ? p.variants[0].price : 0);
                     return (
                       <tr key={p._id} className="hover:bg-background/40 transition">
                         <td className="py-3.5 px-4">
