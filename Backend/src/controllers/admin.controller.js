@@ -236,44 +236,102 @@ export const getDashboardStats = async (req, res) => {
       { $sort: { _id: 1 } },
     ]);
 
-    // Pipeline C: Wishlist Activity Aggregation (wishlistSchema uses 'products')
+    // Pipeline C: Wishlist Activity Aggregation (accurately counting new additions vs updates on new days)
     const wishlistAggPromise = wishlistModel.aggregate([
       { $match: dateMatch },
       {
+        $project: {
+          updatedAtDate: {
+            $dateToString: {
+              format: dateFormat,
+              date: { $ifNull: ["$updatedAt", "$createdAt"] },
+            },
+          },
+          createdAtDate: {
+            $dateToString: {
+              format: dateFormat,
+              date: "$createdAt",
+            },
+          },
+          productCount: { $size: { $ifNull: ["$products", []] } },
+        },
+      },
+      {
+        $project: {
+          dateKey: "$updatedAtDate",
+          addsCount: {
+            $cond: [
+              { $eq: ["$updatedAtDate", "$createdAtDate"] },
+              "$productCount",
+              1, // If updated on a later date, count 1 for the specific item updated on that date
+            ],
+          },
+        },
+      },
+      {
         $group: {
-          _id: { $dateToString: { format: dateFormat, date: "$createdAt" } },
-          wishlistAdds: { $sum: { $size: { $ifNull: ["$products", []] } } },
+          _id: "$dateKey",
+          wishlistAdds: { $sum: "$addsCount" },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    // Pipeline D: Cart Activity Aggregation
+    // Pipeline D: Cart Activity Aggregation (accurately counting new additions vs updates on new days)
     const cartAggPromise = cartModel.aggregate([
       { $match: dateMatch },
       {
+        $project: {
+          updatedAtDate: {
+            $dateToString: {
+              format: dateFormat,
+              date: { $ifNull: ["$updatedAt", "$createdAt"] },
+            },
+          },
+          createdAtDate: {
+            $dateToString: {
+              format: dateFormat,
+              date: "$createdAt",
+            },
+          },
+          itemCount: { $size: { $ifNull: ["$items", []] } },
+        },
+      },
+      {
+        $project: {
+          dateKey: "$updatedAtDate",
+          addsCount: {
+            $cond: [
+              { $eq: ["$updatedAtDate", "$createdAtDate"] },
+              "$itemCount",
+              1, // If updated on a later date, count 1 for the specific item updated on that date
+            ],
+          },
+        },
+      },
+      {
         $group: {
-          _id: { $dateToString: { format: dateFormat, date: "$updatedAt" } },
-          cartItems: { $sum: { $size: { $ifNull: ["$items", []] } } },
+          _id: "$dateKey",
+          cartItems: { $sum: "$addsCount" },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    // Pipeline E: Fetch detailed items (orders, users, products) in parallel for interval inspection
+    // Pipeline E: Fetch detailed items (orders, users, products, wishlists, carts) in parallel
     const ordersDetailsPromise = orderModel
       .find({ status: { $ne: "Cancelled" }, ...dateMatch })
       .populate("user", "fullname email avatar")
       .populate("orderItems.product", "title images price sellingPrice")
       .sort({ createdAt: -1 })
-      .limit(150)
+      .limit(100)
       .lean();
 
     const usersDetailsPromise = userModel
       .find({ ...dateMatch })
       .select("fullname email contact role isBanned createdAt avatar")
       .sort({ createdAt: -1 })
-      .limit(150)
+      .limit(100)
       .lean();
 
     const productsDetailsPromise = productModel
@@ -281,10 +339,36 @@ export const getDashboardStats = async (req, res) => {
       .populate("category", "name")
       .select("title images sellingPrice price stock createdAt status category")
       .sort({ createdAt: -1 })
-      .limit(150)
+      .limit(100)
       .lean();
 
-    const [orderAgg, userRegAgg, wishlistAgg, cartAgg, recentOrdersInPeriod, recentUsersInPeriod, recentProductsInPeriod] = await Promise.all([
+    const wishlistsDetailsPromise = wishlistModel
+      .find({ ...dateMatch })
+      .populate("user", "fullname email avatar")
+      .populate("products", "title images price sellingPrice category stock")
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    const cartsDetailsPromise = cartModel
+      .find({ ...dateMatch })
+      .populate("user", "fullname email avatar")
+      .populate("items.product", "title images price sellingPrice category stock")
+      .sort({ updatedAt: -1 })
+      .limit(100)
+      .lean();
+
+    const [
+      orderAgg,
+      userRegAgg,
+      wishlistAgg,
+      cartAgg,
+      recentOrdersInPeriod,
+      recentUsersInPeriod,
+      recentProductsInPeriod,
+      recentWishlistsInPeriod,
+      recentCartsInPeriod,
+    ] = await Promise.all([
       orderAggPromise,
       userRegAggPromise,
       wishlistAggPromise,
@@ -292,6 +376,8 @@ export const getDashboardStats = async (req, res) => {
       ordersDetailsPromise,
       usersDetailsPromise,
       productsDetailsPromise,
+      wishlistsDetailsPromise,
+      cartsDetailsPromise,
     ]);
 
     // Generate at least 10 consecutive date slots if no custom date filter is applied
@@ -367,6 +453,24 @@ export const getDashboardStats = async (req, res) => {
         return key === dateKey;
       });
 
+      const dateWishlists = recentWishlistsInPeriod.filter((w) => {
+        const d = new Date(w.updatedAt || w.createdAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const key = timeframe === "daily" ? `${y}-${m}-${day}` : timeframe === "yearly" ? `${y}` : `${y}-${m}`;
+        return key === dateKey;
+      });
+
+      const dateCarts = recentCartsInPeriod.filter((c) => {
+        const d = new Date(c.updatedAt || c.createdAt);
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, "0");
+        const day = String(d.getDate()).padStart(2, "0");
+        const key = timeframe === "daily" ? `${y}-${m}-${day}` : timeframe === "yearly" ? `${y}` : `${y}-${m}`;
+        return key === dateKey;
+      });
+
       return {
         dateLabel: dateKey,
         revenue: o.revenue || 0,
@@ -379,6 +483,8 @@ export const getDashboardStats = async (req, res) => {
           orders: dateOrders,
           users: dateUsers,
           products: dateProducts,
+          wishlists: dateWishlists,
+          carts: dateCarts,
         },
       };
     });

@@ -758,7 +758,7 @@ const AdminDashboard = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-extrabold uppercase text-rose-500 flex items-center gap-1.5">
-                        <i className="ri-heart-3-line" /> Wishlist Activity Recorded for {selectedItem.dateLabel}
+                        <i className="ri-heart-3-line" /> Specific Wishlist Products Saved on {selectedItem.dateLabel} ({selectedItem.wishlistAdds || 0})
                       </span>
                       <button
                         type="button"
@@ -769,15 +769,84 @@ const AdminDashboard = () => {
                       </button>
                     </div>
 
-                    <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-foreground/70">Total Wishlist Additions:</span>
-                        <strong className="text-rose-500 text-sm font-mono">{selectedItem.wishlistAdds || 0} items</strong>
+                    {selectedItem.specificItems?.wishlists?.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedItem.specificItems.wishlists.map((w) => {
+                          const isUpdateOnNewDate = w.updatedAt && w.createdAt && new Date(w.updatedAt).toDateString() !== new Date(w.createdAt).toDateString();
+                          return (
+                            <div
+                              key={w._id}
+                              className="bg-surface p-3.5 rounded-2xl border border-border-theme space-y-2 text-xs shadow-xs"
+                            >
+                              <div className="flex items-center justify-between border-b border-border-theme/40 pb-2">
+                                <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                                  <i className="ri-user-heart-line text-rose-500" />
+                                  {w.user?.fullname || w.user?.email || "Customer"}'s Wishlist
+                                </span>
+                                <span className="text-[10px] text-foreground/60 font-mono flex items-center gap-1">
+                                  {isUpdateOnNewDate ? (
+                                    <span className="bg-rose-500/10 text-rose-500 px-2 py-0.5 rounded-md font-bold text-[9px] uppercase border border-rose-500/20">
+                                      1 Item Updated on {new Date(w.updatedAt).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span>Added {new Date(w.createdAt).toLocaleDateString()}</span>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* Wishlist Products Grid */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                {w.products?.map((p, idx) => {
+                                  const isLatestItem = isUpdateOnNewDate && idx === w.products.length - 1;
+                                  return (
+                                    <div
+                                      key={p._id}
+                                      onClick={() => navigate(`/admin/products/${p._id}`)}
+                                      className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition ${
+                                        isLatestItem
+                                          ? "bg-rose-500/10 border-rose-500/60 shadow-xs"
+                                          : "bg-background/80 border-border-theme/60 hover:border-rose-500/50"
+                                      }`}
+                                    >
+                                      <img
+                                        src={getImageUrl(p.images?.[0])}
+                                        alt={p.title}
+                                        className="w-9 h-9 rounded-lg object-cover bg-surface border border-border-theme/40 shrink-0"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="font-bold text-foreground text-[11px] truncate">
+                                            {p.title}
+                                          </span>
+                                          {isLatestItem && (
+                                            <span className="bg-rose-500 text-white px-1.5 py-0.2 rounded-xs text-[8px] font-black uppercase shrink-0">
+                                              New Add
+                                            </span>
+                                          )}
+                                        </div>
+                                        <span className="text-[10px] font-mono text-emerald-500 font-bold block">
+                                          ₹{(p.sellingPrice || p.price || 0).toLocaleString()}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <p className="text-[11px] text-foreground/50">
-                        Wishlist additions summarize customer product saves during {selectedItem.dateLabel}.
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-foreground/70">Total Wishlist Additions:</span>
+                          <strong className="text-rose-500 text-sm font-mono">{selectedItem.wishlistAdds || 0} items</strong>
+                        </div>
+                        <p className="text-[11px] text-foreground/50">
+                          Wishlist additions summarize customer product saves during {selectedItem.dateLabel}.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -786,7 +855,7 @@ const AdminDashboard = () => {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <span className="text-xs font-extrabold uppercase text-purple-500 flex items-center gap-1.5">
-                        <i className="ri-shopping-cart-2-line" /> Cart Activity Recorded for {selectedItem.dateLabel}
+                        <i className="ri-shopping-cart-2-line" /> Specific Cart Items Active on {selectedItem.dateLabel} ({selectedItem.cartItems || 0})
                       </span>
                       <button
                         type="button"
@@ -797,15 +866,87 @@ const AdminDashboard = () => {
                       </button>
                     </div>
 
-                    <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-foreground/70">Total Cart Items Added:</span>
-                        <strong className="text-purple-500 text-sm font-mono">{selectedItem.cartItems || 0} items</strong>
+                    {selectedItem.specificItems?.carts?.length > 0 ? (
+                      <div className="space-y-3">
+                        {selectedItem.specificItems.carts.map((c) => {
+                          const isUpdateOnNewDate = c.updatedAt && c.createdAt && new Date(c.updatedAt).toDateString() !== new Date(c.createdAt).toDateString();
+                          return (
+                            <div
+                              key={c._id}
+                              className="bg-surface p-3.5 rounded-2xl border border-border-theme space-y-2 text-xs shadow-xs"
+                            >
+                              <div className="flex items-center justify-between border-b border-border-theme/40 pb-2">
+                                <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                                  <i className="ri-shopping-cart-line text-purple-500" />
+                                  {c.user?.fullname || c.user?.email || "Customer"}'s Cart
+                                </span>
+                                <span className="text-[10px] text-foreground/60 font-mono flex items-center gap-1">
+                                  {isUpdateOnNewDate ? (
+                                    <span className="bg-purple-500/10 text-purple-500 px-2 py-0.5 rounded-md font-bold text-[9px] uppercase border border-purple-500/20">
+                                      1 Item Updated on {new Date(c.updatedAt).toLocaleDateString()}
+                                    </span>
+                                  ) : (
+                                    <span>Added {new Date(c.createdAt).toLocaleDateString()}</span>
+                                  )}
+                                </span>
+                              </div>
+
+                              {/* Cart Items Grid */}
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 pt-1">
+                                {c.items?.map((item, idx) => {
+                                  const isLatestItem = isUpdateOnNewDate && idx === c.items.length - 1;
+                                  return (
+                                    <div
+                                      key={idx}
+                                      onClick={() => item.product?._id && navigate(`/admin/products/${item.product._id}`)}
+                                      className={`p-2 rounded-xl border flex items-center gap-2 cursor-pointer transition ${
+                                        isLatestItem
+                                          ? "bg-purple-500/10 border-purple-500/60 shadow-xs"
+                                          : "bg-background/80 border-border-theme/60 hover:border-purple-500/50"
+                                      }`}
+                                    >
+                                      <img
+                                        src={getImageUrl(item.product?.images?.[0])}
+                                        alt={item.product?.title || "Item"}
+                                        className="w-9 h-9 rounded-lg object-cover bg-surface border border-border-theme/40 shrink-0"
+                                      />
+                                      <div className="min-w-0 flex-1">
+                                        <div className="flex items-center justify-between gap-1">
+                                          <span className="font-bold text-foreground text-[11px] truncate">
+                                            {item.product?.title || "Product"}
+                                          </span>
+                                          {isLatestItem && (
+                                            <span className="bg-purple-500 text-white px-1.5 py-0.2 rounded-xs text-[8px] font-black uppercase shrink-0">
+                                              New Add
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div className="flex items-center justify-between text-[10px]">
+                                          <span className="text-purple-500 font-extrabold">Qty: {item.quantity || 1}</span>
+                                          <span className="font-mono text-emerald-500 font-bold">
+                                            ₹{(item.product?.sellingPrice || item.product?.price || 0).toLocaleString()}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          );
+                        })}
                       </div>
-                      <p className="text-[11px] text-foreground/50">
-                        Cart items summarize active cart additions during {selectedItem.dateLabel}.
-                      </p>
-                    </div>
+                    ) : (
+                      <div className="p-4 bg-surface rounded-2xl border border-border-theme space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-foreground/70">Total Cart Items Added:</span>
+                          <strong className="text-purple-500 text-sm font-mono">{selectedItem.cartItems || 0} items</strong>
+                        </div>
+                        <p className="text-[11px] text-foreground/50">
+                          Cart items summarize active cart additions during {selectedItem.dateLabel}.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
