@@ -15,8 +15,9 @@ const AdminDashboard = () => {
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Calendar & Timeframe Filters for Revenue Track
+  // Calendar & Timeframe Filters for Performance Analytics
   const [timeframe, setTimeframe] = useState("monthly");
+  const [activeMetric, setActiveMetric] = useState("revenue"); // "revenue" | "orders" | "wishlist" | "cart" | "users"
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
@@ -241,56 +242,40 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* ── Revenue Track & Date Filter Section ── */}
-      <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-6 shadow-sm">
-        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-border-theme/60 pb-4">
+      {/* ── Revenue & Performance Analytics Section (Strictly MongoDB Aggregation Data) ── */}
+      <div className="bg-surface border border-border-theme rounded-3xl p-6 sm:p-8 space-y-6 shadow-sm">
+        {/* Top Title & Filters Bar */}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 border-b border-border-theme/60 pb-5">
           <div>
-            <h2 className="text-sm font-black uppercase tracking-wider text-foreground flex items-center gap-2">
-              <i className="ri-calendar-event-line text-accent" /> Revenue Track
-              & Real Order Performance
+            <h2 className="text-base font-black uppercase tracking-wider text-foreground flex items-center gap-2">
+              <i className="ri-bar-chart-grouped-line text-accent text-lg" /> Revenue Track & Real Order Performance
             </h2>
-            <p className="text-xs text-foreground/50 mt-0.5">
-              Strictly verified MongoDB aggregation pipeline data (No simulated
-              data)
+            <p className="text-xs text-foreground/50 mt-0.5 font-medium">
+              Strictly verified MongoDB aggregation pipeline data (No simulated data)
             </p>
           </div>
 
           {/* Timeframe Presets & Calendar Inputs */}
-          <div className="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
             <div className="flex items-center bg-background border border-border-theme rounded-xl p-1 gap-1">
-              <button
-                type="button"
-                onClick={() => setTimeframe("daily")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  timeframe === "daily"
-                    ? "bg-accent text-accent-content"
-                    : "text-foreground/70 hover:text-foreground"
-                }`}
-              >
-                Daily
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeframe("monthly")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  timeframe === "monthly"
-                    ? "bg-accent text-accent-content"
-                    : "text-foreground/70 hover:text-foreground"
-                }`}
-              >
-                Monthly
-              </button>
-              <button
-                type="button"
-                onClick={() => setTimeframe("yearly")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                  timeframe === "yearly"
-                    ? "bg-accent text-accent-content"
-                    : "text-foreground/70 hover:text-foreground"
-                }`}
-              >
-                Yearly
-              </button>
+              {[
+                { id: "daily", label: "Daily" },
+                { id: "monthly", label: "Monthly" },
+                { id: "yearly", label: "Yearly" },
+              ].map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => setTimeframe(t.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                    timeframe === t.id
+                      ? "bg-accent text-accent-content shadow-xs"
+                      : "text-foreground/70 hover:text-foreground"
+                  }`}
+                >
+                  {t.label}
+                </button>
+              ))}
             </div>
 
             {/* Custom Date Range Calendar Inputs */}
@@ -332,25 +317,128 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Revenue Visualization */}
+        {/* Metric Selector Tabs */}
+        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
+          {[
+            { id: "revenue", label: "Gross Revenue", icon: "ri-money-rupee-circle-line", color: "text-emerald-500" },
+            { id: "orders", label: "Order Count", icon: "ri-shopping-bag-3-line", color: "text-amber-500" },
+            { id: "users", label: "New Users", icon: "ri-user-add-line", color: "text-blue-500" },
+            { id: "wishlist", label: "Wishlist Adds", icon: "ri-heart-3-line", color: "text-rose-500" },
+            { id: "cart", label: "Cart Adds", icon: "ri-shopping-cart-2-line", color: "text-purple-500" },
+          ].map((m) => (
+            <button
+              key={m.id}
+              type="button"
+              onClick={() => setActiveMetric(m.id)}
+              className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition border cursor-pointer ${
+                activeMetric === m.id
+                  ? "bg-accent/15 border-accent text-accent shadow-xs"
+                  : "bg-background/60 border-border-theme/60 text-foreground/60 hover:text-foreground"
+              }`}
+            >
+              <i className={`${m.icon} ${m.color} text-sm`} />
+              <span>{m.label}</span>
+            </button>
+          ))}
+        </div>
+
+        {/* Metric Summary Statistics Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 bg-background/40 p-4 rounded-2xl border border-border-theme/40 text-xs">
+          <div>
+            <span className="text-[10px] font-extrabold uppercase text-foreground/50 tracking-wider">
+              Total {activeMetric.toUpperCase()} (Selected Range)
+            </span>
+            <p className="text-lg font-mono font-black text-foreground mt-0.5">
+              {activeMetric === "revenue"
+                ? `₹${chartData.reduce((sum, item) => sum + (item.revenue || 0), 0).toLocaleString()}`
+                : chartData.reduce((sum, item) => sum + (item[activeMetric === "users" ? "newUsers" : activeMetric === "wishlist" ? "wishlistAdds" : activeMetric === "cart" ? "cartItems" : "orders"] || 0), 0).toLocaleString()}
+            </p>
+          </div>
+          <div>
+            <span className="text-[10px] font-extrabold uppercase text-foreground/50 tracking-wider">
+              Average Per Period ({timeframe})
+            </span>
+            <p className="text-lg font-mono font-black text-accent mt-0.5">
+              {activeMetric === "revenue"
+                ? `₹${Math.round(chartData.reduce((sum, item) => sum + (item.revenue || 0), 0) / (chartData.length || 1)).toLocaleString()}`
+                : Math.round(chartData.reduce((sum, item) => sum + (item[activeMetric === "users" ? "newUsers" : activeMetric === "wishlist" ? "wishlistAdds" : activeMetric === "cart" ? "cartItems" : "orders"] || 0), 0) / (chartData.length || 1)).toLocaleString()}
+            </p>
+          </div>
+          <div className="col-span-2 sm:col-span-1">
+            <span className="text-[10px] font-extrabold uppercase text-foreground/50 tracking-wider">
+              Total Timeframe Intervals
+            </span>
+            <p className="text-lg font-mono font-black text-foreground mt-0.5">
+              {chartData.length} {timeframe} records
+            </p>
+          </div>
+        </div>
+
+        {/* Performance Visualization Graph */}
         {chartData.length > 0 ? (
-          <div className="h-60 flex items-end justify-between gap-3 pt-6 pb-2 px-2 border-b border-border-theme/50 overflow-x-auto">
+          <div className="h-64 flex items-end justify-between gap-3 pt-8 pb-3 px-3 border-b border-border-theme/50 overflow-x-auto">
             {chartData.map((item, idx) => {
-              const heightPercent = Math.max(
-                15,
-                Math.round((item.revenue / maxRevenueInChart) * 100),
+              const val =
+                activeMetric === "revenue"
+                  ? item.revenue || 0
+                  : activeMetric === "orders"
+                  ? item.orders || 0
+                  : activeMetric === "users"
+                  ? item.newUsers || 0
+                  : activeMetric === "wishlist"
+                  ? item.wishlistAdds || 0
+                  : item.cartItems || 0;
+
+              const maxVal = Math.max(
+                ...chartData.map((i) =>
+                  activeMetric === "revenue"
+                    ? i.revenue || 0
+                    : activeMetric === "orders"
+                    ? i.orders || 0
+                    : activeMetric === "users"
+                    ? i.newUsers || 0
+                    : activeMetric === "wishlist"
+                    ? i.wishlistAdds || 0
+                    : i.cartItems || 0
+                ),
+                1
               );
+
+              const heightPercent = Math.max(12, Math.round((val / maxVal) * 100));
+
               return (
                 <div
                   key={idx}
-                  className="flex-1 min-w-[50px] flex flex-col items-center gap-2 group h-full justify-end"
+                  className="flex-1 min-w-[55px] flex flex-col items-center gap-2 group h-full justify-end relative"
                 >
-                  <div className="text-[10px] font-mono font-bold text-accent opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
-                    ₹{item.revenue.toLocaleString()} ({item.orders} orders)
+                  {/* Rich Hover Floating Tooltip */}
+                  <div className="absolute -top-14 hidden group-hover:flex flex-col items-center bg-surface border border-accent/40 px-3 py-1.5 rounded-xl shadow-xl z-20 whitespace-nowrap text-[10px] font-mono pointer-events-none animate-in fade-in">
+                    <span className="font-extrabold text-foreground">{item.dateLabel}</span>
+                    <span className="text-accent font-bold">
+                      {activeMetric === "revenue" ? `₹${val.toLocaleString()}` : `${val.toLocaleString()} ${activeMetric}`}
+                    </span>
+                    <div className="text-[9px] text-foreground/50">
+                      Orders: {item.orders} | Users: +{item.newUsers}
+                    </div>
                   </div>
+
+                  <div className="text-[10px] font-mono font-bold text-accent opacity-0 group-hover:opacity-100 transition whitespace-nowrap">
+                    {activeMetric === "revenue" ? `₹${val.toLocaleString()}` : val.toLocaleString()}
+                  </div>
+
                   <div
                     style={{ height: `${heightPercent}%` }}
-                    className="w-full max-w-[48px] bg-gradient-to-t from-accent/40 to-accent rounded-t-xl group-hover:brightness-125 transition-all duration-300 relative shadow-sm"
+                    className={`w-full max-w-[48px] rounded-t-xl group-hover:brightness-125 transition-all duration-300 relative shadow-sm ${
+                      activeMetric === "revenue"
+                        ? "bg-gradient-to-t from-emerald-500/40 to-emerald-500"
+                        : activeMetric === "orders"
+                        ? "bg-gradient-to-t from-amber-500/40 to-amber-500"
+                        : activeMetric === "users"
+                        ? "bg-gradient-to-t from-blue-500/40 to-blue-500"
+                        : activeMetric === "wishlist"
+                        ? "bg-gradient-to-t from-rose-500/40 to-rose-500"
+                        : "bg-gradient-to-t from-purple-500/40 to-purple-500"
+                    }`}
                   />
                   <span className="text-[10px] font-mono font-bold text-foreground/70 tracking-wider truncate max-w-[65px]">
                     {item.dateLabel}
@@ -361,8 +449,7 @@ const AdminDashboard = () => {
           </div>
         ) : (
           <div className="py-12 text-center text-xs text-foreground/40 italic bg-background/30 rounded-2xl border border-border-theme/30">
-            No completed sales orders recorded for the selected timeframe or
-            date range.
+            No MongoDB analytics data recorded for the selected timeframe or date range.
           </div>
         )}
       </div>

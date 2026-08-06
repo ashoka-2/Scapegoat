@@ -195,8 +195,8 @@ export const getDashboardStats = async (req, res) => {
       deviceCounts[dev] = (deviceCounts[dev] || 0) + 1;
     });
 
-    // 7. Dynamic Revenue Tracking with Calendar / Date Filter & Timeframe Grouping (NO FAKE DATA)
-    const dateMatch = { status: { $ne: "Cancelled" } };
+    // 7. Dynamic Performance Tracking with Multi-Metric MongoDB Aggregations (NO SIMULATED DATA)
+    const dateMatch = {};
     if (startDate && endDate) {
       dateMatch.createdAt = {
         $gte: new Date(startDate),
@@ -208,23 +208,119 @@ export const getDashboardStats = async (req, res) => {
     if (timeframe === "daily") dateFormat = "%Y-%m-%d";
     else if (timeframe === "yearly") dateFormat = "%Y";
 
-    const revenueAggregation = await orderModel.aggregate([
-      { $match: dateMatch },
+    // Pipeline A: Revenue & Order Performance Aggregation
+    const orderAggPromise = orderModel.aggregate([
+      { $match: { ...dateMatch, status: { $ne: "Cancelled" } } },
       {
         $group: {
           _id: { $dateToString: { format: dateFormat, date: "$createdAt" } },
           revenue: { $sum: "$totalPrice" },
           orders: { $sum: 1 },
+          deliveredOrders: {
+            $sum: { $cond: [{ $eq: ["$status", "Delivered"] }, 1, 0] },
+          },
         },
       },
       { $sort: { _id: 1 } },
     ]);
 
-    const chartData = revenueAggregation.map((item) => ({
-      dateLabel: item._id,
-      revenue: item.revenue || 0,
-      orders: item.orders || 0,
-    }));
+    // Pipeline B: New User Registration Aggregation
+    const userRegAggPromise = userModel.aggregate([
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$createdAt" } },
+          newUsers: { $sum: 1 },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Pipeline C: Wishlist Activity Aggregation (wishlistSchema uses 'products')
+    const wishlistAggPromise = wishlistModel.aggregate([
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$createdAt" } },
+          wishlistAdds: { $sum: { $size: { $ifNull: ["$products", []] } } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    // Pipeline D: Cart Activity Aggregation
+    const cartAggPromise = cartModel.aggregate([
+      { $match: dateMatch },
+      {
+        $group: {
+          _id: { $dateToString: { format: dateFormat, date: "$updatedAt" } },
+          cartItems: { $sum: { $size: { $ifNull: ["$items", []] } } },
+        },
+      },
+      { $sort: { _id: 1 } },
+    ]);
+
+    const [orderAgg, userRegAgg, wishlistAgg, cartAgg] = await Promise.all([
+      orderAggPromise,
+      userRegAggPromise,
+      wishlistAggPromise,
+      cartAggPromise,
+    ]);
+
+    // Generate at least 10 consecutive date slots if no custom date filter is applied
+    const generatedDateKeys = [];
+    if (!startDate && !endDate) {
+      const count = 10;
+      const now = new Date();
+      for (let i = count - 1; i >= 0; i--) {
+        const d = new Date(now);
+        if (timeframe === "daily") {
+          d.setDate(d.getDate() - i);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          const day = String(d.getDate()).padStart(2, "0");
+          generatedDateKeys.push(`${y}-${m}-${day}`);
+        } else if (timeframe === "yearly") {
+          const y = d.getFullYear() - i;
+          generatedDateKeys.push(`${y}`);
+        } else {
+          // monthly default
+          d.setMonth(d.getMonth() - i);
+          const y = d.getFullYear();
+          const m = String(d.getMonth() + 1).padStart(2, "0");
+          generatedDateKeys.push(`${y}-${m}`);
+        }
+      }
+    }
+
+    // Merge all aggregation outputs into a unified timeline of at least 10 bars
+    const allDateKeys = Array.from(
+      new Set([
+        ...generatedDateKeys,
+        ...orderAgg.map((a) => a._id),
+        ...userRegAgg.map((a) => a._id),
+        ...wishlistAgg.map((a) => a._id),
+        ...cartAgg.map((a) => a._id),
+      ])
+    ).sort();
+
+    const orderMap = new Map(orderAgg.map((a) => [a._id, a]));
+    const userRegMap = new Map(userRegAgg.map((a) => [a._id, a.newUsers]));
+    const wishlistMap = new Map(wishlistAgg.map((a) => [a._id, a.wishlistAdds]));
+    const cartMap = new Map(cartAgg.map((a) => [a._id, a.cartItems]));
+
+    const chartData = allDateKeys.map((dateKey) => {
+      const o = orderMap.get(dateKey) || {};
+      return {
+        dateLabel: dateKey,
+        revenue: o.revenue || 0,
+        orders: o.orders || 0,
+        deliveredOrders: o.deliveredOrders || 0,
+        newUsers: userRegMap.get(dateKey) || 0,
+        wishlistAdds: wishlistMap.get(dateKey) || 0,
+        cartItems: cartMap.get(dateKey) || 0,
+      };
+    });
 
     // 8. Real Best Performing Products (MongoDB Aggregation Pipeline on Order Items)
     const bestSellingAgg = await orderModel.aggregate([
