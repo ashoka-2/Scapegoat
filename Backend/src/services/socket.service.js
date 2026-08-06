@@ -5,6 +5,7 @@ import userModel from "../models/user.model.js";
 import { parseUserAgent } from "../utils/userAgentParser.js";
 
 let io;
+const activeSocketsMap = new Map();
 
 export const setupSocket = (httpServer) => {
     io = new Server(httpServer, {
@@ -17,6 +18,24 @@ export const setupSocket = (httpServer) => {
 
     io.on("connection", (socket) => {
         console.log(`Socket client connected: ${socket.id}`);
+
+        // Track initial guest connection with request user-agent
+        const initialUa = socket.handshake.headers["user-agent"] || "";
+        const initialIp = socket.handshake.address || "";
+        const initialDevice = parseUserAgent(initialUa, initialIp, socket.handshake.headers);
+
+        activeSocketsMap.set(socket.id, {
+            socketId: socket.id,
+            _id: `guest_${socket.id}`,
+            userId: null,
+            fullname: "Guest Visitor",
+            email: null,
+            profilePic: null,
+            role: "guest",
+            isGuest: true,
+            deviceInfo: initialDevice,
+            lastActiveAt: new Date(),
+        });
 
         // Join private room (e.g. "user_64a7b..." or "seller_64a7b...")
         socket.on("join_room", async (roomName, metadata = {}) => {
@@ -38,16 +57,40 @@ export const setupSocket = (httpServer) => {
             }
         });
 
-        // User heartbeat activity ping
-        socket.on("user_ping", async (data = {}) => {
-            if (data.userId && mongoose.Types.ObjectId.isValid(data.userId)) {
-                const uaString = socket.handshake.headers["user-agent"] || data.userAgent || "";
-                const ip = socket.handshake.address || "";
-                const parsedDevice = parseUserAgent(uaString, ip, socket.handshake.headers);
+        // User or Guest heartbeat activity ping & client device detection
+        socket.on("client_heartbeat", async (data = {}) => {
+            const uaString = socket.handshake.headers["user-agent"] || data.userAgent || "";
+            const ip = socket.handshake.address || "";
+            const parsedDevice = parseUserAgent(uaString, ip, socket.handshake.headers);
 
-                userModel.findByIdAndUpdate(data.userId, {
+            const finalDevice = {
+                device: data.device || parsedDevice.device,
+                browser: data.browser || parsedDevice.browser,
+                os: data.os || parsedDevice.os,
+                model: data.model || parsedDevice.model,
+                ip: ip || "127.0.0.1",
+                userAgent: uaString,
+            };
+
+            const sessionInfo = {
+                socketId: socket.id,
+                _id: data.userId || `guest_${socket.id}`,
+                userId: data.userId || null,
+                fullname: data.fullname || (data.userId ? "Registered User" : "Guest Visitor"),
+                email: data.email || null,
+                profilePic: data.profilePic || null,
+                role: data.role || "guest",
+                isGuest: !data.userId || data.role === "guest",
+                deviceInfo: finalDevice,
+                lastActiveAt: new Date(),
+            };
+
+            activeSocketsMap.set(socket.id, sessionInfo);
+
+            if (data.userId && mongoose.Types.ObjectId.isValid(data.userId)) {
+                await userModel.findByIdAndUpdate(data.userId, {
                     lastActiveAt: new Date(),
-                    deviceInfo: parsedDevice,
+                    deviceInfo: finalDevice,
                 }).catch(() => {});
             }
         });
@@ -62,10 +105,38 @@ export const setupSocket = (httpServer) => {
 
         socket.on("disconnect", () => {
             console.log(`Socket client disconnected: ${socket.id}`);
+            activeSocketsMap.delete(socket.id);
         });
     });
 
     return io;
+};
+
+/**
+ * Returns array of active non-admin live sessions (registered shoppers + guest visitors)
+ */
+export const getActiveShoppersAndGuests = () => {
+    const twoMinsAgo = Date.now() - 2 * 60 * 1000;
+    const activeSessions = [];
+    const seenUsers = new Set();
+
+    for (const [socketId, session] of activeSocketsMap.entries()) {
+        const lastActiveTime = new Date(session.lastActiveAt).getTime();
+        if (lastActiveTime >= twoMinsAgo && session.role !== "admin") {
+            if (session.userId) {
+                if (!seenUsers.has(session.userId)) {
+                    seenUsers.add(session.userId);
+                    activeSessions.push(session);
+                }
+            } else {
+                activeSessions.push(session);
+            }
+        } else if (lastActiveTime < twoMinsAgo) {
+            activeSocketsMap.delete(socketId);
+        }
+    }
+
+    return activeSessions;
 };
 
 /**

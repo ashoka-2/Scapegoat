@@ -10,7 +10,7 @@ import reviewModel from "../models/review.model.js";
 import userActivityModel from "../models/userActivity.model.js";
 import cartModel from "../models/cart.model.js";
 import wishlistModel from "../models/wishlist.model.js";
-import { broadcastUpdate } from "../services/socket.service.js";
+import { broadcastUpdate, getActiveShoppersAndGuests } from "../services/socket.service.js";
 
 /**
  * ══════════════════════════════════════════════════════════════════════════════
@@ -100,36 +100,62 @@ export const getDashboardStats = async (req, res) => {
       .limit(5)
       .lean();
 
-    // 6. Realtime Active Non-Admin Users (Viewing site in last 15 minutes, or recent buyers)
-    const fifteenMinsAgo = new Date(Date.now() - 15 * 60 * 1000);
-    const rawActiveUsers = await userModel
+    // 6. Realtime Active Live Visitors (Registered Shoppers + Guest Visitors)
+    const liveSockets = getActiveShoppersAndGuests();
+
+    const twoMinsAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const dbActiveUsers = await userModel
       .find({
         role: { $ne: "admin" },
         isBanned: false,
+        lastActiveAt: { $gte: twoMinsAgo },
       })
       .select("fullname email profilePic role contact lastActiveAt lastLoginAt deviceInfo createdAt")
-      .sort({ lastActiveAt: -1, updatedAt: -1 })
+      .sort({ lastActiveAt: -1 })
       .limit(10)
       .lean();
 
-    const activeNonAdminUsers = rawActiveUsers.map((u) => ({
-      ...u,
-      deviceInfo: {
-        device: u.deviceInfo?.device || "Desktop",
-        browser: u.deviceInfo?.browser || "Chrome",
-        os: u.deviceInfo?.os || "Windows",
-        model: u.deviceInfo?.model || (u.deviceInfo?.device === "Mobile" ? "Mobile Device" : "Desktop PC"),
-        ip: u.deviceInfo?.ip || "127.0.0.1",
-      },
-    }));
+    const dbUserIds = new Set(dbActiveUsers.map((u) => u._id.toString()));
+    const activeVisitorsList = [
+      ...dbActiveUsers.map((u) => ({
+        ...u,
+        isGuest: false,
+        deviceInfo: {
+          device: u.deviceInfo?.device || "Desktop",
+          browser: u.deviceInfo?.browser || "Chrome",
+          os: u.deviceInfo?.os || "Windows",
+          model: u.deviceInfo?.model || "Desktop PC",
+          ip: u.deviceInfo?.ip || "127.0.0.1",
+        },
+      })),
+    ];
 
-    const onlineShoppersCount = activeNonAdminUsers.filter(
-      (u) => u.lastActiveAt && new Date(u.lastActiveAt) >= fifteenMinsAgo
-    ).length;
+    liveSockets.forEach((sock) => {
+      if (sock.isGuest || (sock.userId && !dbUserIds.has(sock.userId.toString()))) {
+        activeVisitorsList.push({
+          _id: sock._id,
+          fullname: sock.fullname || "Guest Visitor",
+          email: sock.email || null,
+          profilePic: sock.profilePic || null,
+          role: sock.role || "guest",
+          isGuest: sock.isGuest ?? true,
+          lastActiveAt: sock.lastActiveAt,
+          deviceInfo: sock.deviceInfo || {
+            device: "Desktop",
+            browser: "Chrome",
+            os: "Windows",
+            model: "Desktop PC",
+            ip: "127.0.0.1",
+          },
+        });
+      }
+    });
 
-    // Device breakdown calculation
+    const onlineShoppersCount = activeVisitorsList.length;
+
+    // Device breakdown calculation across live visitors
     const deviceCounts = { Desktop: 0, Mobile: 0, Tablet: 0 };
-    activeNonAdminUsers.forEach((u) => {
+    activeVisitorsList.forEach((u) => {
       const dev = u.deviceInfo?.device || "Desktop";
       deviceCounts[dev] = (deviceCounts[dev] || 0) + 1;
     });
@@ -250,8 +276,8 @@ export const getDashboardStats = async (req, res) => {
           admins: totalAdmins,
           newToday: newUsersToday,
           banned: bannedUsers,
-          activeNow: onlineShoppersCount || activeNonAdminUsers.length,
-          activeUsersList: activeNonAdminUsers,
+          activeNow: onlineShoppersCount,
+          activeUsersList: activeVisitorsList,
         },
         products: {
           total: totalProducts,

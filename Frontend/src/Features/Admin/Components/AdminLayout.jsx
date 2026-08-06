@@ -2,8 +2,10 @@ import React from "react";
 import { Outlet, useNavigate } from "react-router-dom";
 import AdminNavbar from "./AdminNavbar";
 import { useAuth } from "../../auth/Hooks/useAuth";
+import { useActiveHeartbeat } from "../../../Hooks/useActiveHeartbeat.js";
 
 const AdminLayout = () => {
+  useActiveHeartbeat();
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
 

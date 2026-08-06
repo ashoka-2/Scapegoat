@@ -468,55 +468,71 @@ const AdminDashboard = () => {
 
             <div className="overflow-y-auto space-y-3 pr-1 flex-1">
               {users?.activeUsersList?.length > 0 ? (
-                users.activeUsersList.map((u) => (
-                  <div
-                    key={u._id}
-                    onClick={() => {
-                      setShowActiveUsersModal(false);
-                      navigate(`/admin/users/${u._id}`);
-                    }}
-                    className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center justify-between gap-4 cursor-pointer hover:border-accent transition"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="w-10 h-10 rounded-full overflow-hidden border border-accent/40 bg-surface flex items-center justify-center font-black text-accent">
-                          {u.profilePic ? (
-                            <img src={u.profilePic} alt={u.fullname} className="w-full h-full object-cover" />
-                          ) : (
-                            <span>{(u.fullname || "U")[0].toUpperCase()}</span>
-                          )}
+                users.activeUsersList.map((u) => {
+                  const isGuestUser = u.isGuest || u.role === "guest";
+
+                  return (
+                    <div
+                      key={u._id}
+                      onClick={() => {
+                        if (!isGuestUser && u._id) {
+                          setShowActiveUsersModal(false);
+                          navigate(`/admin/users/${u._id}`);
+                        }
+                      }}
+                      className={`p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center justify-between gap-4 transition ${
+                        !isGuestUser ? "cursor-pointer hover:border-accent" : "cursor-default"
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <div className={`w-10 h-10 rounded-full overflow-hidden border flex items-center justify-center font-black text-xs ${
+                            isGuestUser ? "bg-purple-500/10 border-purple-500/30 text-purple-500" : "bg-accent/20 border-accent/40 text-accent"
+                          }`}>
+                            {isGuestUser ? (
+                              <i className="ri-user-shared-line text-lg" />
+                            ) : u.profilePic ? (
+                              <img src={u.profilePic} alt={u.fullname} className="w-full h-full object-cover" />
+                            ) : (
+                              <span>{(u.fullname || "U")[0].toUpperCase()}</span>
+                            )}
+                          </div>
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-surface animate-pulse" />
                         </div>
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-surface animate-pulse" />
+
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-extrabold text-xs text-foreground">{u.fullname || "Guest Visitor"}</p>
+                            <span
+                              className={`text-[9px] font-black uppercase px-2 py-0.5 rounded border ${
+                                isGuestUser
+                                  ? "bg-purple-500/10 text-purple-500 border-purple-500/20"
+                                  : u.role === "seller"
+                                  ? "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                                  : "bg-blue-500/10 text-blue-500 border-blue-500/20"
+                              }`}
+                            >
+                              {isGuestUser ? "Guest" : u.role}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-foreground/60">{u.email || "Viewing storefront anonymously"}</p>
+                        </div>
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-extrabold text-xs text-foreground">{u.fullname || "Shopper"}</p>
-                          <span
-                            className={`text-[9px] font-black uppercase px-2 py-0.5 rounded ${
-                              u.role === "seller" ? "bg-amber-500/10 text-amber-500" : "bg-blue-500/10 text-blue-500"
-                            }`}
-                          >
-                            {u.role}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-foreground/60">{u.email}</p>
+                      <div className="text-right text-[11px] font-mono text-foreground/60 space-y-0.5">
+                        <p className="flex items-center gap-1 justify-end font-bold text-foreground">
+                          <i className={u.deviceInfo?.device === "Mobile" ? "ri-smartphone-line text-accent" : "ri-computer-line text-accent"} />
+                          {u.deviceInfo?.browser || "Browser"} on {u.deviceInfo?.model || u.deviceInfo?.os || "PC"}
+                        </p>
+                        <p className="text-[10px] text-foreground/40">
+                          Active: {u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleTimeString() : "Now"}
+                        </p>
                       </div>
                     </div>
-
-                    <div className="text-right text-[11px] font-mono text-foreground/60 space-y-0.5">
-                      <p className="flex items-center gap-1 justify-end font-bold text-foreground">
-                        <i className={u.deviceInfo?.device === "Mobile" ? "ri-smartphone-line text-accent" : "ri-computer-line text-accent"} />
-                        {u.deviceInfo?.browser || "Browser"} on {u.deviceInfo?.model || u.deviceInfo?.os || "PC"}
-                      </p>
-                      <p className="text-[10px] text-foreground/40">
-                        Active: {u.lastActiveAt ? new Date(u.lastActiveAt).toLocaleTimeString() : "Now"}
-                      </p>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
-                <p className="text-xs text-foreground/40 italic py-8 text-center">No active shoppers currently online.</p>
+                <p className="text-xs text-foreground/40 italic py-8 text-center">No active visitors currently browsing the site.</p>
               )}
             </div>
 
