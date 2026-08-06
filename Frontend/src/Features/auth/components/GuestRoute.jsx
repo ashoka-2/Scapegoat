@@ -5,12 +5,22 @@ import { Navigate } from "react-router-dom";
 /**
  * GuestRoute Guard:
  * Prevents logged-in users from accessing /login or /register.
- * Redirects authenticated users back to "/" (Home).
+ * Redirects authenticated users back to "/" (Home) or dashboard.
  */
 const GuestRoute = ({ children }) => {
-  const user = useSelector((state) => state.auth.user);
+  const { user, loading } = useSelector((state) => state.auth);
+
+  if (loading) {
+    return null;
+  }
 
   if (user) {
+    if (user.role === "admin") {
+      return <Navigate to="/admin/dashboard" replace />;
+    }
+    if (user.role === "seller") {
+      return <Navigate to="/seller/dashboard" replace />;
+    }
     return <Navigate to="/" replace />;
   }
 
