@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useSelector } from "react-redux";
 import { useCategory } from "../../Categories/Hooks/useCategory";
 import { useBrand } from "../../Brands/Hooks/useBrand";
 import { useUnit } from "../../Units/Hooks/useUnit";
@@ -7,6 +8,7 @@ import Modal from "../../../Components/Modal";
 
 
 const SellerMetadataManager = () => {
+  const { user } = useSelector((state) => state.auth);
   const { categories, handleFetchCategories, handleCreateCategory, handleUpdateCategory, handleDeleteCategory } = useCategory();
   const { brands, handleFetchBrands, handleCreateBrand, handleUpdateBrand, handleDeleteBrand } = useBrand();
   const { units, handleFetchUnits, handleCreateUnit, handleUpdateUnit, handleDeleteUnit } = useUnit();
@@ -226,45 +228,60 @@ const SellerMetadataManager = () => {
               Existing Categories List
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {categories.map((cat) => (
-                <div
-                  key={cat._id}
-                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
-                >
-                  <div className="min-w-0 pr-2">
-                    <p className="font-bold text-foreground truncate">{cat.name}</p>
-                    <p className="text-[10px] text-foreground/50">
-                      {cat.parentCategory ? "Subcategory" : "Main Category"}
-                    </p>
+              {categories.map((cat) => {
+                const currentUserId = (user?._id || user?.id)?.toString();
+                const creatorId = cat.createdBy?._id || cat.createdBy;
+                const isOwner = creatorId && creatorId.toString() === currentUserId;
+                const canEdit = !cat.isLocked && (user?.role === "admin" || isOwner);
+
+                return (
+                  <div
+                    key={cat._id}
+                    className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="font-bold text-foreground truncate">{cat.name}</p>
+                      <p className="text-[10px] text-foreground/50">
+                        {cat.parentCategory ? "Subcategory" : "Main Category"}
+                      </p>
+                    </div>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {cat.isLocked ? (
+                        <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <i className="ri-lock-line" /> Locked by Admin
+                        </span>
+                      ) : canEdit ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCatId(cat._id);
+                              setCatName(cat.name);
+                            }}
+                            className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                            title="Edit Category"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openConfirmModal({
+                                title: "Delete Category",
+                                description: `Are you sure you want to delete category "${cat.name}"?`,
+                                confirmText: "Delete Category",
+                                onConfirm: () => handleDeleteCategory(cat._id),
+                              });
+                            }}
+                            className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                            title="Delete Category"
+                          />
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-foreground/40 italic">View Only</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingCatId(cat._id);
-                        setCatName(cat.name);
-                      }}
-                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                    >
-                    
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openConfirmModal({
-                          title: "Delete Category",
-                          description: `Are you sure you want to delete category "${cat.name}"?`,
-                          confirmText: "Delete Category",
-                          onConfirm: () => handleDeleteCategory(cat._id),
-                        });
-                      }}
-                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
-                    >
-                      
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -314,40 +331,55 @@ const SellerMetadataManager = () => {
               Existing Brands List
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {brands.map((b) => (
-                <div
-                  key={b._id}
-                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
-                >
-                  <p className="font-bold text-foreground truncate pr-2">{b.name}</p>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingBrandId(b._id);
-                        setBrandName(b.name);
-                      }}
-                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                    >
-                      
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openConfirmModal({
-                          title: "Delete Brand",
-                          description: `Are you sure you want to delete brand "${b.name}"?`,
-                          confirmText: "Delete Brand",
-                          onConfirm: () => handleDeleteBrand(b._id),
-                        });
-                      }}
-                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
-                    >
-                      
-                    </button>
+              {brands.map((b) => {
+                const currentUserId = (user?._id || user?.id)?.toString();
+                const creatorId = b.createdBy?._id || b.createdBy;
+                const isOwner = creatorId && creatorId.toString() === currentUserId;
+                const canEdit = !b.isLocked && (user?.role === "admin" || isOwner);
+
+                return (
+                  <div
+                    key={b._id}
+                    className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
+                  >
+                    <p className="font-bold text-foreground truncate pr-2">{b.name}</p>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {b.isLocked ? (
+                        <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <i className="ri-lock-line" /> Locked by Admin
+                        </span>
+                      ) : canEdit ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingBrandId(b._id);
+                              setBrandName(b.name);
+                            }}
+                            className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                            title="Edit Brand"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openConfirmModal({
+                                title: "Delete Brand",
+                                description: `Are you sure you want to delete brand "${b.name}"?`,
+                                confirmText: "Delete Brand",
+                                onConfirm: () => handleDeleteBrand(b._id),
+                              });
+                            }}
+                            className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                            title="Delete Brand"
+                          />
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-foreground/40 italic">View Only</span>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>
@@ -406,44 +438,59 @@ const SellerMetadataManager = () => {
               Existing Units List
             </h4>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {units.map((u) => (
-                <div
-                  key={u._id}
-                  className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
-                >
-                  <div className="min-w-0 pr-2">
-                    <p className="font-bold text-foreground truncate">{u.name}</p>
-                    <p className="text-[10px] text-foreground/50">Symbol: {u.abbreviation}</p>
+              {units.map((u) => {
+                const currentUserId = (user?._id || user?.id)?.toString();
+                const creatorId = u.createdBy?._id || u.createdBy;
+                const isOwner = creatorId && creatorId.toString() === currentUserId;
+                const canEdit = !u.isLocked && (user?.role === "admin" || isOwner);
+
+                return (
+                  <div
+                    key={u._id}
+                    className="flex items-center justify-between bg-background border border-border-theme p-4 rounded-xl text-xs shadow-sm"
+                  >
+                    <div className="min-w-0 pr-2">
+                      <p className="font-bold text-foreground truncate">{u.name}</p>
+                      <p className="text-[10px] text-foreground/50">Symbol: {u.abbreviation}</p>
+                    </div>
+                    <div className="flex items-center space-x-2 shrink-0">
+                      {u.isLocked ? (
+                        <span className="text-[10px] font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                          <i className="ri-lock-line" /> Locked by Admin
+                        </span>
+                      ) : canEdit ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingUnitId(u._id);
+                              setUnitName(u.name);
+                              setUnitAbbr(u.abbreviation || "");
+                            }}
+                            className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
+                            title="Edit Unit"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              openConfirmModal({
+                                title: "Delete Unit",
+                                description: `Are you sure you want to delete unit "${u.name}"?`,
+                                confirmText: "Delete Unit",
+                                onConfirm: () => handleDeleteUnit(u._id),
+                              });
+                            }}
+                            className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
+                            title="Delete Unit"
+                          />
+                        </>
+                      ) : (
+                        <span className="text-[10px] text-foreground/40 italic">View Only</span>
+                      )}
+                    </div>
                   </div>
-                  <div className="flex items-center space-x-2 shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingUnitId(u._id);
-                        setUnitName(u.name);
-                        setUnitAbbr(u.abbreviation || "");
-                      }}
-                      className="ri-pencil-line px-2.5 py-1 rounded-lg bg-accent/10 text-accent font-bold text-xs hover:bg-accent hover:text-accent-content transition cursor-pointer"
-                    >
-                      
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        openConfirmModal({
-                          title: "Delete Unit",
-                          description: `Are you sure you want to delete unit "${u.name}"?`,
-                          confirmText: " Delete Unit",
-                          onConfirm: () => handleDeleteUnit(u._id),
-                        });
-                      }}
-                      className="ri-delete-bin-line px-2.5 py-1 rounded-lg bg-red-500/10 text-red-500 font-bold text-xs hover:bg-red-500 hover:text-white transition cursor-pointer"
-                    >
-                    
-                    </button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

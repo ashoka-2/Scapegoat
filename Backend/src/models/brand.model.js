@@ -33,6 +33,10 @@ const brandSchema = new mongoose.Schema(
             ref: "User",
             default: null,
         },
+        isLocked: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );

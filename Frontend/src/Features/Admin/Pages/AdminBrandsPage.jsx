@@ -138,17 +138,35 @@ const AdminBrandsPage = () => {
                     <td className="py-3 px-3 font-bold text-foreground">{b.name}</td>
                     <td className="py-3 px-3 font-mono text-foreground/60">{b.slug || "—"}</td>
                     <td className="py-3 px-3">
-                      <span
-                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                          b.isActive !== false
-                            ? "bg-emerald-500/10 text-emerald-500"
-                            : "bg-red-500/10 text-red-500"
-                        }`}
-                      >
-                        {b.isActive !== false ? "Active" : "Inactive"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            b.isActive !== false
+                              ? "bg-emerald-500/10 text-emerald-500"
+                              : "bg-red-500/10 text-red-500"
+                          }`}
+                        >
+                          {b.isActive !== false ? "Active" : "Inactive"}
+                        </span>
+                        {b.isLocked && (
+                          <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-500 border border-purple-500/20 flex items-center gap-1">
+                            <i className="ri-lock-line" /> Locked
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="py-3 px-3 text-right space-x-2">
+                      <button
+                        onClick={() => handleUpdateBrand(b._id, { isLocked: !b.isLocked })}
+                        className={`p-1.5 rounded-lg border text-xs transition cursor-pointer ${
+                          b.isLocked
+                            ? "bg-purple-500/10 text-purple-500 border-purple-500/30 hover:bg-purple-500 hover:text-white"
+                            : "bg-surface border-border-theme text-foreground/50 hover:text-foreground"
+                        }`}
+                        title={b.isLocked ? "Unlock Brand" : "Lock Brand (Prevents Edit/Delete)"}
+                      >
+                        <i className={b.isLocked ? "ri-lock-line" : "ri-lock-unlock-line"} />
+                      </button>
                       <button
                         onClick={() => openEditModal(b)}
                         className="p-1.5 rounded-lg bg-surface border border-border-theme hover:border-accent text-foreground text-xs transition cursor-pointer"

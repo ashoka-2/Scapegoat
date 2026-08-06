@@ -234,6 +234,21 @@ export const getAllWishlists = async (req, res) => {
       })
       .sort({ updatedAt: -1 });
 
+    if (req.user?.role === "seller") {
+      const sellerId = req.user._id.toString();
+      const filteredWishlists = wishlists
+        .map((w) => {
+          const wObj = w.toObject ? w.toObject() : w;
+          const sellerProducts = (wObj.products || []).filter(
+            (p) => p && p.seller && p.seller.toString() === sellerId
+          );
+          return { ...wObj, products: sellerProducts };
+        })
+        .filter((w) => w.products.length > 0);
+
+      return res.status(200).json({ success: true, wishlists: filteredWishlists });
+    }
+
     return res.status(200).json({ success: true, wishlists });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });

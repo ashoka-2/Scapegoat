@@ -83,6 +83,13 @@ export const updateBrand = async (req, res) => {
     const isAdmin = req.user?.role === "admin";
     const isOwner = brand.createdBy && brand.createdBy.toString() === req.user?._id.toString();
 
+    if (brand.isLocked && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "This brand has been locked by Super Admin and cannot be modified.",
+      });
+    }
+
     if (!isAdmin && !isOwner) {
       return res.status(403).json({
         success: false,
@@ -94,6 +101,7 @@ export const updateBrand = async (req, res) => {
     if (description !== undefined) brand.description = description.trim();
     if (image) brand.image = image;
     if (isActive !== undefined) brand.isActive = Boolean(isActive);
+    if (isAdmin && req.body.isLocked !== undefined) brand.isLocked = Boolean(req.body.isLocked);
 
     await brand.save();
 
@@ -126,9 +134,15 @@ export const deleteBrand = async (req, res) => {
       });
     }
 
-    // Permission check: Admin can delete any, Seller can only delete if created by them
     const isAdmin = req.user?.role === "admin";
     const isOwner = brand.createdBy && brand.createdBy.toString() === req.user?._id.toString();
+
+    if (brand.isLocked) {
+      return res.status(403).json({
+        success: false,
+        message: "This brand is locked by Super Admin and cannot be deleted.",
+      });
+    }
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({

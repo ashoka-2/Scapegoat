@@ -95,6 +95,13 @@ export const updateUnit = async (req, res) => {
     const isAdmin = req.user?.role === "admin";
     const isOwner = unit.createdBy && unit.createdBy.toString() === req.user?._id.toString();
 
+    if (unit.isLocked && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "This unit has been locked by Super Admin and cannot be modified.",
+      });
+    }
+
     if (!isAdmin && !isOwner) {
       return res.status(403).json({
         success: false,
@@ -106,6 +113,7 @@ export const updateUnit = async (req, res) => {
     if (abbreviation && abbreviation.trim()) unit.abbreviation = abbreviation.trim().toLowerCase();
     if (description !== undefined) unit.description = description.trim();
     if (isActive !== undefined) unit.isActive = Boolean(isActive);
+    if (isAdmin && req.body.isLocked !== undefined) unit.isLocked = Boolean(req.body.isLocked);
 
     await unit.save();
 
@@ -140,6 +148,13 @@ export const deleteUnit = async (req, res) => {
 
     const isAdmin = req.user?.role === "admin";
     const isOwner = unit.createdBy && unit.createdBy.toString() === req.user?._id.toString();
+
+    if (unit.isLocked) {
+      return res.status(403).json({
+        success: false,
+        message: "This unit is locked by Super Admin and cannot be deleted.",
+      });
+    }
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({

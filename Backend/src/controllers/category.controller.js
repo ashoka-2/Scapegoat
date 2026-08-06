@@ -80,9 +80,16 @@ export const updateCategory = async (req, res) => {
       });
     }
 
-    // Permission check: Admin can update any, Seller can only update if created by them
+    // Lock check: if locked, even creator cannot edit/delete unless Admin unlocks it
     const isAdmin = req.user?.role === "admin";
     const isOwner = category.createdBy && category.createdBy.toString() === req.user?._id.toString();
+
+    if (category.isLocked && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: "This category has been locked by Super Admin and cannot be modified.",
+      });
+    }
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({
@@ -96,6 +103,7 @@ export const updateCategory = async (req, res) => {
     if (image) category.image = image;
     if (parentCategory !== undefined) category.parentCategory = parentCategory || null;
     if (isActive !== undefined) category.isActive = Boolean(isActive);
+    if (isAdmin && req.body.isLocked !== undefined) category.isLocked = Boolean(req.body.isLocked);
 
     await category.save();
 
@@ -128,9 +136,15 @@ export const deleteCategory = async (req, res) => {
       });
     }
 
-    // Permission check: Admin can delete any, Seller can only delete if created by them
     const isAdmin = req.user?.role === "admin";
     const isOwner = category.createdBy && category.createdBy.toString() === req.user?._id.toString();
+
+    if (category.isLocked) {
+      return res.status(403).json({
+        success: false,
+        message: "This category is locked by Super Admin and cannot be deleted.",
+      });
+    }
 
     if (!isAdmin && !isOwner) {
       return res.status(403).json({

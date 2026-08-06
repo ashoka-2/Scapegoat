@@ -336,6 +336,21 @@ export const getAllCarts = async (req, res) => {
       })
       .sort({ updatedAt: -1 });
 
+    if (req.user?.role === "seller") {
+      const sellerId = req.user._id.toString();
+      const filteredCarts = carts
+        .map((cart) => {
+          const cartObj = cart.toObject ? cart.toObject() : cart;
+          const sellerItems = (cartObj.items || []).filter(
+            (item) => item.product && item.product.seller && item.product.seller.toString() === sellerId
+          );
+          return { ...cartObj, items: sellerItems };
+        })
+        .filter((cart) => cart.items.length > 0);
+
+      return res.status(200).json({ success: true, carts: filteredCarts });
+    }
+
     return res.status(200).json({ success: true, carts });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
