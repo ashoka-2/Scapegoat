@@ -20,6 +20,7 @@ import settingRouter from "./routes/setting.routes.js";
 import orderRouter from "./routes/order.routes.js";
 import reviewRouter from "./routes/review.routes.js";
 import adminRouter from "./routes/admin.routes.js";
+import bannerRouter from "./routes/banner.routes.js";
 
 const app = express();
 
@@ -55,5 +56,6 @@ app.use("/api/settings", settingRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/reviews", reviewRouter);
 app.use("/api/admin", adminRouter);
+app.use("/api/banners", bannerRouter);
 
 export default app;

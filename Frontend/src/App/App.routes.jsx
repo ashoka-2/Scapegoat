@@ -43,6 +43,8 @@ import AdminProductDetailPage from "../Features/Admin/Pages/AdminProductDetailPa
 import AdminOrdersPage from "../Features/Admin/Pages/AdminOrdersPage.jsx";
 import AdminInboxPage from "../Features/Admin/Pages/AdminInboxPage.jsx";
 import AdminSettingsPage from "../Features/Admin/Pages/AdminSettingsPage.jsx";
+import AdminBannersPage from "../Features/Admin/Pages/AdminBannersPage.jsx";
+import AdminBannerEditorPage from "../Features/Admin/Pages/AdminBannerEditorPage.jsx";
 
 // Home & Info Pages
 import About from "../Features/Home/Pages/About.jsx";
@@ -151,6 +153,18 @@ export const routes = createBrowserRouter([
       {
         path: "settings",
         element: <AdminSettingsPage />,
+      },
+      {
+        path: "banners",
+        element: <AdminBannersPage />,
+      },
+      {
+        path: "banners/create",
+        element: <AdminBannerEditorPage />,
+      },
+      {
+        path: "banners/edit/:id",
+        element: <AdminBannerEditorPage />,
       },
     ],
   },

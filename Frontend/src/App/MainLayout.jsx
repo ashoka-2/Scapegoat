@@ -7,6 +7,7 @@ import Footer from "../Shared/Footer.jsx";
 import { createAnimation, TRANSITION_CONFIG } from "../utils/themeTransition.js";
 
 import CartDrawer from "../Features/Cart/Components/CartDrawer.jsx";
+import PopupBanner from "../Components/PopupBanner.jsx";
 
 import socket from "../utils/socket.js";
 import { useDispatch } from "react-redux";
@@ -139,6 +140,7 @@ const MainLayout = () => {
       </div>
       <Footer />
       <CartDrawer />
+      <PopupBanner />
       <ScrollToTopButton />
     </div>
   );

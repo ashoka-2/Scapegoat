@@ -8,6 +8,7 @@ const AdminNavbar = ({ onLogout }) => {
   const location = useLocation();
   const { stats, fetchDashboardStats } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!stats) {
@@ -39,6 +40,11 @@ const AdminNavbar = ({ onLogout }) => {
     { name: "Categories", path: "/admin/categories", icon: "ri-folders-line" },
     { name: "Brands", path: "/admin/brands", icon: "ri-price-tag-3-line" },
     { name: "Units", path: "/admin/units", icon: "ri-ruler-line" },
+    {
+      name: "Banners",
+      path: "/admin/banners",
+      icon: "ri-image-2-line",
+    },
     {
       name: "Inbox / Messages",
       path: "/admin/inbox",
@@ -107,42 +113,48 @@ const AdminNavbar = ({ onLogout }) => {
         )}
       </AnimatePresence>
 
-      {/* Left Floating/Attached Sidebar with top spacing */}
+      {/* Left Floating/Attached Sidebar with top spacing & collapse toggle */}
       <aside
-        className={`fixed top-0 lg:top-3.5 left-0 lg:left-3.5 bottom-0 lg:bottom-3.5 z-50 w-64 lg:h-[calc(100vh-1.75rem)] bg-surface/95 border-r lg:border border-border-theme/60 backdrop-blur-2xl p-5 flex flex-col justify-between shrink-0 shadow-[4px_0_30px_rgba(0,0,0,0.06)] rounded-none lg:rounded-3xl transition-transform duration-300 ease-in-out font-sans ${
+        className={`fixed top-0 lg:top-3.5 left-0 lg:left-3.5 bottom-0 lg:bottom-3.5 z-50 ${
+          isCollapsed ? "lg:w-20 w-64" : "w-64"
+        } lg:h-[calc(100vh-1.75rem)] bg-surface/95 border-r lg:border border-border-theme/60 backdrop-blur-2xl p-4 flex flex-col justify-between shrink-0 shadow-[4px_0_30px_rgba(0,0,0,0.06)] rounded-none lg:rounded-3xl transition-all duration-300 ease-in-out font-sans ${
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="flex flex-col gap-6 overflow-y-auto scrollbar-none pr-1">
-          {/* Brand Header & Theme Toggle in Top Right of Sidebar */}
-          <div className="flex items-center justify-between pb-4 border-b border-border-theme/60">
-            <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center font-black text-accent text-sm shadow-md">
-                  SG
-                </div>
-              <div>
-                <h1 className="font-extrabold text-xs text-foreground tracking-wide flex items-center gap-1.5">
-                  ScapeGoat
-                </h1>
-                <span className="text-[9px] font-black uppercase text-red-500 tracking-wider">
-                  Control Center
-                </span>
+        <div className="flex flex-col gap-5 overflow-y-auto scrollbar-none pr-0.5">
+          {/* Brand Header & Collapse Toggle */}
+          <div className="flex items-center justify-between pb-3.5 border-b border-border-theme/60">
+            <div className="flex items-center gap-3 overflow-hidden">
+              <div className="w-10 h-10 rounded-xl bg-accent/20 border border-accent/40 flex items-center justify-center font-black text-accent text-sm shadow-md shrink-0">
+                SG
               </div>
+              {!isCollapsed && (
+                <div className="truncate">
+                  <h1 className="font-extrabold text-xs text-foreground tracking-wide flex items-center gap-1.5 truncate">
+                    ScapeGoat
+                  </h1>
+                  <span className="text-[9px] font-black uppercase text-red-500 tracking-wider block">
+                    Control Center
+                  </span>
+                </div>
+              )}
             </div>
 
-            {/* Theme Toggle located in Top Right of Left Sidebar */}
-            <div className="flex items-center gap-2">
-              <ThemeToggle />
+            {/* Collapse Arrow Button for Desktop & Theme Toggle */}
+            <div className="flex items-center gap-1.5">
               <button
-                onClick={() => setMobileOpen(false)}
-                className="lg:hidden text-foreground/40 hover:text-foreground text-lg cursor-pointer transition"
+                type="button"
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="hidden lg:flex w-8 h-8 rounded-xl bg-surface-variant/30 border border-border-theme/40 text-foreground/60 hover:text-accent hover:bg-surface-variant/60 items-center justify-center text-base transition cursor-pointer"
+                title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar (Icon Only)"}
               >
-                <i className="ri-close-line" />
+                <i className={isCollapsed ? "ri-arrow-right-s-line" : "ri-arrow-left-s-line"} />
               </button>
+              {!isCollapsed && <ThemeToggle />}
             </div>
           </div>
 
-          {/* Navigation Links with Sliding Active Pill */}
+          {/* Navigation Links */}
           <nav className="flex flex-col gap-1.5 relative">
             {menuItems.map((item) => {
               const active = isActive(item.path);
@@ -150,33 +162,40 @@ const AdminNavbar = ({ onLogout }) => {
               return (
                 <motion.div
                   key={item.path}
-                  whileHover={{ x: 3 }}
+                  whileHover={{ x: isCollapsed ? 0 : 3 }}
                   whileTap={{ scale: 0.98 }}
                   className="relative"
                 >
                   <Link
                     to={item.path}
-                    className={`relative z-10 flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-bold uppercase tracking-wider transition-colors duration-200 group ${
+                    title={isCollapsed ? item.name : undefined}
+                    className={`relative z-10 flex items-center ${
+                      isCollapsed ? "justify-center px-0 py-3" : "justify-between px-3.5 py-2.5"
+                    } rounded-xl text-xs font-bold uppercase tracking-wider transition-colors duration-200 group ${
                       active
                         ? "text-accent-content"
                         : "text-foreground/70 hover:text-foreground"
                     }`}
                   >
-                    <div className="flex items-center space-x-3">
+                    <div className={`flex items-center ${isCollapsed ? "justify-center" : "space-x-3"}`}>
                       <i
-                        className={`${item.icon} text-base transition-transform duration-200 group-hover:scale-110`}
+                        className={`${item.icon} text-lg transition-transform duration-200 group-hover:scale-110`}
                       />
-                      <span>{item.name}</span>
+                      {!isCollapsed && <span>{item.name}</span>}
                     </div>
 
-                    {item.badgeCount > 0 && (
+                    {!isCollapsed && item.badgeCount > 0 && (
                       <span className="bg-red-500 text-white font-mono text-[10px] font-black px-2 py-0.5 rounded-full shadow-sm animate-pulse">
                         +{item.badgeCount}
                       </span>
                     )}
+
+                    {isCollapsed && item.badgeCount > 0 && (
+                      <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full animate-ping" />
+                    )}
                   </Link>
 
-                  {/* Smooth Sliding Pill Indicator */}
+                  {/* Active Indicator */}
                   {active && (
                     <motion.div
                       layoutId="activeAdminNavIndicator"

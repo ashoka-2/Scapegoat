@@ -27,6 +27,8 @@ import AdminBrandsSkeleton from "../../Features/Admin/Components/Skeletons/Admin
 import AdminUnitsSkeleton from "../../Features/Admin/Components/Skeletons/AdminUnitsSkeleton.jsx";
 import AdminInboxSkeleton from "../../Features/Admin/Components/Skeletons/AdminInboxSkeleton.jsx";
 import AdminSettingsSkeleton from "../../Features/Admin/Components/Skeletons/AdminSettingsSkeleton.jsx";
+import AdminBannersSkeleton from "../../Features/Admin/Components/Skeletons/AdminBannersSkeleton.jsx";
+import AdminBannerEditorSkeleton from "../../Features/Admin/Components/Skeletons/AdminBannerEditorSkeleton.jsx";
 
 export const getPageSkeleton = (path) => {
   if (
@@ -69,6 +71,8 @@ export const getPageSkeleton = (path) => {
   if (path === "/admin/units") return AdminUnitsSkeleton;
   if (path === "/admin/inbox") return AdminInboxSkeleton;
   if (path === "/admin/settings") return AdminSettingsSkeleton;
+  if (path === "/admin/banners/create" || path.startsWith("/admin/banners/edit/")) return AdminBannerEditorSkeleton;
+  if (path === "/admin/banners") return AdminBannersSkeleton;
 
   return HomeSkeleton;
 };
