@@ -1,6 +1,7 @@
 import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
+import orderModel from "../models/order.model.js";
 import { generateTextEmbedding, generateImageEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
@@ -15,6 +16,23 @@ const isOwnerOrAdmin = (product, user) => {
   const userId = user._id ? user._id : user.id;
   if (!sellerId || !userId) return false;
   return String(sellerId) === String(userId);
+};
+
+/**
+ * Helper to normalize numeric price or price objects into standard priceSchema { amount, currency }
+ */
+const formatPriceInput = (val, defaultCurrency = "INR") => {
+  if (val === undefined || val === null || val === "") return undefined;
+  if (typeof val === "number") return { amount: val, currency: defaultCurrency };
+  if (typeof val === "string") {
+    const num = parseFloat(val);
+    return isNaN(num) ? undefined : { amount: num, currency: defaultCurrency };
+  }
+  if (typeof val === "object" && val.amount !== undefined) {
+    const num = parseFloat(val.amount);
+    return isNaN(num) ? undefined : { amount: num, currency: val.currency || defaultCurrency };
+  }
+  return undefined;
 };
 
 /**
@@ -484,6 +502,15 @@ export const createProduct = async (req, res) => {
       } catch (e) {}
     }
 
+    if (productData.costPrice !== undefined) {
+      if (typeof productData.costPrice === "string" && productData.costPrice.startsWith("{")) {
+        try { productData.costPrice = JSON.parse(productData.costPrice); } catch (e) {}
+      }
+      const parsedCost = formatPriceInput(productData.costPrice);
+      if (parsedCost) productData.costPrice = parsedCost;
+      else delete productData.costPrice;
+    }
+
     // Process & upload any variant base64/external image links in parallel to ImageKit
     if (productData.variants) {
       productData.variants = ensureVariantAttributesMap(productData.variants, productData.attributes);
@@ -603,6 +630,15 @@ export const updateProduct = async (req, res) => {
     }
     if (typeof updateData.seo === "string") {
       try { updateData.seo = JSON.parse(updateData.seo); } catch (e) {}
+    }
+
+    if (updateData.costPrice !== undefined) {
+      if (typeof updateData.costPrice === "string" && updateData.costPrice.startsWith("{")) {
+        try { updateData.costPrice = JSON.parse(updateData.costPrice); } catch (e) {}
+      }
+      const parsedCost = formatPriceInput(updateData.costPrice);
+      if (parsedCost) updateData.costPrice = parsedCost;
+      else delete updateData.costPrice;
     }
 
     // Process & upload any variant base64/external image links in parallel to ImageKit
@@ -1692,6 +1728,170 @@ export const suggestProductDescription = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to suggest description",
+    });
+  }
+};
+
+/**
+ * @desc    Get Seller Performance Analytics, Profit & Loss Breakdown & Top Sold Items
+ * @route   GET /api/products/seller-analytics
+ * @access  Private (Seller, Admin)
+ */
+export const getSellerAnalytics = async (req, res) => {
+  try {
+    const sellerId = req.user._id;
+
+    // 1. Fetch all products listed by seller (with +costPrice)
+    const sellerProducts = await productModel
+      .find({ seller: sellerId })
+      .select("+costPrice")
+      .populate("category", "name slug")
+      .populate("brand", "name slug")
+      .lean();
+
+    const productMap = new Map();
+    sellerProducts.forEach((p) => {
+      productMap.set(String(p._id), p);
+    });
+
+    // 2. Fetch all orders containing items for this seller
+    const orderDocs = await orderModel
+      .find({ "orderItems.seller": sellerId })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    let totalRevenue = 0;
+    let totalCost = 0;
+    let totalUnitsSold = 0;
+    let totalOrdersCount = orderDocs.length;
+
+    // Map to compute itemized stats for each product
+    const productStats = new Map();
+
+    // Pre-populate stats for all seller products
+    sellerProducts.forEach((p) => {
+      const sellPriceNum = p.sellingPrice?.amount || p.maxPrice?.amount || 0;
+      const costPriceNum = p.costPrice?.amount || 0;
+      productStats.set(String(p._id), {
+        _id: p._id,
+        title: p.title,
+        slug: p.slug,
+        image: p.images?.[0]?.url || null,
+        category: p.category?.name || "Uncategorized",
+        brand: p.brand?.name || "—",
+        sellingPrice: sellPriceNum,
+        costPrice: costPriceNum,
+        unitProfit: sellPriceNum - costPriceNum,
+        unitsSold: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        marginPercent: 0,
+      });
+    });
+
+    // Daily revenue & profit trends
+    const dailyTrendsMap = new Map();
+
+    orderDocs.forEach((ord) => {
+      const orderDateStr = ord.createdAt
+        ? new Date(ord.createdAt).toISOString().split("T")[0]
+        : new Date().toISOString().split("T")[0];
+
+      ord.orderItems?.forEach((item) => {
+        if (String(item.seller) === String(sellerId)) {
+          const itemProdId = String(item.product);
+          const qty = item.quantity || 1;
+          const price = item.price || 0;
+
+          const pDoc = productMap.get(itemProdId);
+          const unitCost = pDoc?.costPrice?.amount || 0;
+
+          const itemRev = price * qty;
+          const itemCogs = unitCost * qty;
+          const itemProfit = itemRev - itemCogs;
+
+          totalRevenue += itemRev;
+          totalCost += itemCogs;
+          totalUnitsSold += qty;
+
+          // Product Level Stats
+          const pStat = productStats.get(itemProdId) || {
+            _id: itemProdId,
+            title: item.name || "Product",
+            image: item.image || null,
+            sellingPrice: price,
+            costPrice: unitCost,
+            unitProfit: price - unitCost,
+            unitsSold: 0,
+            totalRevenue: 0,
+            totalCost: 0,
+            totalProfit: 0,
+            marginPercent: 0,
+          };
+
+          pStat.unitsSold += qty;
+          pStat.totalRevenue += itemRev;
+          pStat.totalCost += itemCogs;
+          pStat.totalProfit += itemProfit;
+          pStat.marginPercent =
+            pStat.totalRevenue > 0 ? (pStat.totalProfit / pStat.totalRevenue) * 100 : 0;
+          productStats.set(itemProdId, pStat);
+
+          // Daily Trend Stats
+          const dayStat = dailyTrendsMap.get(orderDateStr) || {
+            date: orderDateStr,
+            revenue: 0,
+            cost: 0,
+            profit: 0,
+            orders: 0,
+          };
+          dayStat.revenue += itemRev;
+          dayStat.cost += itemCogs;
+          dayStat.profit += itemProfit;
+          dayStat.orders += 1;
+          dailyTrendsMap.set(orderDateStr, dayStat);
+        }
+      });
+    });
+
+    const itemizedPerformance = Array.from(productStats.values());
+
+    // Most Sold Product (highest unitsSold)
+    const mostSoldProduct =
+      [...itemizedPerformance].sort((a, b) => b.unitsSold - a.unitsSold)[0] || null;
+
+    // Most Profitable Product (highest totalProfit)
+    const mostProfitableProduct =
+      [...itemizedPerformance].sort((a, b) => b.totalProfit - a.totalProfit)[0] || null;
+
+    const netProfit = totalRevenue - totalCost;
+    const overallMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
+
+    const dailyTrends = Array.from(dailyTrendsMap.values()).sort((a, b) =>
+      a.date.localeCompare(b.date)
+    );
+
+    return res.status(200).json({
+      success: true,
+      summary: {
+        totalOrders: totalOrdersCount,
+        totalUnitsSold,
+        totalRevenue,
+        totalCost,
+        netProfit,
+        overallMargin: Math.round(overallMargin * 10) / 10,
+      },
+      mostSoldProduct,
+      mostProfitableProduct,
+      dailyTrends,
+      itemizedPerformance,
+    });
+  } catch (error) {
+    console.error("Error in getSellerAnalytics:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to generate seller analytics",
     });
   }
 };

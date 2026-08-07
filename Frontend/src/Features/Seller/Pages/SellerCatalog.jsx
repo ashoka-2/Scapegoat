@@ -306,7 +306,9 @@ const SellerCatalog = () => {
                   <th className="p-4">Name</th>
                   <th className="p-4">SKU</th>
                   <th className="p-4">Stock</th>
-                  <th className="p-4">Price</th>
+                  <th className="p-4">Sale Price</th>
+                  <th className="p-4">Cost Price</th>
+                  <th className="p-4">Margin</th>
                   <th className="p-4">Categories</th>
                   <th className="p-4">Tags</th>
                 </tr>
@@ -443,6 +445,37 @@ const SellerCatalog = () => {
                       {/* Price */}
                       <td className="p-4 font-extrabold text-foreground font-mono">
                         ₹{Number(priceAmount).toLocaleString("en-IN")}
+                      </td>
+
+                      {/* Cost Price (Private) */}
+                      <td className="p-4 font-semibold text-amber-500 font-mono">
+                        {prod.costPrice?.amount ? `₹${Number(prod.costPrice.amount).toLocaleString("en-IN")}` : "—"}
+                      </td>
+
+                      {/* Unit Margin */}
+                      <td className="p-4">
+                        {prod.costPrice?.amount ? (
+                          (() => {
+                            const costP = Number(prod.costPrice.amount);
+                            const profit = priceAmount - costP;
+                            const marginPct = priceAmount > 0 ? Math.round((profit / priceAmount) * 100) : 0;
+                            const isProfitable = profit >= 0;
+
+                            return (
+                              <span
+                                className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black ${
+                                  isProfitable
+                                    ? "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20"
+                                    : "bg-rose-500/10 text-rose-500 border border-rose-500/20"
+                                }`}
+                              >
+                                {isProfitable ? `+₹${profit}` : `-₹${Math.abs(profit)}`} ({marginPct}%)
+                              </span>
+                            );
+                          })()
+                        ) : (
+                          <span className="text-foreground/40 text-[10px]">—</span>
+                        )}
                       </td>
 
                       {/* Category */}

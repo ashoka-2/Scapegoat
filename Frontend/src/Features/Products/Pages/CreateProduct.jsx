@@ -130,6 +130,7 @@ const CreateProduct = () => {
     maxPriceAmount: "",
     maxPriceCurrency: "INR",
     sellingPriceAmount: "",
+    costPriceAmount: "",
     discountType: "percentage",
     discountValue: "",
     stock: 10,
@@ -235,6 +236,7 @@ const CreateProduct = () => {
             maxPriceAmount: maxP,
             maxPriceCurrency: "INR",
             sellingPriceAmount: sellP,
+            costPriceAmount: prod.costPrice?.amount ? String(prod.costPrice.amount) : "",
             discountType: "percentage",
             discountValue: discVal ? String(discVal) : "",
             stock: prod.stock !== undefined ? prod.stock : 10,
@@ -789,6 +791,10 @@ const CreateProduct = () => {
       payload.append("sellingPrice[amount]", formData.sellingPriceAmount);
       payload.append("sellingPrice[currency]", "INR");
     }
+    if (formData.costPriceAmount) {
+      payload.append("costPrice[amount]", formData.costPriceAmount);
+      payload.append("costPrice[currency]", "INR");
+    }
 
     if (formData.tags) {
       const tagArray = formData.tags.split(",").map((t) => t.trim()).filter(Boolean);
@@ -1046,7 +1052,7 @@ const CreateProduct = () => {
                       <span>Pricing & Unit of Measurement</span>
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                       <FormField label="Regular MRP Price (₹)" required error={formErrors.maxPriceAmount} loading={fetchingEditProduct}>
                         <input
                           type="number"
@@ -1066,6 +1072,18 @@ const CreateProduct = () => {
                           value={formData.sellingPriceAmount}
                           onChange={handleSellingPriceChange}
                           placeholder="1999"
+                          className={inputClass}
+                          min={0}
+                        />
+                      </FormField>
+
+                      <FormField label="Cost Price (₹) [Private]" loading={fetchingEditProduct} tooltip="Confidential cost price used for Profit & Loss calculations. Never visible to buyers.">
+                        <input
+                          type="number"
+                          name="costPriceAmount"
+                          value={formData.costPriceAmount}
+                          onChange={handleChange}
+                          placeholder="1200"
                           className={inputClass}
                           min={0}
                         />
@@ -1097,6 +1115,41 @@ const CreateProduct = () => {
                         </div>
                       </FormField>
                     </div>
+
+                    {/* Dynamic Profit & Loss Margin Calculation Badge */}
+                    {formData.costPriceAmount && (formData.sellingPriceAmount || formData.maxPriceAmount) && (
+                      (() => {
+                        const sellP = Number(formData.sellingPriceAmount || formData.maxPriceAmount || 0);
+                        const costP = Number(formData.costPriceAmount || 0);
+                        const profit = sellP - costP;
+                        const marginPercent = sellP > 0 ? Math.round((profit / sellP) * 100) : 0;
+                        const isProfitable = profit >= 0;
+
+                        return (
+                          <div
+                            className={`rounded-xl p-3.5 flex items-center justify-between text-xs border ${
+                              isProfitable
+                                ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-500"
+                                : "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                            }`}
+                          >
+                            <span className="font-bold flex items-center gap-1.5">
+                              <i className={isProfitable ? "ri-line-chart-line text-sm" : "ri-funds-line text-sm"} />
+                              <span>
+                                {isProfitable ? "Estimated Profit Per Unit:" : "Loss Per Unit:"} ₹{Math.abs(profit)}
+                              </span>
+                            </span>
+                            <span
+                              className={`font-extrabold px-2.5 py-0.5 rounded-full text-[11px] ${
+                                isProfitable ? "bg-emerald-500 text-white" : "bg-rose-500 text-white"
+                              }`}
+                            >
+                              {marginPercent}% Margin
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
 
                     {formData.maxPriceAmount && formData.sellingPriceAmount && Number(formData.sellingPriceAmount) < Number(formData.maxPriceAmount) && (
                       <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl p-3.5 flex items-center justify-between text-xs">

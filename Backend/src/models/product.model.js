@@ -60,6 +60,10 @@ const variantSchema = new Schema({
     type: priceSchema,
     required: true,
   },
+  costPrice: {
+    type: priceSchema,
+    select: false,
+  },
   sku: {
     type: String,
     trim: true,
@@ -200,6 +204,11 @@ const productSchema = new Schema(
     },
     sellingPrice: {
       type: priceSchema,
+    },
+    // Cost Price (strictly confidential to seller/admin, hidden by default from public queries)
+    costPrice: {
+      type: priceSchema,
+      select: false,
     },
 
     // ── Stock Management ──────────────────────────────────────────────────

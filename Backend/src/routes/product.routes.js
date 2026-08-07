@@ -14,6 +14,7 @@ import {
   aiSearchProducts,
   aiImageSearchProducts,
   suggestProductDescription,
+  getSellerAnalytics,
 } from "../controllers/product.controller.js";
 import { getFrequentlyBoughtTogether } from "../controllers/userActivity.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
@@ -67,6 +68,14 @@ router.get("/:id/you-may-also-like", getYouMayAlsoLikeProducts);
 router.get("/:id/frequently-bought-together", getFrequentlyBoughtTogether);
 
 // ── Protected Seller / Admin Routes ──────────────────────────────────────────
+
+// Get Seller Performance Analytics, Profit & Loss Breakdown & Top Sold Items
+router.get(
+  "/seller-analytics",
+  verifyToken,
+  requireRole("seller", "admin"),
+  getSellerAnalytics
+);
 
 // Create a new product (supports up to 7 image uploads)
 router.post(

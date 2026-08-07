@@ -25,6 +25,7 @@ import SellerUserDetailPage from "../Features/Seller/Pages/SellerUserDetailPage.
 import SellerWishlistsPage from "../Features/Seller/Pages/SellerWishlistsPage.jsx";
 import SellerCustomersPage from "../Features/Seller/Pages/SellerCustomersPage.jsx";
 import SellerCartsPage from "../Features/Seller/Pages/SellerCartsPage.jsx";
+import SellerAnalyticsPage from "../Features/Seller/Pages/SellerAnalyticsPage.jsx";
 import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
@@ -261,53 +262,57 @@ export const routes = createBrowserRouter([
           </Protected>
         ),
       },
+    ],
+  },
+  {
+    path: "seller",
+    element: (
+      <Protected>
+        <SellerRoute>
+          <SellerLayout />
+        </SellerRoute>
+      </Protected>
+    ),
+    children: [
       {
-        path: "seller",
-        element: (
-          <Protected>
-            <SellerRoute>
-              <SellerLayout />
-            </SellerRoute>
-          </Protected>
-        ),
-        children: [
-          {
-            path: "dashboard",
-            element: <SellerDashboard />,
-          },
-          {
-            path: "catalog",
-            element: <SellerCatalog />,
-          },
-          {
-            path: "metadata",
-            element: <SellerMetadataManager />,
-          },
-          {
-            path: "orders",
-            element: <SellerOrders />,
-          },
-          {
-            path: "users",
-            element: <SellerUsersPage />,
-          },
-          {
-            path: "users/:id",
-            element: <SellerUserDetailPage />,
-          },
-          {
-            path: "customers",
-            element: <SellerCustomersPage />,
-          },
-          {
-            path: "wishlists",
-            element: <SellerWishlistsPage />,
-          },
-          {
-            path: "carts",
-            element: <SellerCartsPage />,
-          },
-        ],
+        path: "dashboard",
+        element: <SellerDashboard />,
+      },
+      {
+        path: "analytics",
+        element: <SellerAnalyticsPage />,
+      },
+      {
+        path: "catalog",
+        element: <SellerCatalog />,
+      },
+      {
+        path: "metadata",
+        element: <SellerMetadataManager />,
+      },
+      {
+        path: "orders",
+        element: <SellerOrders />,
+      },
+      {
+        path: "users",
+        element: <SellerUsersPage />,
+      },
+      {
+        path: "users/:id",
+        element: <SellerUserDetailPage />,
+      },
+      {
+        path: "customers",
+        element: <SellerCustomersPage />,
+      },
+      {
+        path: "wishlists",
+        element: <SellerWishlistsPage />,
+      },
+      {
+        path: "carts",
+        element: <SellerCartsPage />,
       },
     ],
   },
