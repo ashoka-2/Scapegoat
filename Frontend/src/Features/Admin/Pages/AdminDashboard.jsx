@@ -30,6 +30,31 @@ const AdminDashboard = () => {
     return "https://placehold.co/100x100?text=No+Image";
   };
 
+  const getPriceNumber = (val) => {
+    if (val === null || val === undefined) return null;
+    if (typeof val === "number") return val;
+    if (typeof val === "object") {
+      if (typeof val.amount === "number") return val.amount;
+      if (typeof val.salePrice === "number") return val.salePrice;
+      if (typeof val.mrp === "number") return val.mrp;
+      if (typeof val.value === "number") return val.value;
+    }
+    if (typeof val === "string" && !isNaN(Number(val)) && val.trim() !== "") return Number(val);
+    return null;
+  };
+
+  const formatProductPrice = (p) => {
+    if (!p) return 0;
+    const priceNum =
+      getPriceNumber(p.unitPrice) ??
+      getPriceNumber(p.sellingPrice) ??
+      getPriceNumber(p.maxPrice) ??
+      getPriceNumber(p.price) ??
+      getPriceNumber(p.variants?.[0]?.price) ??
+      0;
+    return priceNum;
+  };
+
   const handleRefresh = async () => {
     setIsRefreshing(true);
     try {
@@ -825,7 +850,7 @@ const AdminDashboard = () => {
                                           )}
                                         </div>
                                         <span className="text-[10px] font-mono text-emerald-500 font-bold block">
-                                          ₹{(p.sellingPrice || p.price || 0).toLocaleString()}
+                                          ₹{formatProductPrice(p).toLocaleString()}
                                         </span>
                                       </div>
                                     </div>
@@ -924,7 +949,7 @@ const AdminDashboard = () => {
                                         <div className="flex items-center justify-between text-[10px]">
                                           <span className="text-purple-500 font-extrabold">Qty: {item.quantity || 1}</span>
                                           <span className="font-mono text-emerald-500 font-bold">
-                                            ₹{(item.product?.sellingPrice || item.product?.price || 0).toLocaleString()}
+                                            ₹{formatProductPrice(item.product).toLocaleString()}
                                           </span>
                                         </div>
                                       </div>

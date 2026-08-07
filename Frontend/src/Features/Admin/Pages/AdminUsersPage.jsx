@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminUsersSkeleton from "../Components/Skeletons/AdminUsersSkeleton";
+import AdminSearchFilterHeader from "../Components/AdminSearchFilterHeader";
 
 const AdminUsersPage = () => {
   const navigate = useNavigate();
@@ -18,25 +19,42 @@ const AdminUsersPage = () => {
 
   const [roleFilter, setRoleFilter] = useState("all");
   const [bannedFilter, setBannedFilter] = useState("all");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateMode, setDateMode] = useState("all"); // "all" | "single" | "range"
+  const [singleDate, setSingleDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     fetchAdminUsers({
       role: roleFilter,
       isBanned: bannedFilter,
-      search: searchTerm,
+      search: searchQuery,
       page: 1,
     });
-  }, [roleFilter, bannedFilter]);
+  }, [roleFilter, bannedFilter, searchQuery]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchAdminUsers({
-      role: roleFilter,
-      isBanned: bannedFilter,
-      search: searchTerm,
-      page: 1,
-    });
+  const filteredUsers = users.filter((u) => {
+    if (u.createdAt) {
+      const uDate = new Date(u.createdAt).toISOString().split("T")[0];
+      if (dateMode === "single" && singleDate) {
+        if (uDate !== singleDate) return false;
+      } else if (dateMode === "range") {
+        if (startDate && uDate < startDate) return false;
+        if (endDate && uDate > endDate) return false;
+      }
+    }
+    return true;
+  });
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setRoleFilter("all");
+    setBannedFilter("all");
+    setDateMode("all");
+    setSingleDate("");
+    setStartDate("");
+    setEndDate("");
   };
 
   const handleRoleChange = async (userId, newRole) => {
@@ -54,83 +72,71 @@ const AdminUsersPage = () => {
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">
-            User Administration
-          </span>
-          <h1 className="text-2xl font-black text-foreground">Registered Users ({usersTotal})</h1>
-        </div>
-      </div>
+      {/* Search and Date Filter Header */}
+      <AdminSearchFilterHeader
+        title="User Directory & Administration"
+        subtitle="Search users by name, email, contact & filter by registration date"
+        icon="ri-user-settings-line"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        dateMode={dateMode}
+        onDateModeChange={setDateMode}
+        singleDate={singleDate}
+        onSingleDateChange={setSingleDate}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onClearFilters={handleClearFilters}
+        totalCount={usersTotal || users.length}
+        filteredCount={filteredUsers.length}
+        placeholder="Search name, email, contact..."
+        extraControls={
+          <div className="flex gap-2">
+            <select
+              value={roleFilter}
+              onChange={(e) => setRoleFilter(e.target.value)}
+              className="bg-background border border-border-theme rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="all">All Roles</option>
+              <option value="buyer">Buyers Only</option>
+              <option value="seller">Sellers Only</option>
+              <option value="admin">Admins Only</option>
+            </select>
 
-      {/* Filter and Search Bar */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-background/50 p-4 rounded-2xl border border-border-theme">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:w-auto flex-1 max-w-md">
-          <div className="relative w-full">
-            <i className="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/40 text-sm" />
-            <input
-              type="text"
-              placeholder="Search by name, email or contact..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-surface border border-border-theme rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent"
-            />
+            <select
+              value={bannedFilter}
+              onChange={(e) => setBannedFilter(e.target.value)}
+              className="bg-background border border-border-theme rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="banned">Banned Only</option>
+            </select>
           </div>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 transition cursor-pointer shrink-0"
-          >
-            Search
-          </button>
-        </form>
-
-        <div className="flex flex-wrap gap-2 w-full md:w-auto">
-          {/* Role Filter */}
-          <select
-            value={roleFilter}
-            onChange={(e) => setRoleFilter(e.target.value)}
-            className="bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
-          >
-            <option value="all">All Roles</option>
-            <option value="buyer">Buyers Only</option>
-            <option value="seller">Sellers Only</option>
-            <option value="admin">Admins Only</option>
-          </select>
-
-          {/* Banned Filter */}
-          <select
-            value={bannedFilter}
-            onChange={(e) => setBannedFilter(e.target.value)}
-            className="bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
-          >
-            <option value="all">All Statuses</option>
-            <option value="false">Active Users</option>
-            <option value="true">Banned Users</option>
-          </select>
-        </div>
-      </div>
+        }
+      />
 
       {/* Users Table */}
       {loading ? (
         <AdminUsersSkeleton />
       ) : (
         <div className="bg-surface border border-border-theme rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse min-w-[650px]">
               <thead>
                 <tr className="border-b border-border-theme bg-background/50 text-[10px] font-black uppercase tracking-wider text-foreground/50">
-                  <th className="py-3.5 px-4">User</th>
-                  <th className="py-3.5 px-4">Contact & Email</th>
-                  <th className="py-3.5 px-4">Role</th>
-                  <th className="py-3.5 px-4">Account Status</th>
-                  <th className="py-3.5 px-4">Joined Date</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">User</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Contact & Email</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Role</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Account Status</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Joined Date</th>
+                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-theme/40 text-xs font-semibold">
-                {users?.length > 0 ? (
-                  users.map((u) => (
+                {filteredUsers?.length > 0 ? (
+                  filteredUsers.map((u) => (
                     <tr key={u._id} className="hover:bg-background/40 transition">
                       {/* Avatar + Full Name */}
                       <td className="py-3.5 px-4">

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminInboxSkeleton from "../Components/Skeletons/AdminInboxSkeleton";
+import AdminSearchFilterHeader from "../Components/AdminSearchFilterHeader";
 
 const AdminInboxPage = () => {
   const {
@@ -16,6 +17,11 @@ const AdminInboxPage = () => {
 
   const [typeFilter, setTypeFilter] = useState("all");
   const [readFilter, setReadFilter] = useState("all");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [dateMode, setDateMode] = useState("all"); // "all" | "single" | "range"
+  const [singleDate, setSingleDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [expandedId, setExpandedId] = useState(null);
 
   useEffect(() => {
@@ -26,49 +32,92 @@ const AdminInboxPage = () => {
     });
   }, [typeFilter, readFilter]);
 
+  const filteredMessages = messages.filter((msg) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const nameMatch = msg.name?.toLowerCase().includes(q);
+      const emailMatch = msg.email?.toLowerCase().includes(q);
+      const subjectMatch = msg.subject?.toLowerCase().includes(q);
+      const bodyMatch = msg.message?.toLowerCase().includes(q);
+      if (!nameMatch && !emailMatch && !subjectMatch && !bodyMatch) return false;
+    }
+
+    if (msg.createdAt) {
+      const mDate = new Date(msg.createdAt).toISOString().split("T")[0];
+      if (dateMode === "single" && singleDate) {
+        if (mDate !== singleDate) return false;
+      } else if (dateMode === "range") {
+        if (startDate && mDate < startDate) return false;
+        if (endDate && mDate > endDate) return false;
+      }
+    }
+
+    return true;
+  });
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setTypeFilter("all");
+    setReadFilter("all");
+    setDateMode("all");
+    setSingleDate("");
+    setStartDate("");
+    setEndDate("");
+  };
+
   return (
     <div className="space-y-6 font-sans">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">
-            Communication Inbox
-          </span>
-          <h1 className="text-xl sm:text-2xl font-black text-foreground">
-            Customer Inquiries ({messagesTotal})
-          </h1>
-        </div>
+      {/* Search and Date Filter Header */}
+      <AdminSearchFilterHeader
+        title="Communication Inbox"
+        subtitle="Search customer inquiries by sender, email, subject & filter by received date"
+        icon="ri-mail-line"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        dateMode={dateMode}
+        onDateModeChange={setDateMode}
+        singleDate={singleDate}
+        onSingleDateChange={setSingleDate}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onClearFilters={handleClearFilters}
+        totalCount={messagesTotal || messages.length}
+        filteredCount={filteredMessages.length}
+        placeholder="Search sender, email, subject, text..."
+        extraControls={
+          <div className="flex gap-2">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="bg-background border border-border-theme rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="all">All Inquiries</option>
+              <option value="contact">Contact Forms</option>
+              <option value="newsletter">Newsletter Signups</option>
+            </select>
 
-        <div className="flex flex-col xs:flex-row w-full sm:w-auto gap-2">
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="w-full sm:w-auto bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Inquiries</option>
-            <option value="contact">Contact Forms</option>
-            <option value="newsletter">Newsletter Signups</option>
-          </select>
-
-          <select
-            value={readFilter}
-            onChange={(e) => setReadFilter(e.target.value)}
-            className="w-full sm:w-auto bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none cursor-pointer"
-          >
-            <option value="all">All Read Statuses</option>
-            <option value="false">Unread Only</option>
-            <option value="true">Read</option>
-          </select>
-        </div>
-      </div>
+            <select
+              value={readFilter}
+              onChange={(e) => setReadFilter(e.target.value)}
+              className="bg-background border border-border-theme rounded-xl px-2.5 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
+            >
+              <option value="all">All Read Statuses</option>
+              <option value="false">Unread Only</option>
+              <option value="true">Read</option>
+            </select>
+          </div>
+        }
+      />
 
       {/* Inbox List */}
       {loading ? (
         <AdminInboxSkeleton />
       ) : (
         <div className="space-y-3">
-          {messages?.length > 0 ? (
-            messages.map((msg) => {
+          {filteredMessages?.length > 0 ? (
+            filteredMessages.map((msg) => {
               const isExpanded = expandedId === msg._id;
               return (
                 <div

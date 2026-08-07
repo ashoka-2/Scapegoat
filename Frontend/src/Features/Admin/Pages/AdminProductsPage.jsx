@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminProductsSkeleton from "../Components/Skeletons/AdminProductsSkeleton";
+import AdminSearchFilterHeader from "../Components/AdminSearchFilterHeader";
 
 const AdminProductsPage = () => {
   const navigate = useNavigate();
@@ -14,92 +15,99 @@ const AdminProductsPage = () => {
     fetchAdminProducts,
   } = useAdmin();
 
-  const [searchTerm, setSearchTerm] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateMode, setDateMode] = useState("all"); // "all" | "single" | "range"
+  const [singleDate, setSingleDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   useEffect(() => {
     fetchAdminProducts({
-      search: searchTerm,
+      search: searchQuery,
       status: statusFilter,
       page: 1,
     });
-  }, [statusFilter]);
+  }, [statusFilter, searchQuery]);
 
-  const handleSearchSubmit = (e) => {
-    e.preventDefault();
-    fetchAdminProducts({
-      search: searchTerm,
-      status: statusFilter,
-      page: 1,
-    });
+  const filteredProducts = products.filter((p) => {
+    if (p.createdAt) {
+      const pDate = new Date(p.createdAt).toISOString().split("T")[0];
+      if (dateMode === "single" && singleDate) {
+        if (pDate !== singleDate) return false;
+      } else if (dateMode === "range") {
+        if (startDate && pDate < startDate) return false;
+        if (endDate && pDate > endDate) return false;
+      }
+    }
+    return true;
+  });
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setDateMode("all");
+    setSingleDate("");
+    setStartDate("");
+    setEndDate("");
   };
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">
-            Global Catalog
-          </span>
-          <h1 className="text-2xl font-black text-foreground">Catalog Products ({productsTotal})</h1>
-        </div>
-      </div>
-
-      {/* Search and Filters */}
-      <div className="flex flex-col md:flex-row items-center justify-between gap-4 bg-background/50 p-4 rounded-2xl border border-border-theme">
-        <form onSubmit={handleSearchSubmit} className="flex gap-2 w-full md:w-auto flex-1 max-w-md">
-          <div className="relative w-full">
-            <i className="ri-search-line absolute left-3.5 top-1/2 -translate-y-1/2 text-foreground/40 text-sm" />
-            <input
-              type="text"
-              placeholder="Search product title..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-surface border border-border-theme rounded-xl pl-9 pr-4 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent"
-            />
-          </div>
-          <button
-            type="submit"
-            className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 transition cursor-pointer shrink-0"
+      {/* Search and Date Filter Header */}
+      <AdminSearchFilterHeader
+        title="Catalog Products Management"
+        subtitle="Search products by title, SKU, category & filter by single date or date range"
+        icon="ri-box-3-line"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        dateMode={dateMode}
+        onDateModeChange={setDateMode}
+        singleDate={singleDate}
+        onSingleDateChange={setSingleDate}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onClearFilters={handleClearFilters}
+        totalCount={productsTotal || products.length}
+        filteredCount={filteredProducts.length}
+        placeholder="Search title, SKU, category..."
+        extraControls={
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-background border border-border-theme rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
           >
-            Search
-          </button>
-        </form>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
-        >
-          <option value="all">All Statuses</option>
-          <option value="published">Published / Active</option>
-          <option value="draft">Drafts</option>
-          <option value="archived">Archived</option>
-        </select>
-      </div>
+            <option value="all">All Statuses</option>
+            <option value="published">Published / Active</option>
+            <option value="draft">Drafts</option>
+            <option value="archived">Archived</option>
+          </select>
+        }
+      />
 
       {/* Products Table */}
       {loading ? (
         <AdminProductsSkeleton />
       ) : (
         <div className="bg-surface border border-border-theme rounded-2xl overflow-hidden shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-left border-collapse min-w-[700px]">
               <thead>
                 <tr className="border-b border-border-theme bg-background/50 text-[10px] font-black uppercase tracking-wider text-foreground/50">
-                  <th className="py-3.5 px-4">Product Info</th>
-                  <th className="py-3.5 px-4">Seller</th>
-                  <th className="py-3.5 px-4">Category & Brand</th>
-                  <th className="py-3.5 px-4">Base Price</th>
-                  <th className="py-3.5 px-4">Stock</th>
-                  <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Product Info</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Seller</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Category & Brand</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Base Price</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Stock</th>
+                  <th className="py-3.5 px-4 whitespace-nowrap">Status</th>
+                  <th className="py-3.5 px-4 text-right whitespace-nowrap">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-theme/40 text-xs font-semibold">
-                {products?.length > 0 ? (
-                  products.map((p) => {
+                {filteredProducts?.length > 0 ? (
+                  filteredProducts.map((p) => {
                     const primaryImg = p.images?.find((img) => img.isPrimary)?.url || p.images?.[0]?.url;
                     const priceVal =
                       typeof p.price === "number"

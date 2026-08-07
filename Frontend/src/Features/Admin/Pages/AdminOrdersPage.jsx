@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminOrdersSkeleton from "../Components/Skeletons/AdminOrdersSkeleton";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
+import AdminSearchFilterHeader from "../Components/AdminSearchFilterHeader";
 
 const AdminOrdersPage = () => {
   const {
@@ -13,7 +14,12 @@ const AdminOrdersPage = () => {
     fetchAdminOrders,
   } = useAdmin();
 
+  const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateMode, setDateMode] = useState("all"); // "all" | "single" | "range"
+  const [singleDate, setSingleDate] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
 
   useEffect(() => {
@@ -23,29 +29,72 @@ const AdminOrdersPage = () => {
     });
   }, [statusFilter]);
 
+  const filteredOrders = orders.filter((ord) => {
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      const idMatch = ord._id?.toLowerCase().includes(q) || ord.orderId?.toLowerCase().includes(q);
+      const nameMatch = ord.user?.fullname?.toLowerCase().includes(q);
+      const emailMatch = ord.user?.email?.toLowerCase().includes(q);
+      if (!idMatch && !nameMatch && !emailMatch) return false;
+    }
+
+    if (ord.createdAt) {
+      const oDate = new Date(ord.createdAt).toISOString().split("T")[0];
+      if (dateMode === "single" && singleDate) {
+        if (oDate !== singleDate) return false;
+      } else if (dateMode === "range") {
+        if (startDate && oDate < startDate) return false;
+        if (endDate && oDate > endDate) return false;
+      }
+    }
+
+    return true;
+  });
+
+  const handleClearFilters = () => {
+    setSearchQuery("");
+    setStatusFilter("all");
+    setDateMode("all");
+    setSingleDate("");
+    setStartDate("");
+    setEndDate("");
+  };
+
   return (
     <div className="space-y-6 font-sans">
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
-        <div>
-          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-accent">
-            Order Lifecycle
-          </span>
-          <h1 className="text-2xl font-black text-foreground">All Orders ({ordersTotal})</h1>
-        </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="bg-surface border border-border-theme rounded-xl px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
-        >
-          <option value="all">All Statuses</option>
-          <option value="Processing">Processing Only</option>
-          <option value="Shipped">Shipped</option>
-          <option value="Delivered">Delivered</option>
-          <option value="Cancelled">Cancelled</option>
-        </select>
-      </div>
+      {/* Search and Date Filter Header */}
+      <AdminSearchFilterHeader
+        title="Order Lifecycle Management"
+        subtitle="Search orders by ID, buyer name, email & filter by single date or date range"
+        icon="ri-receipt-line"
+        searchQuery={searchQuery}
+        onSearchChange={setSearchQuery}
+        dateMode={dateMode}
+        onDateModeChange={setDateMode}
+        singleDate={singleDate}
+        onSingleDateChange={setSingleDate}
+        startDate={startDate}
+        onStartDateChange={setStartDate}
+        endDate={endDate}
+        onEndDateChange={setEndDate}
+        onClearFilters={handleClearFilters}
+        totalCount={ordersTotal || orders.length}
+        filteredCount={filteredOrders.length}
+        placeholder="Search Order ID, customer name, email..."
+        extraControls={
+          <select
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="bg-background border border-border-theme rounded-xl px-3 py-1.5 text-xs font-semibold text-foreground focus:outline-none focus:border-accent cursor-pointer"
+          >
+            <option value="all">All Statuses</option>
+            <option value="Processing">Processing Only</option>
+            <option value="Shipped">Shipped</option>
+            <option value="Delivered">Delivered</option>
+            <option value="Cancelled">Cancelled</option>
+          </select>
+        }
+      />
 
       {/* Orders Table */}
       {loading ? (
@@ -66,8 +115,8 @@ const AdminOrdersPage = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-theme/40 text-xs font-semibold">
-                {orders?.length > 0 ? (
-                  orders.map((ord) => {
+                {filteredOrders?.length > 0 ? (
+                  filteredOrders.map((ord) => {
                     const itemsCount = ord.items?.length || ord.orderItems?.length || 0;
                     const firstItemTitle = ord.items?.[0]?.product?.title || ord.orderItems?.[0]?.name || "Product";
                     return (
