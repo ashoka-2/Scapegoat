@@ -45,7 +45,8 @@ const App = () => {
 
     const checkServer = async () => {
       try {
-        await axios.get("http://localhost:3000/api/auth/me", {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+        await axios.get(`${backendUrl}/api/auth/getMe`, {
           withCredentials: true,
           timeout: 2000,
         });

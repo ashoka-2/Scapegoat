@@ -54,6 +54,7 @@ import LegalTerms from "../Features/Home/Pages/LegalTerms.jsx";
 import Checkout from "../Features/Orders/Pages/Checkout.jsx";
 import MyOrders from "../Features/Orders/Pages/MyOrders.jsx";
 import OrderDetails from "../Features/Orders/Pages/OrderDetails.jsx";
+import NotFound from "../Shared/NotFound.jsx";
 
 export const routes = createBrowserRouter([
   {
@@ -309,5 +310,9 @@ export const routes = createBrowserRouter([
         ],
       },
     ],
+  },
+  {
+    path: "*",
+    element: <NotFound />,
   },
 ]);

@@ -1,8 +1,10 @@
 import React from "react";
 import { Outlet } from "react-router-dom";
 import SellerNavbar from "./SellerNavbar";
+import { useLenis } from "../../../Hooks/useLenis.js";
 
 const SellerLayout = () => {
+  useLenis();
   return (
     <div className="w-full text-foreground py-2">
       <div className="max-w-7xl mx-auto flex flex-col lg:flex-row gap-6 items-start">

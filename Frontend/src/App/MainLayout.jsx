@@ -19,10 +19,12 @@ import { clearCart } from "../Features/Cart/State/cart.slice.js";
 import ScrollToTop from "../Components/ScrollToTop.jsx";
 import ScrollToTopButton from "../Components/ScrollToTopButton.jsx";
 import { useActiveHeartbeat } from "../Hooks/useActiveHeartbeat.js";
+import { useLenis } from "../Hooks/useLenis.js";
 
 const STYLE_ID = "theme-transition-style";
 
 const MainLayout = () => {
+  useLenis();
   useActiveHeartbeat();
   const dispatch = useDispatch();
   const user = useSelector((state) => state.auth.user);

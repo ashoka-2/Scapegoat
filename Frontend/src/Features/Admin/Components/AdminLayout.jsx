@@ -4,8 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import AdminNavbar from "./AdminNavbar";
 import { useAuth } from "../../auth/Hooks/useAuth";
 import { useActiveHeartbeat } from "../../../Hooks/useActiveHeartbeat.js";
+import { useLenis } from "../../../Hooks/useLenis.js";
 
 const AdminLayout = () => {
+  useLenis();
   useActiveHeartbeat();
   const { handleLogout } = useAuth();
   const navigate = useNavigate();
