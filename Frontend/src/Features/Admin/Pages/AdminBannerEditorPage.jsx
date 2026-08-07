@@ -55,7 +55,67 @@ const PAGE_OPTIONS = [
   { value: "checkout", label: "Checkout Page" },
 ];
 
-/* ─── Component ─── */
+/* ─── Top-Level Reusable Inspector & Layer Components (Prevents DOM Remounting & Jump) ─── */
+const Section = React.memo(({ label, children, icon }) => (
+  <div className="space-y-2 pb-3 border-b border-border-theme/10 last:border-0">
+    <div className="text-[9px] font-black text-foreground/40 uppercase tracking-wider flex items-center gap-1.5">
+      {icon && <i className={`${icon} text-[10px]`} />} {label}
+    </div>
+    {children}
+  </div>
+));
+
+const InputField = React.memo(({ label, value, onChange, type = "text", ...rest }) => (
+  <div className="space-y-0.5">
+    <label className="text-[9px] font-bold text-foreground/40 uppercase">{label}</label>
+    <input
+      type={type} value={value} onChange={onChange}
+      className="w-full px-2.5 py-1.5 bg-background border border-border-theme/30 rounded-lg text-xs font-mono text-foreground outline-none focus:border-accent/60 transition"
+      {...rest}
+    />
+  </div>
+));
+
+const ColorRow = React.memo(({ value, onChange, label }) => (
+  <div className="space-y-0.5">
+    {label && <label className="text-[9px] font-bold text-foreground/40 uppercase">{label}</label>}
+    <div className="flex items-center gap-2">
+      <input type="color" value={value || "#ffffff"} onChange={e => onChange(e.target.value)} className="w-7 h-7 rounded-lg border-0 cursor-pointer flex-shrink-0" />
+      <input type="text" value={value || "#FFFFFF"} onChange={e => onChange(e.target.value)} className="flex-1 px-2 py-1 bg-background border border-border-theme/30 rounded-lg text-[11px] font-mono text-foreground uppercase outline-none focus:border-accent/60 transition" />
+    </div>
+  </div>
+));
+
+const LayerItem = React.memo(({ el, isSelected, onSelect, onDuplicate, onToggleVisible, onToggleLock, onDelete }) => (
+  <div
+    onClick={onSelect}
+    className={`group flex items-center justify-between p-2 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
+      isSelected
+        ? "bg-accent/15 border-accent text-accent shadow-xs"
+        : "bg-transparent border-border-theme/20 text-foreground/70 hover:border-border-theme/50 hover:text-foreground"
+    }`}
+  >
+    <div className="flex items-center gap-2 truncate min-w-0">
+      <i className={`text-sm flex-shrink-0 ${
+        el.type === "text" ? "ri-text" : el.type === "button" ? "ri-cursor-fill" : el.type === "timer" ? "ri-time-line text-amber-400" : "ri-image-line"
+      }`} />
+      <span className="truncate">{el.content || el.name || el.type}</span>
+      {el.type === "button" && el.link && (
+        <span className="text-[9px] text-foreground/40 font-mono truncate max-w-[60px]" title={el.link}>
+          {el.link}
+        </span>
+      )}
+    </div>
+    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+      <button type="button" onClick={e => { e.stopPropagation(); onDuplicate(); }} className="p-0.5 hover:text-accent" title="Duplicate"><i className="ri-file-copy-line text-xs" /></button>
+      <button type="button" onClick={e => { e.stopPropagation(); onToggleVisible(); }} className="p-0.5 hover:text-foreground"><i className={`text-xs ${el.isVisible ?? true ? "ri-eye-line" : "ri-eye-off-line"}`} /></button>
+      <button type="button" onClick={e => { e.stopPropagation(); onToggleLock(); }} className="p-0.5 hover:text-amber-400"><i className={`text-xs ${el.isLocked ? "ri-lock-line" : "ri-lock-unlock-line"}`} /></button>
+      <button type="button" onClick={e => { e.stopPropagation(); onDelete(); }} className="p-0.5 hover:text-red-400"><i className="ri-delete-bin-line text-xs" /></button>
+    </div>
+  </div>
+));
+
+/* ─── Main Editor Component ─── */
 const AdminBannerEditorPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -222,26 +282,28 @@ const AdminBannerEditorPage = () => {
     })();
   }, [id]);
 
-  /* ─── Derived: selected element (always falls back) ─── */
+  /* ─── Derived: selected element ─── */
   const sel = elements.find(el => el.id === selectedId) || elements[0] || null;
 
   /* ─── Element helpers ─── */
-  const updateElement = (elId, key, val) => {
+  const updateElement = useCallback((elId, key, val) => {
     if (!elId) return;
-    pushHistory(elements.map(el => el.id === elId ? { ...el, [key]: val } : el));
-  };
+    pushHistory(elementsRef.current.map(el => el.id === elId ? { ...el, [key]: val } : el));
+  }, [pushHistory]);
 
-  const updateSel = (key, val) => updateElement(sel?.id, key, val);
+  const updateSel = useCallback((key, val) => {
+    if (sel?.id) updateElement(sel.id, key, val);
+  }, [sel, updateElement]);
 
-  const removeElement = (targetId) => {
-    const updated = elements.filter(el => el.id !== targetId);
+  const removeElement = useCallback((targetId) => {
+    const updated = elementsRef.current.filter(el => el.id !== targetId);
     pushHistory(updated);
     if (selectedId === targetId) setSelectedId(updated[0]?.id || null);
-  };
+  }, [pushHistory, selectedId]);
 
-  const duplicateElement = (targetId = null) => {
+  const duplicateElement = useCallback((targetId = null) => {
     const elId = targetId || sel?.id;
-    const el = elements.find(item => item.id === elId);
+    const el = elementsRef.current.find(item => item.id === elId);
     if (!el) return;
     const newId = `${el.type}-${Date.now()}`;
     const dup = {
@@ -249,25 +311,25 @@ const AdminBannerEditorPage = () => {
       name: `${el.name || el.type} (Copy)`,
       x: Math.min(canvasWidth - el.width, el.x + 30),
       y: Math.min(canvasHeight - el.height, el.y + 30),
-      zIndex: elements.length + 1,
+      zIndex: elementsRef.current.length + 1,
     };
-    pushHistory([...elements, dup]);
+    pushHistory([...elementsRef.current, dup]);
     setSelectedId(newId);
-  };
+  }, [sel, canvasWidth, canvasHeight, pushHistory]);
 
-  const moveZIndex = (direction) => {
+  const moveZIndex = useCallback((direction) => {
     if (!sel) return;
-    let list = [...elements].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
+    let list = [...elementsRef.current].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0));
     const idx = list.findIndex(el => el.id === sel.id);
     if (idx === -1) return;
     if (direction === "front") { const [item] = list.splice(idx, 1); list.push(item); }
     else if (direction === "back") { const [item] = list.splice(idx, 1); list.unshift(item); }
     else if (direction === "forward" && idx < list.length - 1) { const [item] = list.splice(idx, 1); list.splice(idx + 1, 0, item); }
     else if (direction === "backward" && idx > 0) { const [item] = list.splice(idx, 1); list.splice(idx - 1, 0, item); }
-    pushHistory(elements.map(el => ({ ...el, zIndex: list.findIndex(i => i.id === el.id) + 1 })));
-  };
+    pushHistory(elementsRef.current.map(el => ({ ...el, zIndex: list.findIndex(i => i.id === el.id) + 1 })));
+  }, [sel, pushHistory]);
 
-  const handleAlign = (dir) => {
+  const handleAlign = useCallback((dir) => {
     if (!sel || sel.isLocked) return;
     let { x, y } = sel;
     if (dir === "left") x = 20;
@@ -276,8 +338,8 @@ const AdminBannerEditorPage = () => {
     if (dir === "top") y = 20;
     if (dir === "v_center") y = Math.round((canvasHeight - sel.height) / 2);
     if (dir === "bottom") y = canvasHeight - sel.height - 20;
-    pushHistory(elements.map(el => el.id === sel.id ? { ...el, x, y } : el));
-  };
+    pushHistory(elementsRef.current.map(el => el.id === sel.id ? { ...el, x, y } : el));
+  }, [sel, canvasWidth, canvasHeight, pushHistory]);
 
   /* ─── Placement helper ─── */
   const getPlacement = (w, h, clickEv = null) => {
@@ -492,70 +554,6 @@ const AdminBannerEditorPage = () => {
 
   if (loadingBanner) return <AdminBannerEditorSkeleton />;
 
-  /* ─── Render helper for layer item actions ─── */
-  const LayerItem = ({ el }) => {
-    const active = sel?.id === el.id;
-    return (
-      <div
-        onClick={() => setSelectedId(el.id)}
-        className={`group flex items-center justify-between p-2 rounded-xl text-[11px] font-bold transition cursor-pointer border ${
-          active
-            ? "bg-accent/15 border-accent text-accent shadow-xs"
-            : "bg-transparent border-border-theme/20 text-foreground/70 hover:border-border-theme/50 hover:text-foreground"
-        }`}
-      >
-        <div className="flex items-center gap-2 truncate min-w-0">
-          <i className={`text-sm flex-shrink-0 ${
-            el.type === "text" ? "ri-text" : el.type === "button" ? "ri-cursor-fill" : el.type === "timer" ? "ri-time-line text-amber-400" : "ri-image-line"
-          }`} />
-          <span className="truncate">{el.content || el.name || el.type}</span>
-          {el.type === "button" && el.link && (
-            <span className="text-[9px] text-foreground/40 font-mono truncate max-w-[60px]" title={el.link}>
-              {el.link}
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button onClick={e => { e.stopPropagation(); duplicateElement(el.id); }} className="p-0.5 hover:text-accent" title="Duplicate"><i className="ri-file-copy-line text-xs" /></button>
-          <button onClick={e => { e.stopPropagation(); updateElement(el.id, "isVisible", !(el.isVisible ?? true)); }} className="p-0.5 hover:text-foreground"><i className={`text-xs ${el.isVisible ?? true ? "ri-eye-line" : "ri-eye-off-line"}`} /></button>
-          <button onClick={e => { e.stopPropagation(); updateElement(el.id, "isLocked", !el.isLocked); }} className="p-0.5 hover:text-amber-400"><i className={`text-xs ${el.isLocked ? "ri-lock-line" : "ri-lock-unlock-line"}`} /></button>
-          <button onClick={e => { e.stopPropagation(); removeElement(el.id); }} className="p-0.5 hover:text-red-400"><i className="ri-delete-bin-line text-xs" /></button>
-        </div>
-      </div>
-    );
-  };
-
-  /* ─── Inspector section helper ─── */
-  const Section = ({ label, children, icon }) => (
-    <div className="space-y-2 pb-3 border-b border-border-theme/10 last:border-0">
-      <div className="text-[9px] font-black text-foreground/40 uppercase tracking-wider flex items-center gap-1.5">
-        {icon && <i className={`${icon} text-[10px]`} />} {label}
-      </div>
-      {children}
-    </div>
-  );
-
-  const InputField = ({ label, value, onChange, type = "text", ...rest }) => (
-    <div className="space-y-0.5">
-      <label className="text-[9px] font-bold text-foreground/40 uppercase">{label}</label>
-      <input
-        type={type} value={value} onChange={onChange}
-        className="w-full px-2.5 py-1.5 bg-background border border-border-theme/30 rounded-lg text-xs font-mono text-foreground outline-none focus:border-accent/60 transition"
-        {...rest}
-      />
-    </div>
-  );
-
-  const ColorRow = ({ value, onChange, label }) => (
-    <div className="space-y-0.5">
-      {label && <label className="text-[9px] font-bold text-foreground/40 uppercase">{label}</label>}
-      <div className="flex items-center gap-2">
-        <input type="color" value={value || "#ffffff"} onChange={e => onChange(e.target.value)} className="w-7 h-7 rounded-lg border-0 cursor-pointer flex-shrink-0" />
-        <input type="text" value={value || "#FFFFFF"} onChange={e => onChange(e.target.value)} className="flex-1 px-2 py-1 bg-background border border-border-theme/30 rounded-lg text-[11px] font-mono text-foreground uppercase outline-none focus:border-accent/60 transition" />
-      </div>
-    </div>
-  );
-
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] w-full overflow-hidden select-none bg-background font-sans text-foreground rounded-2xl border border-border-theme/30 shadow-2xl">
 
@@ -573,19 +571,19 @@ const AdminBannerEditorPage = () => {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <button onClick={exportPNG} disabled={compilingCanvas}
+          <button type="button" onClick={exportPNG} disabled={compilingCanvas}
             className="px-3 py-1.5 rounded-lg bg-surface-variant/20 border border-border-theme/30 text-[11px] font-bold text-foreground/70 hover:text-foreground hover:bg-surface-variant/40 transition cursor-pointer flex items-center gap-1.5">
             {compilingCanvas ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-download-2-line" />} Export
           </button>
-          <button onClick={() => setShowLiveModal(true)}
+          <button type="button" onClick={() => setShowLiveModal(true)}
             className="px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[11px] font-bold hover:bg-blue-500/20 transition cursor-pointer flex items-center gap-1.5">
             <i className="ri-eye-line" /> Preview
           </button>
-          <button onClick={() => handleSave(true)} disabled={saving}
+          <button type="button" onClick={() => handleSave(true)} disabled={saving}
             className="px-3 py-1.5 rounded-lg border border-border-theme/30 text-[11px] font-bold text-foreground/60 hover:text-foreground hover:bg-surface-variant/20 transition cursor-pointer">
             Draft
           </button>
-          <button onClick={() => handleSave(false)} disabled={saving}
+          <button type="button" onClick={() => handleSave(false)} disabled={saving}
             className="px-4 py-1.5 rounded-lg bg-accent text-accent-content text-[11px] font-black shadow-md hover:shadow-lg transition cursor-pointer flex items-center gap-1.5">
             {saving && <i className="ri-loader-4-line animate-spin" />} Publish
           </button>
@@ -596,14 +594,14 @@ const AdminBannerEditorPage = () => {
       <div className="flex flex-1 overflow-hidden">
 
         {/* ─── LEFT: Layers / Assets / Settings ─── */}
-        <div className="w-64 bg-surface/80 border-r border-border-theme/20 flex flex-col h-full overflow-hidden flex-shrink-0">
-          <div className="grid grid-cols-3 border-b border-border-theme/20 text-[9px] font-black uppercase tracking-widest text-center">
+        <div className="w-64 bg-surface/80 border-r border-border-theme/20 flex flex-col h-full min-h-0 overflow-hidden flex-shrink-0">
+          <div className="grid grid-cols-3 border-b border-border-theme/20 text-[9px] font-black uppercase tracking-widest text-center flex-shrink-0">
             {[
               { key: "layers", icon: "ri-stack-line", label: `Layers (${elements.length})` },
               { key: "assets", icon: "ri-shapes-line", label: "Presets" },
               { key: "settings", icon: "ri-settings-4-line", label: "Settings" },
             ].map(tab => (
-              <button key={tab.key} onClick={() => setActiveLeftTab(tab.key)}
+              <button key={tab.key} type="button" onClick={() => setActiveLeftTab(tab.key)}
                 className={`py-2.5 border-b-2 transition cursor-pointer flex flex-col items-center gap-0.5 ${
                   activeLeftTab === tab.key ? "border-accent text-accent" : "border-transparent text-foreground/40 hover:text-foreground/70"
                 }`}>
@@ -612,12 +610,23 @@ const AdminBannerEditorPage = () => {
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-none">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar" data-lenis-prevent>
             {activeLeftTab === "layers" && (
               <div className="space-y-1">
                 {elements.length === 0
                   ? <p className="text-[11px] text-foreground/30 text-center py-8">No layers yet. Add elements from the toolbar below.</p>
-                  : [...elements].sort((a, b) => b.zIndex - a.zIndex).map(el => <LayerItem key={el.id} el={el} />)
+                  : [...elements].sort((a, b) => b.zIndex - a.zIndex).map(el => (
+                      <LayerItem
+                        key={el.id}
+                        el={el}
+                        isSelected={sel?.id === el.id}
+                        onSelect={() => setSelectedId(el.id)}
+                        onDuplicate={() => duplicateElement(el.id)}
+                        onToggleVisible={() => updateElement(el.id, "isVisible", !(el.isVisible ?? true))}
+                        onToggleLock={() => updateElement(el.id, "isLocked", !el.isLocked)}
+                        onDelete={() => removeElement(el.id)}
+                      />
+                    ))
                 }
               </div>
             )}
@@ -626,15 +635,15 @@ const AdminBannerEditorPage = () => {
               <div className="space-y-4">
                 <Section label="Quick Add" icon="ri-add-circle-line">
                   <div className="space-y-1.5">
-                    <button onClick={() => handleAddButton()} className="w-full p-2.5 rounded-xl bg-accent/10 border border-accent/30 hover:bg-accent/20 text-[11px] font-extrabold text-accent transition cursor-pointer flex items-center justify-between">
+                    <button type="button" onClick={() => handleAddButton()} className="w-full p-2.5 rounded-xl bg-accent/10 border border-accent/30 hover:bg-accent/20 text-[11px] font-extrabold text-accent transition cursor-pointer flex items-center justify-between">
                       <span className="flex items-center gap-2"><i className="ri-cursor-fill" /> CTA Button with Link</span>
                       <i className="ri-add-line" />
                     </button>
-                    <button onClick={() => handleAddText()} className="w-full p-2.5 rounded-xl bg-surface-variant/20 border border-border-theme/20 hover:border-accent/30 text-[11px] font-bold text-foreground/70 transition cursor-pointer flex items-center justify-between">
+                    <button type="button" onClick={() => handleAddText()} className="w-full p-2.5 rounded-xl bg-surface-variant/20 border border-border-theme/20 hover:border-accent/30 text-[11px] font-bold text-foreground/70 transition cursor-pointer flex items-center justify-between">
                       <span className="flex items-center gap-2"><i className="ri-text" /> Text Layer</span>
                       <i className="ri-add-line" />
                     </button>
-                    <button onClick={() => handleAddTimer()} className="w-full p-2.5 rounded-xl bg-amber-400/10 border border-amber-400/30 hover:bg-amber-400/15 text-[11px] font-bold text-amber-400 transition cursor-pointer flex items-center justify-between">
+                    <button type="button" onClick={() => handleAddTimer()} className="w-full p-2.5 rounded-xl bg-amber-400/10 border border-amber-400/30 hover:bg-amber-400/15 text-[11px] font-bold text-amber-400 transition cursor-pointer flex items-center justify-between">
                       <span className="flex items-center gap-2"><i className="ri-time-line" /> Sale Countdown</span>
                       <i className="ri-add-line" />
                     </button>
@@ -643,7 +652,7 @@ const AdminBannerEditorPage = () => {
                 <Section label="Text Presets" icon="ri-font-size-2">
                   <div className="space-y-1">
                     {TEXT_PRESETS.map(p => (
-                      <button key={p.name} onClick={() => handleAddText(p)}
+                      <button key={p.name} type="button" onClick={() => handleAddText(p)}
                         className="w-full p-2 rounded-xl bg-surface-variant/10 border border-border-theme/15 hover:border-accent/30 text-left text-[11px] font-bold text-foreground/60 hover:text-foreground transition cursor-pointer">
                         {p.name}
                       </button>
@@ -659,7 +668,7 @@ const AdminBannerEditorPage = () => {
                   <ColorRow value={backgroundColor} onChange={setBackgroundColor} />
                   <div className="grid grid-cols-6 gap-1 pt-1">
                     {PRESET_BG_COLORS.map(c => (
-                      <button key={c} onClick={() => setBackgroundColor(c)}
+                      <button key={c} type="button" onClick={() => setBackgroundColor(c)}
                         className={`w-full aspect-square rounded-lg border cursor-pointer transition hover:scale-110 ${backgroundColor === c ? "border-accent ring-1 ring-accent" : "border-border-theme/30"}`}
                         style={{ backgroundColor: c }} />
                     ))}
@@ -668,7 +677,7 @@ const AdminBannerEditorPage = () => {
                 <Section label="Canvas Size" icon="ri-ruler-line">
                   <div className="space-y-1.5">
                     {CANVAS_SIZES.map(size => (
-                      <button key={size.name} onClick={() => { setCanvasWidth(size.width); setCanvasHeight(size.height); setAspectRatio(size.ratio); }}
+                      <button key={size.name} type="button" onClick={() => { setCanvasWidth(size.width); setCanvasHeight(size.height); setAspectRatio(size.ratio); }}
                         className={`w-full p-2 rounded-xl text-left text-[11px] font-bold border transition cursor-pointer flex items-center gap-2.5 ${
                           canvasWidth === size.width && canvasHeight === size.height
                             ? "bg-accent/15 border-accent text-accent"
@@ -708,7 +717,7 @@ const AdminBannerEditorPage = () => {
                 <Section label="Devices" icon="ri-device-line">
                   <div className="grid grid-cols-3 gap-1.5">
                     {DEVICE_OPTIONS.map(dev => (
-                      <button key={dev.value} onClick={() => setDeviceTargets(deviceTargets.includes(dev.value) ? deviceTargets.filter(d => d !== dev.value) : [...deviceTargets, dev.value])}
+                      <button key={dev.value} type="button" onClick={() => setDeviceTargets(deviceTargets.includes(dev.value) ? deviceTargets.filter(d => d !== dev.value) : [...deviceTargets, dev.value])}
                         className={`p-1.5 rounded-xl text-center text-[10px] font-bold border cursor-pointer flex flex-col items-center gap-0.5 transition ${
                           deviceTargets.includes(dev.value) ? "bg-accent/15 border-accent text-accent" : "bg-background/50 border-border-theme/20 text-foreground/40"
                         }`}>
@@ -723,7 +732,7 @@ const AdminBannerEditorPage = () => {
         </div>
 
         {/* ─── MIDDLE: Canvas Viewport ─── */}
-        <div ref={viewportRef} className="flex-1 min-w-0 bg-background/40 flex flex-col items-center justify-center overflow-auto relative z-10"
+        <div ref={viewportRef} className="flex-1 min-w-0 bg-background/40 flex flex-col items-center justify-center overflow-auto custom-scrollbar relative z-10" data-lenis-prevent
           style={{ backgroundImage: "radial-gradient(circle, var(--color-border-theme)/0.15 1px, transparent 1px)", backgroundSize: "20px 20px" }}>
 
           {/* Ratio badge */}
@@ -760,22 +769,22 @@ const AdminBannerEditorPage = () => {
 
           {/* Zoom Controls */}
           <div className="mt-3 flex items-center gap-1.5 bg-surface/70 border border-border-theme/20 rounded-lg px-2 py-1 backdrop-blur-sm">
-            <button onClick={() => setZoomLevel(z => Math.max(25, z - 10))} className="w-6 h-6 rounded text-foreground/50 hover:text-foreground flex items-center justify-center cursor-pointer text-xs"><i className="ri-subtract-line" /></button>
+            <button type="button" onClick={() => setZoomLevel(z => Math.max(25, z - 10))} className="w-6 h-6 rounded text-foreground/50 hover:text-foreground flex items-center justify-center cursor-pointer text-xs"><i className="ri-subtract-line" /></button>
             <span className="text-[10px] font-mono font-bold text-foreground/60 w-10 text-center">{zoomLevel}%</span>
-            <button onClick={() => setZoomLevel(z => Math.min(200, z + 10))} className="w-6 h-6 rounded text-foreground/50 hover:text-foreground flex items-center justify-center cursor-pointer text-xs"><i className="ri-add-line" /></button>
+            <button type="button" onClick={() => setZoomLevel(z => Math.min(200, z + 10))} className="w-6 h-6 rounded text-foreground/50 hover:text-foreground flex items-center justify-center cursor-pointer text-xs"><i className="ri-add-line" /></button>
             <span className="w-px h-4 bg-border-theme/20 mx-0.5" />
-            <button onClick={() => setZoomLevel(100)} className="text-[9px] font-bold text-foreground/40 hover:text-accent cursor-pointer px-1">Reset</button>
+            <button type="button" onClick={() => setZoomLevel(100)} className="text-[9px] font-bold text-foreground/40 hover:text-accent cursor-pointer px-1">Reset</button>
           </div>
         </div>
 
         {/* ─── RIGHT: Design Inspector ─── */}
-        <div className="w-72 bg-surface/80 border-l border-border-theme/20 flex flex-col h-full overflow-hidden flex-shrink-0">
-          <div className="px-3 py-2.5 border-b border-border-theme/20 flex items-center justify-between">
+        <div className="w-72 bg-surface/80 border-l border-border-theme/20 flex flex-col h-full min-h-0 overflow-hidden flex-shrink-0">
+          <div className="px-3 py-2.5 border-b border-border-theme/20 flex items-center justify-between flex-shrink-0">
             <span className="text-[10px] font-black text-foreground/60 uppercase tracking-wider">Inspector</span>
             {sel && <span className="text-[9px] text-accent font-mono uppercase font-bold bg-accent/10 px-1.5 py-0.5 rounded">{sel.type}</span>}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 scrollbar-none">
+          <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-3 custom-scrollbar" data-lenis-prevent>
             {/* Canvas BG always visible */}
             <Section label="Canvas Background" icon="ri-palette-line">
               <ColorRow value={backgroundColor} onChange={setBackgroundColor} />
@@ -785,10 +794,10 @@ const AdminBannerEditorPage = () => {
               <>
                 {/* Actions row */}
                 <div className="flex items-center gap-1.5">
-                  <button onClick={() => duplicateElement(sel.id)} className="flex-1 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-[10px] font-bold hover:bg-accent/20 transition cursor-pointer flex items-center justify-center gap-1">
+                  <button type="button" onClick={() => duplicateElement(sel.id)} className="flex-1 py-1.5 rounded-lg bg-accent/10 border border-accent/20 text-accent text-[10px] font-bold hover:bg-accent/20 transition cursor-pointer flex items-center justify-center gap-1">
                     <i className="ri-file-copy-line" /> Duplicate
                   </button>
-                  <button onClick={() => removeElement(sel.id)} className="flex-1 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold hover:bg-red-500/20 transition cursor-pointer flex items-center justify-center gap-1">
+                  <button type="button" onClick={() => removeElement(sel.id)} className="flex-1 py-1.5 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-[10px] font-bold hover:bg-red-500/20 transition cursor-pointer flex items-center justify-center gap-1">
                     <i className="ri-delete-bin-line" /> Delete
                   </button>
                 </div>
@@ -804,7 +813,7 @@ const AdminBannerEditorPage = () => {
                       { fn: "v_center", icon: "ri-align-vertically", t: "Middle" },
                       { fn: "bottom", icon: "ri-align-bottom", t: "Bottom" },
                     ].map(a => (
-                      <button key={a.fn} onClick={() => handleAlign(a.fn)} title={a.t}
+                      <button key={a.fn} type="button" onClick={() => handleAlign(a.fn)} title={a.t}
                         className="p-1.5 hover:text-accent text-center rounded cursor-pointer transition text-xs">
                         <i className={a.icon} />
                       </button>
@@ -854,7 +863,7 @@ const AdminBannerEditorPage = () => {
                       <label className="text-[9px] font-bold text-foreground/40 uppercase">Quick Links</label>
                       <div className="flex flex-wrap gap-1">
                         {LINK_PRESETS.map(p => (
-                          <button key={p.label} onClick={() => updateSel("link", p.url)}
+                          <button key={p.label} type="button" onClick={() => updateSel("link", p.url)}
                             className={`px-2 py-0.5 rounded-md text-[9px] font-bold border cursor-pointer transition flex items-center gap-1 ${
                               sel.link === p.url ? "bg-accent/15 border-accent text-accent" : "bg-surface-variant/15 border-border-theme/20 text-foreground/50 hover:text-accent hover:border-accent/30"
                             }`}>
@@ -867,7 +876,7 @@ const AdminBannerEditorPage = () => {
                       <label className="text-[9px] font-bold text-foreground/40 uppercase">Corner Radius ({sel.borderRadius || 12}px)</label>
                       <input type="range" min={0} max={40} value={sel.borderRadius || 12} onChange={e => updateSel("borderRadius", parseInt(e.target.value))} className="w-full accent-accent h-1.5" />
                     </div>
-                    <button onClick={() => duplicateElement(sel.id)}
+                    <button type="button" onClick={() => duplicateElement(sel.id)}
                       className="w-full py-2 rounded-lg bg-accent/10 border border-accent/25 text-accent font-bold text-[10px] hover:bg-accent/20 transition cursor-pointer flex items-center justify-center gap-1.5">
                       <i className="ri-file-copy-line" /> Duplicate This Button
                     </button>
@@ -893,21 +902,21 @@ const AdminBannerEditorPage = () => {
 
       {/* ═══ BOTTOM TOOLBAR ═══ */}
       <div className="flex items-center justify-center gap-1 px-4 py-2 border-t border-border-theme/20 bg-surface/60 backdrop-blur-xl flex-shrink-0">
-        <button onClick={() => setActiveTool("move")}
+        <button type="button" onClick={() => setActiveTool("move")}
           className={`px-3 py-1.5 rounded-lg cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5 ${activeTool === "move" ? "bg-accent text-accent-content shadow" : "text-foreground/50 hover:text-foreground hover:bg-surface-variant/20"}`}>
           <i className="ri-cursor-line" /> Select
         </button>
         <span className="w-px h-5 bg-border-theme/20 mx-1" />
-        <button onClick={() => handleAddText()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-foreground hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
+        <button type="button" onClick={() => handleAddText()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-foreground hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
           <i className="ri-text text-accent" /> Text
         </button>
-        <button onClick={() => handleAddButton()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-accent hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
+        <button type="button" onClick={() => handleAddButton()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-accent hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
           <i className="ri-cursor-fill text-accent" /> Button
         </button>
-        <button onClick={() => duplicateElement()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-accent hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
+        <button type="button" onClick={() => duplicateElement()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-accent hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
           <i className="ri-file-copy-line text-accent" /> Duplicate
         </button>
-        <button onClick={() => handleAddTimer()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-amber-400 hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
+        <button type="button" onClick={() => handleAddTimer()} className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-amber-400 hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
           <i className="ri-time-line text-amber-400" /> Timer
         </button>
         <label className="px-3 py-1.5 rounded-lg text-foreground/50 hover:text-foreground hover:bg-surface-variant/20 cursor-pointer transition text-[11px] font-bold flex items-center gap-1.5">
@@ -915,8 +924,8 @@ const AdminBannerEditorPage = () => {
           <input type="file" accept="image/*" onChange={handleAddImage} className="hidden" />
         </label>
         <span className="w-px h-5 bg-border-theme/20 mx-1" />
-        <button onClick={handleUndo} disabled={!past.length} className="px-2 py-1.5 rounded-lg text-foreground/40 hover:text-foreground disabled:opacity-30 cursor-pointer transition text-xs" title="Undo (Ctrl+Z)"><i className="ri-arrow-go-back-line" /></button>
-        <button onClick={handleRedo} disabled={!future.length} className="px-2 py-1.5 rounded-lg text-foreground/40 hover:text-foreground disabled:opacity-30 cursor-pointer transition text-xs" title="Redo (Ctrl+Y)"><i className="ri-arrow-go-forward-line" /></button>
+        <button type="button" onClick={handleUndo} disabled={!past.length} className="px-2 py-1.5 rounded-lg text-foreground/40 hover:text-foreground disabled:opacity-30 cursor-pointer transition text-xs" title="Undo (Ctrl+Z)"><i className="ri-arrow-go-back-line" /></button>
+        <button type="button" onClick={handleRedo} disabled={!future.length} className="px-2 py-1.5 rounded-lg text-foreground/40 hover:text-foreground disabled:opacity-30 cursor-pointer transition text-xs" title="Redo (Ctrl+Y)"><i className="ri-arrow-go-forward-line" /></button>
       </div>
 
       {/* ═══ Overlays ═══ */}
