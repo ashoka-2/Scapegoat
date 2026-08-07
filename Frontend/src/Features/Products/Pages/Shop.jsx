@@ -9,6 +9,7 @@ import ProductGridSkeleton from "../Components/Skeletons/ProductGridSkeleton";
 import { useDebounce } from "../../../utils/timingUtils";
 import { useInfiniteScroll } from "../../../utils/useInfiniteScroll";
 import { aiSearchProductsApi } from "../Services/product.api";
+import BannerCarousel from "../../Home/Components/BannerCarousel";
 
 function calculateProductMatchScore(product, query) {
   if (!query || !query.trim()) return 0;
@@ -583,6 +584,10 @@ const Shop = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground py-10 px-4 max-w-[1400px] mx-auto">
+      {/* Dynamic Target Page Banner Carousels */}
+      <BannerCarousel page="shop" placement="hero" />
+      <BannerCarousel page="shop" placement="inline" />
+
       {/* Header Banner */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4 mb-8 pb-6 border-b border-border-theme/40">
         <div>
@@ -620,8 +625,9 @@ const Shop = () => {
 
       <div className="flex gap-8">
         {/* Desktop Sidebar */}
-        <div className="hidden md:block w-64 flex-shrink-0">
+        <div className="hidden md:block w-64 flex-shrink-0 space-y-6">
           <FilterSidebarContent {...sidebarProps} />
+          <BannerCarousel page="shop" placement="sidebar" />
         </div>
 
         {/* Mobile Filter Drawer */}

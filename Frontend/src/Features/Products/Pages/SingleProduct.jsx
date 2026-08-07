@@ -12,6 +12,7 @@ import ProductCarousel from "../Components/ProductCarousel";
 import ProductCard from "../Components/ProductCard";
 import SingleProductSkeleton from "../Components/Skeletons/SingleProductSkeleton";
 import ProductReviews from "../../Reviews/Components/ProductReviews";
+import BannerCarousel from "../../Home/Components/BannerCarousel";
 import { motion } from "framer-motion";
 
 // Color name to Hex map for fallback swatches
@@ -1119,8 +1120,14 @@ const SingleProduct = () => {
               </span>
             </div>
           )}
+
+          {/* Product Page Sidebar Banner */}
+          <BannerCarousel page="product" placement="sidebar" />
         </div>
       </div>
+
+      {/* Product Page Inline Banner */}
+      <BannerCarousel page="product" placement="inline" />
 
       {/* ── Product Specifications & Details Tabs ── */}
       <div className="bg-background border border-border-theme rounded-3xl p-6 sm:p-10 space-y-6 shadow-sm">

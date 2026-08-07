@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useOrders } from "../Hooks/useOrders";
 import socket from "../../../utils/socket";
+import BannerCarousel from "../../Home/Components/BannerCarousel";
 
 const statusConfig = {
   Processing: {
@@ -110,6 +111,9 @@ const MyOrders = () => {
 
   return (
     <div className="min-h-screen py-10 px-4 sm:px-6 md:px-12 max-w-5xl mx-auto font-sans space-y-8">
+      {/* Inline Orders Banner */}
+      <BannerCarousel page="my-orders" placement="inline" />
+
       <div className="text-center space-y-2">
         <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight text-foreground">
           My Orders

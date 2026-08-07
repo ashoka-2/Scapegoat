@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { useOrders } from "../Hooks/useOrders";
 import CheckoutSkeleton from "../Components/Skeletons/CheckoutSkeleton";
+import BannerCarousel from "../../Home/Components/BannerCarousel";
 import { InputField, SelectField, RadioCard } from "../../../Shared/FormFields";
 
 const INDIAN_STATES = [
@@ -132,6 +133,9 @@ const Checkout = () => {
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 md:px-12 max-w-6xl mx-auto font-sans">
+      {/* Inline Checkout Banner */}
+      <BannerCarousel page="checkout" placement="inline" />
+
       <div className="text-center mb-10 space-y-2">
         <h1 className="text-3xl md:text-5xl font-black uppercase tracking-tight text-foreground">
           Express Checkout
@@ -310,6 +314,9 @@ const Checkout = () => {
               )}
             </button>
           </div>
+
+          {/* Checkout Sidebar Banner */}
+          <BannerCarousel page="checkout" placement="sidebar" />
         </div>
       </form>
     </div>

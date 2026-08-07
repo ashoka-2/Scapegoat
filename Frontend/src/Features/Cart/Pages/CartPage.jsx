@@ -8,6 +8,7 @@ import { getCartItemImage } from "../State/cart.slice";
 import { useUserActivity } from "../../Products/Hooks/useUserActivity";
 import ProductCarousel from "../../Products/Components/ProductCarousel";
 import CartItemSkeleton from "../Components/Skeletons/CartItemSkeleton";
+import BannerCarousel from "../../Home/Components/BannerCarousel";
 import { DeleteBtn } from "../../../Shared/Buttons";
 
 /**
@@ -142,6 +143,9 @@ const CartPage = () => {
 
   return (
     <div className="w-full space-y-6 selection:bg-accent selection:text-accent-content font-sans py-4">
+      {/* Inline Cart Banner */}
+      <BannerCarousel page="cart" placement="inline" />
+
       {/* Header Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-border-theme pb-4">
         <div>
@@ -474,6 +478,9 @@ const CartPage = () => {
                 );
               })()}
             </div>
+
+            {/* Sidebar Banner Widget */}
+            <BannerCarousel page="cart" placement="sidebar" />
           </div>
         </div>
       )}

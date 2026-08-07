@@ -59,6 +59,20 @@ const getPageFromPath = (pathname) => {
   return segment || "home";
 };
 
+const getCurrentDevice = () => {
+  const w = window.innerWidth;
+  if (w < 640) return "mobile";
+  if (w < 1024) return "tablet";
+  return "desktop";
+};
+
+const isDeviceEligible = (b, device) => {
+  if (!b.deviceTargets || !Array.isArray(b.deviceTargets) || b.deviceTargets.length === 0) {
+    return true;
+  }
+  return b.deviceTargets.includes(device);
+};
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const PopupBanner = () => {
@@ -76,14 +90,15 @@ const PopupBanner = () => {
   // Fetch promotional banners for the current page
   useEffect(() => {
     const currentPage = getPageFromPath(location.pathname);
+    const device = getCurrentDevice();
 
     const fetchPopup = async () => {
       try {
         const data = await getActiveBannersApi({ placement: "promotional", page: currentPage });
         if (data.banners && data.banners.length > 0) {
-          // Find first banner that passes frequency check
+          // Find first banner that passes device target & frequency check
           const eligible = data.banners.find((b) =>
-            shouldShowPopup(b._id, b.showTimesPerDay || 1)
+            isDeviceEligible(b, device) && shouldShowPopup(b._id, b.showTimesPerDay || 1)
           );
           if (eligible) {
             setBanner(eligible);
@@ -301,26 +316,69 @@ const PopupBanner = () => {
                 </div>
               )}
 
-              {/* Overlay CTA Buttons */}
-              {banner.buttons?.map((btn, idx) => (
-                <button
-                  key={idx}
-                  onClick={(e) => handleButtonClick(e, btn)}
-                  className="absolute shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold"
-                  style={{
-                    left: `${btn.positionX}%`,
-                    top: `${btn.positionY}%`,
-                    transform: "translate(-50%, -50%)",
-                    backgroundColor: btn.bgColor || "#ffffff",
-                    color: btn.textColor || "#000000",
-                    borderRadius: `${btn.borderRadius || 8}px`,
-                    fontSize: `${btn.fontSize || 14}px`,
-                    padding: `${btn.paddingY || 12}px ${btn.paddingX || 24}px`,
-                  }}
-                >
-                  {btn.text}
-                </button>
-              ))}
+              {/* Studio Elements: Interactive CTA Buttons with Link Redirection */}
+              {Array.isArray(banner.elements) && banner.elements.length > 0 ? (
+                banner.elements
+                  .filter(el => el.type === "button" && el.isVisible !== false)
+                  .map(el => {
+                    const cWidth = banner.canvasWidth || 1200;
+                    const cHeight = banner.canvasHeight || 500;
+                    const leftPct = (el.x / cWidth) * 100;
+                    const topPct = (el.y / cHeight) * 100;
+                    const widthPct = (el.width / cWidth) * 100;
+                    const heightPct = (el.height / cHeight) * 100;
+
+                    return (
+                      <a
+                        key={el.id}
+                        href={el.link || "#"}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleClose();
+                          if (el.link && el.link !== "#") {
+                            if (el.link.startsWith("http")) window.open(el.link, "_blank");
+                            else navigate(el.link);
+                          }
+                        }}
+                        className="absolute z-20 flex items-center justify-center font-bold no-underline shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                        style={{
+                          left: `${leftPct}%`,
+                          top: `${topPct}%`,
+                          width: `${widthPct}%`,
+                          height: `${heightPct}%`,
+                          backgroundColor: el.bgColor || "#ffffff",
+                          color: el.textColor || "#000000",
+                          borderColor: el.borderColor || "#ffffff",
+                          borderWidth: `${el.borderWidth || 0}px`,
+                          borderRadius: `${el.borderRadius || 12}px`,
+                          fontSize: `clamp(10px, 1.2vw, ${el.fontSize || 14}px)`,
+                        }}
+                      >
+                        {el.content || "SHOP NOW"}
+                      </a>
+                    );
+                  })
+              ) : (
+                banner.buttons?.map((btn, idx) => (
+                  <button
+                    key={idx}
+                    onClick={(e) => handleButtonClick(e, btn)}
+                    className="absolute shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold"
+                    style={{
+                      left: `${btn.positionX}%`,
+                      top: `${btn.positionY}%`,
+                      transform: "translate(-50%, -50%)",
+                      backgroundColor: btn.bgColor || "#ffffff",
+                      color: btn.textColor || "#000000",
+                      borderRadius: `${btn.borderRadius || 8}px`,
+                      fontSize: `${btn.fontSize || 14}px`,
+                      padding: `${btn.paddingY || 12}px ${btn.paddingX || 24}px`,
+                    }}
+                  >
+                    {btn.text}
+                  </button>
+                ))
+              )}
             </div>
           </div>
         </motion.div>

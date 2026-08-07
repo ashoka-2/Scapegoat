@@ -48,11 +48,14 @@ const DEVICE_OPTIONS = [
 ];
 
 const PAGE_OPTIONS = [
-  { value: "home", label: "Home Page (Hero & Popups)" },
-  { value: "shop", label: "Shop / Products" },
-  { value: "category", label: "Category Pages" },
+  { value: "home", label: "Home Page" },
+  { value: "shop", label: "Shop / Catalog Page" },
+  { value: "product", label: "Single Product Detail Page" },
   { value: "cart", label: "Cart Page" },
   { value: "checkout", label: "Checkout Page" },
+  { value: "my-orders", label: "My Orders Page" },
+  { value: "about", label: "About Page" },
+  { value: "contact", label: "Contact Page" },
 ];
 
 /* ─── Top-Level Reusable Inspector & Layer Components (Prevents DOM Remounting & Jump) ─── */
@@ -137,6 +140,12 @@ const AdminBannerEditorPage = () => {
   const [isDraft, setIsDraft] = useState(false);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+
+  /* ── Promotional Rules ── */
+  const [dismissible, setDismissible] = useState(true);
+  const [popupDelay, setPopupDelay] = useState(3);
+  const [autoCloseSeconds, setAutoCloseSeconds] = useState(0);
+  const [showTimesPerDay, setShowTimesPerDay] = useState(1);
 
   /* ── Canvas State ── */
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -272,6 +281,10 @@ const AdminBannerEditorPage = () => {
           setIsActive(b.isActive ?? true); setIsDraft(b.isDraft ?? false);
           setStartDate(b.startDate ? new Date(b.startDate).toISOString().slice(0, 16) : "");
           setEndDate(b.endDate ? new Date(b.endDate).toISOString().slice(0, 16) : "");
+          setDismissible(b.dismissible ?? true);
+          setPopupDelay(b.popupDelay ?? 3);
+          setAutoCloseSeconds(b.autoCloseSeconds ?? 0);
+          setShowTimesPerDay(b.showTimesPerDay ?? 1);
           if (Array.isArray(b.elements) && b.elements.length > 0) {
             setElements(b.elements);
             setSelectedId(b.elements[0]?.id || null);
@@ -538,6 +551,10 @@ const AdminBannerEditorPage = () => {
       fd.append("aspectRatio", aspectRatio);
       fd.append("isDraft", draft); fd.append("isActive", draft ? false : isActive);
       fd.append("startDate", startDate || ""); fd.append("endDate", endDate || "");
+      fd.append("dismissible", dismissible);
+      fd.append("popupDelay", popupDelay);
+      fd.append("autoCloseSeconds", autoCloseSeconds);
+      fd.append("showTimesPerDay", showTimesPerDay);
       fd.append("elements", JSON.stringify(elements));
       if (desktopFile) fd.append("image", desktopFile);
       else if (blob) fd.append("image", blob, `banner_${Date.now()}.png`);
@@ -693,14 +710,42 @@ const AdminBannerEditorPage = () => {
                     ))}
                   </div>
                 </Section>
-                <Section label="Placement" icon="ri-layout-masonry-line">
-                  <select value={placement} onChange={e => setPlacement(e.target.value)}
-                    className="w-full px-2.5 py-1.5 bg-background border border-border-theme/30 rounded-lg text-[11px] font-bold text-foreground outline-none">
+                <Section label="Placement & Rules" icon="ri-layout-masonry-line">
+                  <select
+                    value={placement}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setPlacement(val);
+                      if (val === "sidebar") { setCanvasWidth(480); setCanvasHeight(600); setAspectRatio("4:5"); }
+                      else if (val === "hero") { setCanvasWidth(1200); setCanvasHeight(500); setAspectRatio("21:9"); }
+                      else if (val === "inline") { setCanvasWidth(1200); setCanvasHeight(450); setAspectRatio("16:9"); }
+                      else if (val === "promotional") { setCanvasWidth(800); setCanvasHeight(600); setAspectRatio("4:3"); }
+                    }}
+                    className="w-full px-2.5 py-1.5 bg-background border border-border-theme/30 rounded-lg text-[11px] font-bold text-foreground outline-none"
+                  >
                     <option value="hero">Hero Carousel</option>
-                    <option value="promotional">Popup Banner</option>
+                    <option value="promotional">Popup Banner (Promotional)</option>
                     <option value="inline">Inline Grid</option>
                     <option value="sidebar">Sidebar Widget</option>
                   </select>
+
+                  {placement === "promotional" && (
+                    <div className="space-y-2 pt-2 border-t border-border-theme/20">
+                      <InputField label="Show Delay (Seconds)" type="number" min={0} max={60} value={popupDelay} onChange={e => setPopupDelay(parseInt(e.target.value) || 0)} />
+                      <InputField label="Auto-Close (Sec, 0 = Off)" type="number" min={0} max={120} value={autoCloseSeconds} onChange={e => setAutoCloseSeconds(parseInt(e.target.value) || 0)} />
+                      <InputField label="Max Shows / Day / User" type="number" min={1} max={50} value={showTimesPerDay} onChange={e => setShowTimesPerDay(parseInt(e.target.value) || 1)} />
+                      <label className="flex items-center gap-2 text-[11px] font-bold cursor-pointer text-foreground/80 pt-1">
+                        <input type="checkbox" checked={dismissible} onChange={e => setDismissible(e.target.checked)} className="accent-accent w-3.5 h-3.5" />
+                        Allow Manual Close (X & Backdrop)
+                      </label>
+                    </div>
+                  )}
+
+                  {placement === "hero" && (
+                    <div className="pt-2 border-t border-border-theme/20">
+                      <InputField label="Slide Position (0 = 1st)" type="number" min={0} max={20} value={position} onChange={e => setPosition(parseInt(e.target.value) || 0)} />
+                    </div>
+                  )}
                 </Section>
                 <Section label="Target Pages" icon="ri-pages-line">
                   <div className="space-y-1 bg-background/50 p-2 rounded-xl border border-border-theme/20">

@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { useSettings } from "../../Settings/Hooks/useSettings";
 import { useMessages } from "../../Messages/Hooks/useMessages";
 import { InputField, TextAreaField } from "../../../Shared/FormFields";
+import BannerCarousel from "../Components/BannerCarousel";
 
 const Contact = () => {
   const { handleGetSettings } = useSettings();
@@ -59,6 +60,9 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto font-sans">
+      {/* Inline Contact Banner */}
+      <BannerCarousel page="contact" placement="inline" />
+
       <div className="text-center mb-12 md:mb-16 space-y-4">
         <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase text-foreground">
           Support & Contact

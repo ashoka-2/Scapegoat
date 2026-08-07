@@ -7,22 +7,20 @@ import { motion } from "framer-motion";
 const Home = () => {
   return (
     <div className="w-full min-h-screen bg-background">
+      {/* Hero Carousel Banners */}
+      <motion.div layout transition={{ duration: 0.5, ease: "easeInOut" }}>
+        <BannerCarousel page="home" placement="hero" />
+      </motion.div>
+
       {/* Original Hero Section */}
       <Hero />
 
-      {/* Banner Carousel — appears below Hero when admin adds banners */}
-      {/* Smooth layout transition: if banner carousel height differs, content below animates smoothly */}
-      <motion.div
-        layout
-        transition={{ duration: 0.5, ease: "easeInOut" }}
-      >
-        <BannerCarousel />
+      {/* Inline Grid Banners */}
+      <motion.div layout transition={{ duration: 0.4, ease: "easeInOut" }}>
+        <BannerCarousel page="home" placement="inline" />
       </motion.div>
 
-      <motion.div
-        layout
-        transition={{ duration: 0.4, ease: "easeInOut" }}
-      >
+      <motion.div layout transition={{ duration: 0.4, ease: "easeInOut" }}>
         <AllProducts />
       </motion.div>
     </div>

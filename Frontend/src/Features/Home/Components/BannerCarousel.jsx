@@ -19,30 +19,68 @@ const formatCountdown = (targetDate) => {
   return `${hours}h ${mins}m ${secs}s`;
 };
 
-const BannerCarousel = () => {
+const getCurrentDevice = () => {
+  const w = window.innerWidth;
+  if (w < 640) return "mobile";
+  if (w < 1024) return "tablet";
+  return "desktop";
+};
+
+const isDeviceEligible = (b, device) => {
+  if (!b.deviceTargets || !Array.isArray(b.deviceTargets) || b.deviceTargets.length === 0) {
+    return true;
+  }
+  return b.deviceTargets.includes(device);
+};
+
+const BannerCarousel = ({ page = "home", placement = "hero" }) => {
   const [banners, setBanners] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [countdownText, setCountdownText] = useState("");
+  const [currentDevice, setCurrentDevice] = useState(getCurrentDevice());
   const navigate = useNavigate();
   const timerRef = useRef(null);
   const containerRef = useRef(null);
 
-  // Fetch active hero banners for the home page
+  // Device resize listener
+  useEffect(() => {
+    const handleResize = () => setCurrentDevice(getCurrentDevice());
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  // Fetch active banners for target page & placement
   useEffect(() => {
     const fetchBanners = async () => {
       try {
-        const data = await getActiveBannersApi({ placement: "hero", page: "home" });
+        const query = { page };
+        if (placement) query.placement = placement;
+        const data = await getActiveBannersApi(query);
         if (data.banners && data.banners.length > 0) {
-          setBanners(data.banners);
-          const img = new Image();
-          img.src = data.banners[0].image;
-          img.onload = () => setLoaded(true);
-          img.onerror = () => setLoaded(true);
+          // Strictly filter by placement if placement prop is provided
+          const matchedPlacement = placement
+            ? data.banners.filter((b) => b.placement === placement)
+            : data.banners;
+
+          const eligible = matchedPlacement.filter((b) => isDeviceEligible(b, currentDevice));
+          if (eligible.length > 0) {
+            setBanners(eligible);
+            const img = new Image();
+            img.src = eligible[0].image;
+            img.onload = () => setLoaded(true);
+            img.onerror = () => setLoaded(true);
+          } else {
+            setBanners([]);
+            setLoaded(false);
+          }
+        } else {
+          setBanners([]);
+          setLoaded(false);
         }
       } catch (err) {
-        console.error("Failed to fetch hero banners:", err);
+        console.error(`Failed to fetch banners for page ${page}:`, err);
       }
     };
     fetchBanners();
@@ -55,7 +93,7 @@ const BannerCarousel = () => {
     };
     window.addEventListener("banner_update", handleRealtimeUpdate);
     return () => window.removeEventListener("banner_update", handleRealtimeUpdate);
-  }, []);
+  }, [page, placement, currentDevice]);
 
   // Ticking offer timer
   useEffect(() => {
@@ -83,8 +121,8 @@ const BannerCarousel = () => {
     if (loaded && containerRef.current) {
       gsap.fromTo(
         containerRef.current,
-        { opacity: 0, y: 30, scale: 0.98 },
-        { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" }
+        { opacity: 0, y: 20, scale: 0.99 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.6, ease: "power3.out" }
       );
     }
   }, [loaded]);
@@ -134,24 +172,41 @@ const BannerCarousel = () => {
 
   const currentBanner = banners[currentIndex];
 
+  const containerClass =
+    placement === "sidebar"
+      ? "w-full max-w-[360px] mx-auto px-2 mb-6"
+      : placement === "inline"
+      ? "w-full max-w-[1300px] mx-auto px-2 sm:px-6 my-6"
+      : "w-full max-w-[1300px] mx-auto px-2 sm:px-6 mb-8";
+
+  const calcAspect = currentBanner.aspectRatio
+    ? currentBanner.aspectRatio.replace(":", "/")
+    : placement === "sidebar"
+    ? "4/5"
+    : "21/5";
+
   return (
     <div
       ref={containerRef}
-      className="w-full max-w-[1300px] mx-auto px-2 sm:px-6 mb-8"
+      className={containerClass}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
       style={{ opacity: 0 }}
     >
-      <motion.div layout className="relative w-full rounded-[32px] sm:rounded-[48px] overflow-hidden shadow-2xl border border-border-theme/20">
+      <motion.div
+        layout
+        className="relative w-full rounded-[24px] sm:rounded-[36px] overflow-hidden shadow-2xl border border-border-theme/20"
+        style={{ aspectRatio: calcAspect }}
+      >
         {/* Banner Slide */}
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="popLayout">
           <motion.div
             key={currentIndex}
-            initial={{ opacity: 0, scale: 1.03 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.97 }}
-            transition={{ duration: 0.6, ease: "easeInOut" }}
-            className="relative w-full cursor-pointer select-none"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.5, ease: "easeInOut" }}
+            className="absolute inset-0 w-full h-full cursor-pointer select-none"
             onClick={() => handleBannerClick(currentBanner)}
             style={{ backgroundColor: currentBanner.backgroundColor || "transparent" }}
           >

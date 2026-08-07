@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useSettings } from "../../Settings/Hooks/useSettings";
+import BannerCarousel from "../Components/BannerCarousel";
 
 const About = () => {
   const { handleGetSettings } = useSettings();
@@ -25,13 +26,18 @@ const About = () => {
   }
 
   return (
-    <div className="min-h-[80vh] flex flex-col items-center justify-center px-4 sm:px-6 md:px-12 py-12 text-center max-w-5xl mx-auto font-sans">
-      <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 text-foreground">
-        {aboutData.title}
-      </h1>
-      <div className="w-20 h-1 bg-accent mb-10 rounded-full"></div>
+    <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 font-sans">
+      {/* Inline About Banner */}
+      <BannerCarousel page="about" placement="inline" />
 
-      <p className="text-lg sm:text-2xl md:text-3xl font-bold tracking-wide uppercase text-foreground/70 mb-10 max-w-4xl leading-relaxed">
+      <div className="text-center space-y-3 border-b border-border-theme pb-8">
+        <h1 className="text-4xl md:text-6xl font-black tracking-tight uppercase mb-6 text-foreground">
+          {aboutData.title}
+        </h1>
+        <div className="w-20 h-1 bg-accent mx-auto rounded-full"></div>
+      </div>
+
+      <p className="text-lg sm:text-2xl md:text-3xl font-bold tracking-wide uppercase text-foreground/70 mb-10 max-w-4xl leading-relaxed text-center">
         "{aboutData.missionStatement}"
       </p>
 
