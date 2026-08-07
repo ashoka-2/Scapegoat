@@ -4,11 +4,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAdmin } from "../Hooks/useAdmin";
 import ThemeToggle from "../../../Components/ThemeToggle";
 
-const AdminNavbar = ({ onLogout }) => {
+const AdminNavbar = ({ onLogout, isCollapsed = false, setIsCollapsed }) => {
   const location = useLocation();
   const { stats, fetchDashboardStats } = useAdmin();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [isCollapsed, setIsCollapsed] = useState(false);
 
   useEffect(() => {
     if (!stats) {

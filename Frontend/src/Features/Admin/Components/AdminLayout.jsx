@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet, useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import AdminNavbar from "./AdminNavbar";
@@ -13,6 +13,18 @@ const AdminLayout = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const [isCollapsed, setIsCollapsed] = useState(() => {
+    return localStorage.getItem("admin_sidebar_collapsed") === "true";
+  });
+
+  const toggleCollapse = () => {
+    setIsCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem("admin_sidebar_collapsed", String(next));
+      return next;
+    });
+  };
+
   const onLogout = async () => {
     await handleLogout();
     navigate("/login");
@@ -20,11 +32,19 @@ const AdminLayout = () => {
 
   return (
     <div className="min-h-screen bg-background text-foreground font-sans antialiased flex">
-      {/* Left Sidebar attached directly to left edge */}
-      <AdminNavbar onLogout={onLogout} />
+      {/* Left Sidebar */}
+      <AdminNavbar
+        onLogout={onLogout}
+        isCollapsed={isCollapsed}
+        setIsCollapsed={toggleCollapse}
+      />
 
-      {/* Main Admin Workspace with Clean Top Spacing for Mobile & Desktop */}
-      <main className="flex-1 w-full min-w-0 pt-20 sm:pt-24 lg:pt-5 lg:ml-[17.5rem] p-4 sm:p-6 md:p-8">
+      {/* Main Admin Workspace with Smooth Animated Left Margin */}
+      <main
+        className={`flex-1 w-full min-w-0 pt-20 sm:pt-24 lg:pt-5 transition-all duration-300 ease-in-out ${
+          isCollapsed ? "lg:ml-[6.5rem]" : "lg:ml-[17.5rem]"
+        } p-4 sm:p-6 md:p-8`}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={location.pathname}

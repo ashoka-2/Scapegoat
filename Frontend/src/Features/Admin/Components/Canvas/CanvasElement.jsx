@@ -35,33 +35,6 @@ const CanvasElement = ({
     setSelectedId(el.id);
   };
 
-  const getSvgGradientDef = (item) => {
-    if (item.fillType !== "gradient" || !item.fillGradient) return null;
-    const fg = item.fillGradient;
-    const stops = fg.stops || [{ color: fg.color1 || item.fill || "#4f46e5", offset: 0 }, { color: fg.color2 || "#db2777", offset: 100 }];
-    const gradId = `grad-el-${item.id}`;
-
-    if (fg.type === "radial") {
-      return (
-        <defs>
-          <radialGradient id={gradId} cx="50%" cy="50%" r="50%">
-            {stops.map((s, i) => <stop key={i} offset={`${s.offset}%`} stopColor={s.color} />)}
-          </radialGradient>
-        </defs>
-      );
-    }
-    return (
-      <defs>
-        <linearGradient id={gradId} x1="0%" y1="0%" x2="100%" y2="100%">
-          {stops.map((s, i) => <stop key={i} offset={`${s.offset}%`} stopColor={s.color} />)}
-        </linearGradient>
-      </defs>
-    );
-  };
-
-  const svgFillRef = `url(#grad-el-${el.id})`;
-  const svgFill = el.fillType === "gradient" ? svgFillRef : (el.fill || "transparent");
-
   return (
     <div
       id={`element-frame-${el.id}`}
@@ -87,8 +60,9 @@ const CanvasElement = ({
       {isSelected && !el.isLocked && (
         <>
           <div className="absolute inset-0 border-[1.5px] border-accent pointer-events-none z-50 rounded-sm" />
-          <div className="absolute -top-5 left-0 bg-accent text-accent-content text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow select-none pointer-events-none z-50">
-            {el.name || el.type}
+          <div className="absolute -top-5 left-0 bg-accent text-accent-content text-[8px] font-black uppercase px-1.5 py-0.5 rounded shadow select-none pointer-events-none z-50 flex items-center gap-1">
+            <span>{el.name || el.type}</span>
+            {el.link && <span className="font-mono text-[7px] bg-black/30 px-1 rounded">({el.link})</span>}
           </div>
 
           {/* Rotation Handle */}
@@ -161,24 +135,28 @@ const CanvasElement = ({
         )
       )}
 
-      {/* Render CTA Button */}
+      {/* Render CTA Button with Target Redirect Link */}
       {el.type === "button" && (
-        <button
-          type="button"
-          className="w-full h-full flex items-center justify-center font-bold whitespace-nowrap transition cursor-move"
+        <a
+          href={el.link || "#"}
+          onClick={(e) => {
+            if (isSelected || editingTextId) e.preventDefault();
+          }}
+          title={el.link ? `Redirects to: ${el.link}` : "CTA Button"}
+          className="w-full h-full flex items-center justify-center font-bold whitespace-nowrap transition cursor-move no-underline"
           style={{
             backgroundColor: el.bgColor || "#ffffff",
             color: el.textColor || "#000000",
             borderColor: el.borderColor || "#ffffff",
             borderWidth: `${el.borderWidth || 0}px`,
-            borderRadius: `${el.borderRadius || 8}px`,
+            borderRadius: `${el.borderRadius || 12}px`,
             fontSize: `${el.fontSize || 14}px`,
             padding: `${el.paddingY || 12}px ${el.paddingX || 24}px`,
             boxShadow: el.shadow ? "0 10px 25px -5px rgba(0,0,0,0.3)" : "none",
           }}
         >
           {el.content || "Shop Now"}
-        </button>
+        </a>
       )}
 
       {/* Render Countdown Sale Timer */}
@@ -186,7 +164,7 @@ const CanvasElement = ({
         <div
           className="w-full h-full flex items-center justify-center gap-2 font-bold whitespace-nowrap border border-amber-400/50"
           style={{
-            backgroundColor: el.bgColor || "rgba(0,0,0,0.75)",
+            backgroundColor: el.bgColor || "rgba(15,23,42,0.85)",
             color: el.textColor || "#ffffff",
             borderRadius: `${el.borderRadius || 12}px`,
             fontSize: `${el.fontSize || 14}px`,
@@ -201,50 +179,16 @@ const CanvasElement = ({
         </div>
       )}
 
-      {/* Render Vector Shape */}
-      {el.type === "shape" && (
-        <div className="w-full h-full" style={{ filter: el.blur > 0 ? `blur(${el.blur}px)` : "none" }}>
-          {el.shapeType === "rect" && (
-            <div
-              className="w-full h-full"
-              style={{
-                background: getShapeFillCSS(el),
-                border: el.strokeWidth > 0 ? `${el.strokeWidth}px solid ${el.stroke}` : "none",
-                borderRadius: `${el.borderRadius || 0}px`,
-              }}
-            />
-          )}
-          {el.shapeType === "circle" && (
-            <div
-              className="w-full h-full rounded-full"
-              style={{
-                background: getShapeFillCSS(el),
-                border: el.strokeWidth > 0 ? `${el.strokeWidth}px solid ${el.stroke}` : "none",
-              }}
-            />
-          )}
-          {el.shapeType === "polygon" && el.points && (
-            <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {getSvgGradientDef(el)}
-              <polygon points={el.points} fill={svgFill} stroke={el.stroke} strokeWidth={el.strokeWidth || 0} />
-            </svg>
-          )}
-          {el.shapeType === "path" && el.path && (
-            <svg className="w-full h-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {getSvgGradientDef(el)}
-              <path d={el.path} fill={svgFill} stroke={el.stroke} strokeWidth={el.strokeWidth || 0} />
-            </svg>
-          )}
-        </div>
-      )}
-
-      {/* Render Image */}
+      {/* Render Image Element */}
       {el.type === "image" && (
         <img
           src={el.url}
-          alt="Canvas Image"
-          className="w-full h-full object-cover select-none pointer-events-none"
-          style={{ borderRadius: `${el.borderRadius || 0}px`, ...getImageFilterStyle(el.filter) }}
+          alt={el.name || "Banner Graphic"}
+          className="w-full h-full object-cover select-none pointer-events-none rounded-xl"
+          style={{
+            borderRadius: `${el.borderRadius || 0}px`,
+            filter: getImageFilterStyle(el),
+          }}
         />
       )}
     </div>
