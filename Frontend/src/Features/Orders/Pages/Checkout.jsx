@@ -235,9 +235,9 @@ const Checkout = () => {
           </div>
         </div>
 
-        {/* Right 5 Columns: Order Summary Card */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="bg-surface border border-border-theme p-6 sm:p-8 rounded-3xl space-y-6 shadow-xl sticky top-24">
+        {/* Right 5 Columns: Order Summary Card & Sidebar Banner */}
+        <div className="lg:col-span-5 space-y-6 sticky top-24">
+          <div className="bg-surface border border-border-theme p-6 sm:p-8 rounded-3xl space-y-6 shadow-xl">
             <h2 className="text-lg font-black uppercase tracking-wider text-foreground border-b border-border-theme pb-3 flex items-center justify-between">
               <span>Order Summary</span>
               <span className="text-xs font-mono font-bold bg-accent/10 text-accent px-2.5 py-0.5 rounded-full border border-accent/20">
