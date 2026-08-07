@@ -366,6 +366,9 @@ export const updateBanner = async (req, res) => {
             textOverlays,
             timerOverlay,
             elements,
+            canvasWidth,
+            canvasHeight,
+            aspectRatio,
         } = req.body;
 
         // Handle image replacements

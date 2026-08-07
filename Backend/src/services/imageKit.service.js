@@ -38,6 +38,9 @@ export async function deleteFile(fileId) {
         await client.deleteFile(fileId);
         return true;
     } catch (error) {
+        if (error?.message?.includes("does not exist") || error?.message?.includes("not exist")) {
+            return false;
+        }
         console.error("ImageKit delete error:", error);
         return false;
     }

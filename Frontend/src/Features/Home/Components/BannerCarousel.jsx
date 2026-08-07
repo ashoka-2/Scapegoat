@@ -187,28 +187,71 @@ const BannerCarousel = () => {
               </div>
             )}
 
-            {/* Overlay CTA Buttons */}
-            {currentBanner.buttons?.map((btn, idx) => (
-              <button
-                key={idx}
-                onClick={(e) => handleButtonClick(e, btn)}
-                className="absolute shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold z-20"
-                style={{
-                  left: `${btn.positionX}%`,
-                  top: `${btn.positionY}%`,
-                  transform: "translate(-50%, -50%)",
-                  backgroundColor: btn.bgColor || "#ffffff",
-                  color: btn.textColor || "#000000",
-                  borderColor: btn.borderColor || "#ffffff",
-                  borderWidth: `${btn.borderWidth || 0}px`,
-                  borderRadius: `${btn.borderRadius || 8}px`,
-                  fontSize: `${btn.fontSize || 14}px`,
-                  padding: `${btn.paddingY || 12}px ${btn.paddingX || 24}px`,
-                }}
-              >
-                {btn.text}
-              </button>
-            ))}
+            {/* Studio Elements: Interactive CTA Buttons with Link Redirection */}
+            {Array.isArray(currentBanner.elements) && currentBanner.elements.length > 0 ? (
+              currentBanner.elements
+                .filter(el => el.type === "button" && el.isVisible !== false)
+                .map(el => {
+                  const cWidth = currentBanner.canvasWidth || 1200;
+                  const cHeight = currentBanner.canvasHeight || 500;
+                  const leftPct = (el.x / cWidth) * 100;
+                  const topPct = (el.y / cHeight) * 100;
+                  const widthPct = (el.width / cWidth) * 100;
+                  const heightPct = (el.height / cHeight) * 100;
+
+                  return (
+                    <a
+                      key={el.id}
+                      href={el.link || "#"}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (el.link && el.link !== "#") {
+                          if (el.link.startsWith("http")) window.open(el.link, "_blank");
+                          else navigate(el.link);
+                        }
+                      }}
+                      title={el.link ? `Redirect to ${el.link}` : "CTA Button"}
+                      className="absolute z-20 flex items-center justify-center font-bold no-underline shadow-lg hover:shadow-2xl hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                      style={{
+                        left: `${leftPct}%`,
+                        top: `${topPct}%`,
+                        width: `${widthPct}%`,
+                        height: `${heightPct}%`,
+                        backgroundColor: el.bgColor || "#ffffff",
+                        color: el.textColor || "#000000",
+                        borderColor: el.borderColor || "#ffffff",
+                        borderWidth: `${el.borderWidth || 0}px`,
+                        borderRadius: `${el.borderRadius || 12}px`,
+                        fontSize: `clamp(11px, 1.2vw, ${el.fontSize || 14}px)`,
+                      }}
+                    >
+                      {el.content || "SHOP NOW"}
+                    </a>
+                  );
+                })
+            ) : (
+              currentBanner.buttons?.map((btn, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => handleButtonClick(e, btn)}
+                  className="absolute shadow-lg hover:shadow-xl transition-all hover:scale-105 active:scale-95 cursor-pointer font-bold z-20"
+                  style={{
+                    left: `${btn.positionX}%`,
+                    top: `${btn.positionY}%`,
+                    transform: "translate(-50%, -50%)",
+                    backgroundColor: btn.bgColor || "#ffffff",
+                    color: btn.textColor || "#000000",
+                    borderColor: btn.borderColor || "#ffffff",
+                    borderWidth: `${btn.borderWidth || 0}px`,
+                    borderRadius: `${btn.borderRadius || 8}px`,
+                    fontSize: `${btn.fontSize || 14}px`,
+                    padding: `${btn.paddingY || 12}px ${btn.paddingX || 24}px`,
+                  }}
+                >
+                  {btn.text}
+                </button>
+              ))
+            )}
 
             {/* Gradient overlays for text readability */}
             <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />

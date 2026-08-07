@@ -283,7 +283,7 @@ const AdminBannerEditorPage = () => {
   }, [id]);
 
   /* ─── Derived: selected element ─── */
-  const sel = elements.find(el => el.id === selectedId) || elements[0] || null;
+  const sel = selectedId ? elements.find(el => el.id === selectedId) || null : null;
 
   /* ─── Element helpers ─── */
   const updateElement = useCallback((elId, key, val) => {
@@ -752,10 +752,10 @@ const AdminBannerEditorPage = () => {
                 borderRadius: "12px",
               }}
             >
-              {elements.filter(el => el.isVisible !== false).map(el => (
+              {elements.filter(el => el.isVisible !== false && (!compilingCanvas || el.type !== "button")).map(el => (
                 <CanvasElement
                   key={el.id} el={el}
-                  selectedId={sel?.id} editingTextId={editingTextId}
+                  selectedId={compilingCanvas ? null : selectedId} editingTextId={editingTextId}
                   setSelectedId={setSelectedId} setEditingTextId={setEditingTextId}
                   handleElementMouseDown={handleElementMouseDown}
                   handleResizeStart={handleResizeStart}
