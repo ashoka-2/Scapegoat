@@ -11,6 +11,24 @@ import { uploadDescriptionImageApi } from "../Services/product.api.js";
  */
 const MAX_DESCRIPTION_IMAGES = 7;
 
+// 8-direction drag-handle positions for the interactive image resizer (n/s/e/w + corners)
+const RESIZE_HANDLES = [
+  { dir: "nw", style: { top: -6, left: -6, cursor: "nwse-resize" } },
+  { dir: "n", style: { top: -6, left: "50%", marginLeft: -6, cursor: "ns-resize" } },
+  { dir: "ne", style: { top: -6, right: -6, cursor: "nesw-resize" } },
+  { dir: "e", style: { top: "50%", right: -6, marginTop: -6, cursor: "ew-resize" } },
+  { dir: "se", style: { bottom: -6, right: -6, cursor: "nwse-resize" } },
+  { dir: "s", style: { bottom: -6, left: "50%", marginLeft: -6, cursor: "ns-resize" } },
+  { dir: "sw", style: { bottom: -6, left: -6, cursor: "nesw-resize" } },
+  { dir: "w", style: { top: "50%", left: -6, marginTop: -6, cursor: "ew-resize" } },
+];
+
+// Same 8 positions for the canvas crop-rect handles
+const CROP_HANDLES = RESIZE_HANDLES;
+
+const CROP_MAX_DISPLAY = 640; // max displayed width of the crop canvas
+const CROP_MAX_HEIGHT = 400;  // max displayed height so all handles stay above the fold
+
 const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product description...", productImages = [] }) => {
   const editorRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -28,6 +46,17 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
   const [imageUrlInput, setImageUrlInput] = useState("");
   const [imageAltInput, setImageAltInput] = useState("");
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+
+  // ── Interactive Resize & Crop State ──
+  const editorRootRef = useRef(null);            // root of the editor UI (overlay positioning context)
+  const [imgRect, setImgRect] = useState(null);  // selected image rect relative to editor root
+  const resizeDragRef = useRef(null);            // active resize drag data
+  const [cropModal, setCropModal] = useState(null); // { url } — crop modal open state
+  const [cropDims, setCropDims] = useState(null);   // { natW, natH, dispW, dispH, scale }
+  const [cropRect, setCropRect] = useState(null);   // crop region in natural image pixels
+  const [cropError, setCropError] = useState(null);
+  const cropDragRef = useRef(null);              // active crop-rect drag data
+  const [isCropping, setIsCropping] = useState(false); // applying crop (uploading)
 
   // Selected Image Adjuster State (when user clicks an image inside the editor)
   const [selectedImg, setSelectedImg] = useState(null);
@@ -84,6 +113,31 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
       };
     }
   }, [isFullScreen]);
+
+  // Keep the resize-handle overlay glued to the selected image (position/size sync)
+  useEffect(() => {
+    const updateRect = () => {
+      if (!selectedImg || !editorRootRef.current) {
+        setImgRect(null);
+        return;
+      }
+      const imgR = selectedImg.getBoundingClientRect();
+      const rootR = editorRootRef.current.getBoundingClientRect();
+      setImgRect({
+        left: imgR.left - rootR.left,
+        top: imgR.top - rootR.top,
+        width: imgR.width,
+        height: imgR.height,
+      });
+    };
+    updateRect();
+    window.addEventListener("resize", updateRect);
+    window.addEventListener("scroll", updateRect, true);
+    return () => {
+      window.removeEventListener("resize", updateRect);
+      window.removeEventListener("scroll", updateRect, true);
+    };
+  }, [selectedImg, htmlContent, isFullScreen]);
 
   const handleInput = () => {
     if (editorRef.current) {
@@ -148,6 +202,60 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
     } else {
       setSelectedImg(null);
     }
+  };
+
+  // ── Drag-to-Move: dragging the BODY of an already-selected image repositions it ──
+  // (The component advertises "Drag & Drop positioning anywhere" — this makes it real.)
+  // Floated images move freely (margin-left + margin-top). Block/centered images keep
+  // their auto side margins (stay centered) and only move vertically.
+  const moveDragRef = useRef(null);
+
+  const handleEditorMouseDown = (e) => {
+    const target = e.target;
+    if (target && target.tagName === "IMG" && selectedImg === target) {
+      const cs = getComputedStyle(target);
+      moveDragRef.current = {
+        startX: e.clientX,
+        startY: e.clientY,
+        origML: parseFloat(cs.marginLeft) || 0,
+        origMT: parseFloat(cs.marginTop) || 0,
+        mlIsAuto: /auto/i.test(cs.marginLeft),
+        moved: false,
+      };
+      e.preventDefault();
+      document.body.style.userSelect = "none";
+      window.addEventListener("mousemove", handleMoveDrag);
+      window.addEventListener("mouseup", endMoveDrag);
+    }
+  };
+
+  const handleMoveDrag = (e) => {
+    const d = moveDragRef.current;
+    if (!d || !selectedImg || !editorRootRef.current) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (!d.moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return; // still a click, not a drag
+    d.moved = true;
+    if (!d.mlIsAuto) selectedImg.style.marginLeft = `${Math.round(d.origML + dx)}px`;
+    selectedImg.style.marginTop = `${Math.round(d.origMT + dy)}px`;
+
+    const imgR = selectedImg.getBoundingClientRect();
+    const rootR = editorRootRef.current.getBoundingClientRect();
+    setImgRect({
+      left: imgR.left - rootR.left,
+      top: imgR.top - rootR.top,
+      width: imgR.width,
+      height: imgR.height,
+    });
+  };
+
+  const endMoveDrag = () => {
+    const d = moveDragRef.current;
+    window.removeEventListener("mousemove", handleMoveDrag);
+    window.removeEventListener("mouseup", endMoveDrag);
+    moveDragRef.current = null;
+    document.body.style.userSelect = "";
+    if (d && d.moved) handleInput(); // save only if the image actually moved
   };
 
   // Helper to execute standard editor commands
@@ -243,7 +351,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
       return;
     }
 
-    const imgTag = `<img src="${srcUrl}" alt="${alt || "Product Detail Image"}" draggable="true" style="width: 100%; max-width: 100%; height: auto; border-radius: 12px; display: block; margin: 16px auto;" />`;
+    const imgTag = `<img src="${srcUrl}" alt="${alt || "Product Detail Image"}" draggable="true" style="width: 50%; max-width: 100%; height: auto; border-radius: 12px; display: block; margin: 16px auto;" />`;
 
     if (editorRef.current) {
       editorRef.current.focus();
@@ -370,6 +478,202 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
     handleInput();
   };
 
+  // ── Interactive 8-Direction Resize (drag any handle on the selected image) ──
+  const startResize = (e, dir) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!selectedImg) return;
+    const rect = selectedImg.getBoundingClientRect();
+    const cs = getComputedStyle(selectedImg);
+    const parsePx = (v) => {
+      const n = parseFloat(v);
+      return isNaN(n) ? 0 : n;
+    };
+    resizeDragRef.current = {
+      dir,
+      startX: e.clientX,
+      startY: e.clientY,
+      origW: rect.width,
+      origH: rect.height,
+      origML: parsePx(cs.marginLeft),
+      origMT: parsePx(cs.marginTop),
+      mlIsAuto: /auto/i.test(cs.marginLeft),
+      mtIsAuto: /auto/i.test(cs.marginTop),
+    };
+    document.body.style.userSelect = "none";
+    // Kill the 0.2s CSS transition during the drag so the image tracks the cursor 1:1
+    selectedImg.style.transition = "none";
+    window.addEventListener("mousemove", handleResizeMove);
+    window.addEventListener("mouseup", endResize);
+  };
+
+  const handleResizeMove = (e) => {
+    const d = resizeDragRef.current;
+    if (!d || !selectedImg || !editorRootRef.current) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    const MIN = 24;
+    let w = d.origW;
+    let h = d.origH;
+    let ml = d.origML;
+    let mt = d.origMT;
+
+    if (d.dir.includes("e")) w = Math.max(MIN, d.origW + dx);
+    if (d.dir.includes("w")) {
+      w = Math.max(MIN, d.origW - dx);
+      if (!d.mlIsAuto) ml = d.origML + dx; // keep the opposite edge anchored for floated images
+    }
+    if (d.dir.includes("s")) h = Math.max(MIN, d.origH + dy);
+    if (d.dir.includes("n")) {
+      h = Math.max(MIN, d.origH - dy);
+      if (!d.mtIsAuto) mt = d.origMT + dy;
+    }
+
+    selectedImg.style.width = `${Math.round(w)}px`;
+    selectedImg.style.height = `${Math.round(h)}px`;
+    selectedImg.style.marginLeft = `${Math.round(ml)}px`;
+    selectedImg.style.marginTop = `${Math.round(mt)}px`;
+
+    // Live-update the overlay so handles track the image while dragging
+    const imgR = selectedImg.getBoundingClientRect();
+    const rootR = editorRootRef.current.getBoundingClientRect();
+    setImgRect({
+      left: imgR.left - rootR.left,
+      top: imgR.top - rootR.top,
+      width: imgR.width,
+      height: imgR.height,
+    });
+  };
+
+  const endResize = () => {
+    window.removeEventListener("mousemove", handleResizeMove);
+    window.removeEventListener("mouseup", endResize);
+    resizeDragRef.current = null;
+    document.body.style.userSelect = "";
+    if (selectedImg) {
+      selectedImg.style.transition = ""; // restore the storefront transition
+      setImgWidth(`${Math.round(selectedImg.getBoundingClientRect().width)}px`);
+    }
+    handleInput();
+  };
+
+  // ── Canvas Crop Modal (crop from any side: top/bottom/left/right + corners) ──
+  const openCropModal = () => {
+    if (!selectedImg) return;
+    setCropError(null);
+    setCropDims(null);
+    setCropRect(null);
+    setCropModal({ url: selectedImg.src });
+  };
+
+  const initCrop = (e) => {
+    const img = e.target;
+    if (!img.naturalWidth || !img.naturalHeight) {
+      setCropError("Could not load this image for cropping.");
+      return;
+    }
+    const natW = img.naturalWidth;
+    const natH = img.naturalHeight;
+    // Fit the whole image on screen (width AND height) so every crop handle is reachable
+    const scale = Math.min(1, CROP_MAX_DISPLAY / natW, CROP_MAX_HEIGHT / natH);
+    setCropDims({
+      natW,
+      natH,
+      dispW: Math.round(natW * scale),
+      dispH: Math.round(natH * scale),
+      scale,
+    });
+    setCropRect({ x: 0, y: 0, w: natW, h: natH });
+  };
+
+  const startCropDrag = (e, dir) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!cropRect) return;
+    cropDragRef.current = { dir, startX: e.clientX, startY: e.clientY, orig: { ...cropRect } };
+    document.body.style.userSelect = "none";
+    window.addEventListener("mousemove", handleCropDrag);
+    window.addEventListener("mouseup", endCropDrag);
+  };
+
+  const handleCropDrag = (e) => {
+    const d = cropDragRef.current;
+    if (!d || !cropDims) return;
+    const scale = cropDims.scale;
+    const dx = (e.clientX - d.startX) / scale;
+    const dy = (e.clientY - d.startY) / scale;
+    const MIN = 24 / scale; // min 24 display px
+    let { x, y, w, h } = d.orig;
+
+    if (d.dir.includes("e")) w = Math.min(cropDims.natW - x, Math.max(MIN, w + dx));
+    if (d.dir.includes("w")) {
+      const nw = Math.min(x + w - MIN, Math.max(MIN, w - dx));
+      x += w - nw;
+      w = nw;
+    }
+    if (d.dir.includes("s")) h = Math.min(cropDims.natH - y, Math.max(MIN, h + dy));
+    if (d.dir.includes("n")) {
+      const nh = Math.min(y + h - MIN, Math.max(MIN, h - dy));
+      y += h - nh;
+      h = nh;
+    }
+    setCropRect({ x, y, w, h });
+  };
+
+  const endCropDrag = () => {
+    window.removeEventListener("mousemove", handleCropDrag);
+    window.removeEventListener("mouseup", endCropDrag);
+    cropDragRef.current = null;
+    document.body.style.userSelect = "";
+  };
+
+  const applyCrop = async () => {
+    if (!cropRect || !cropDims || !selectedImg) return;
+    setIsCropping(true);
+    try {
+      const { x, y, w, h } = cropRect;
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(w));
+      canvas.height = Math.max(1, Math.round(h));
+      const ctx = canvas.getContext("2d");
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = selectedImg.src;
+      await new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = () => reject(new Error("Could not re-load the image for cropping."));
+      });
+      ctx.drawImage(img, x, y, w, h, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.92));
+      if (!blob) throw new Error("Cropping failed: the image source does not allow editing (cross-origin).");
+      const file = new File([blob], `cropped_${Date.now()}.jpg`, { type: "image/jpeg" });
+      const up = await uploadDescriptionImageApi(file);
+      if (!up || !up.success || !up.url) throw new Error(up?.message || "Upload failed after cropping.");
+
+      // Replace src and keep the visual footprint proportional to the crop aspect
+      const oldRect = selectedImg.getBoundingClientRect();
+      const aspect = w / h;
+      let dispW = oldRect.width;
+      let dispH = oldRect.width / aspect;
+      if (dispH > oldRect.height * 3) {
+        // sanity: never balloon beyond ~3x the previous height
+        dispH = oldRect.height;
+        dispW = oldRect.height * aspect;
+      }
+      selectedImg.src = up.url;
+      selectedImg.style.width = `${Math.round(dispW)}px`;
+      selectedImg.style.height = `${Math.round(dispH)}px`;
+      setImgWidth(`${Math.round(dispW)}px`);
+      handleInput();
+      setCropModal(null);
+    } catch (err) {
+      console.error("Crop error:", err);
+      alert(err.message || "Cropping failed. The image source may not allow editing.");
+    } finally {
+      setIsCropping(false);
+    }
+  };
+
   // Numeric slider value helper (convert e.g. "50%" or "300px" to number)
   const getNumericWidth = () => {
     if (!imgWidth) return 100;
@@ -405,6 +709,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
   // Helper render method for the Editor Toolbar & Canvas
   const renderEditorUI = () => (
     <div
+      ref={editorRootRef}
       onWheel={(e) => {
         if (isFullScreen) e.stopPropagation();
       }}
@@ -890,6 +1195,16 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
             </button>
           </div>
 
+          {/* Crop Image (Canvas) */}
+          <button
+            type="button"
+            onClick={openCropModal}
+            title="Crop image from any side (top / bottom / left / right)"
+            className="px-2.5 py-1 bg-accent/10 hover:bg-accent text-accent hover:text-accent-content rounded-lg border border-accent/30 text-xs font-bold transition cursor-pointer flex items-center gap-1 shrink-0"
+          >
+            <i className="ri-crop-line" /> Crop
+          </button>
+
           {/* Delete Image */}
           <button
             type="button"
@@ -920,6 +1235,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
               onInput={handleInput}
               onBlur={handleInput}
               onClick={handleEditorClick}
+              onMouseDown={handleEditorMouseDown}
               onPaste={handlePaste}
               placeholder={placeholder}
               className={`w-full ${
@@ -1105,6 +1421,136 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 🖼️ INTERACTIVE RESIZE HANDLES — drag any side/corner of the selected image */}
+      {selectedImg && imgRect && !isHtmlMode && !cropModal && (
+        <div
+          className="absolute z-[99990] pointer-events-none"
+          style={{ left: imgRect.left, top: imgRect.top, width: imgRect.width, height: imgRect.height }}
+        >
+          <div className="absolute -inset-[3px] border-2 border-dashed border-accent/80 rounded-sm" />
+          {RESIZE_HANDLES.map((h) => (
+            <div
+              key={h.dir}
+              onMouseDown={(e) => startResize(e, h.dir)}
+              title={`Resize from ${h.dir}`}
+              className="absolute w-2.5 h-2.5 bg-accent border-2 border-white rounded-full shadow-md pointer-events-auto hover:scale-125 transition-transform"
+              style={h.style}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* ✂️ CROP IMAGE MODAL — crop from top / bottom / left / right + corners */}
+      {cropModal && (
+        <div className="fixed inset-0 z-[100001] bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fadeIn">
+          <div className="bg-surface border border-border-theme rounded-2xl w-full max-w-3xl overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between border-b border-border-theme px-5 py-3">
+              <h3 className="text-sm font-extrabold text-foreground flex items-center gap-2">
+                <i className="ri-crop-line text-accent text-lg" />
+                <span>Crop Description Image</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCropModal(null)}
+                className="w-8 h-8 rounded-full hover:bg-background flex items-center justify-center text-foreground/70 hover:text-foreground text-lg transition"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-5 bg-background/60 flex justify-center overflow-auto max-h-[70vh]">
+              {cropError ? (
+                <div className="py-10 text-center space-y-3">
+                  <i className="ri-error-warning-line text-3xl text-rose-500 block" />
+                  <p className="text-xs font-bold text-rose-500 max-w-xs">{cropError}</p>
+                </div>
+              ) : (
+                <div className="relative inline-block rounded-xl bg-black/40">
+                  {!cropDims && (
+                    <div className="flex items-center justify-center" style={{ minWidth: 420, minHeight: 300 }}>
+                      <div className="w-8 h-8 border-4 border-accent border-t-transparent rounded-full animate-spin" />
+                    </div>
+                  )}
+                  <img
+                    src={cropModal.url}
+                    crossOrigin="anonymous"
+                    draggable={false}
+                    onLoad={initCrop}
+                    onError={() => setCropError("This image source does not allow cropping (cross-origin protected).")}
+                    className="block select-none"
+                    style={cropDims ? { width: cropDims.dispW, height: cropDims.dispH } : { display: "none" }}
+                  />
+                  {cropDims && cropRect && (() => {
+                    const s = cropDims.scale;
+                    const rx = cropRect.x * s;
+                    const ry = cropRect.y * s;
+                    const rw = cropRect.w * s;
+                    const rh = cropRect.h * s;
+                    return (
+                      <>
+                        {/* Dim everything outside the crop region */}
+                        <div className="absolute bg-black/60 pointer-events-none" style={{ top: 0, left: 0, width: "100%", height: ry }} />
+                        <div className="absolute bg-black/60 pointer-events-none" style={{ top: ry + rh, left: 0, width: "100%", height: cropDims.dispH - ry - rh }} />
+                        <div className="absolute bg-black/60 pointer-events-none" style={{ top: ry, left: 0, width: rx, height: rh }} />
+                        <div className="absolute bg-black/60 pointer-events-none" style={{ top: ry, left: rx + rw, width: cropDims.dispW - rx - rw, height: rh }} />
+
+                        {/* Crop region border + 8 drag handles */}
+                        <div
+                          className="absolute border-2 border-accent pointer-events-none"
+                          style={{ top: ry, left: rx, width: rw, height: rh }}
+                        >
+                          {CROP_HANDLES.map((h) => (
+                            <div
+                              key={h.dir}
+                              onMouseDown={(e) => startCropDrag(e, h.dir)}
+                              title={`Crop from ${h.dir}`}
+                              className="absolute w-3.5 h-3.5 bg-accent border-2 border-white rounded-full shadow-md pointer-events-auto hover:scale-110 transition-transform z-10"
+                              style={h.style}
+                            />
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t border-border-theme">
+              {cropRect && (
+                <span className="text-[11px] font-mono font-bold text-foreground/60 mr-auto">
+                  {Math.round(cropRect.w)} × {Math.round(cropRect.h)} px
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => setCropModal(null)}
+                disabled={isCropping}
+                className="px-4 py-2 bg-background border border-border-theme text-foreground rounded-xl text-xs font-bold hover:bg-surface transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={applyCrop}
+                disabled={isCropping || !cropRect || !!cropError}
+                className="px-5 py-2 bg-accent text-accent-content rounded-xl text-xs font-extrabold hover:brightness-110 transition cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {isCropping ? (
+                  <>
+                    <i className="ri-loader-4-line animate-spin" /> Cropping…
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-crop-line" /> Apply Crop
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
