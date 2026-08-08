@@ -63,7 +63,6 @@ const corsOptions = {
 };
 
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
 
 // 2. Logging & Body Parsers (Increased to 50mb for rich product description images)
 app.use(morgan("dev"));

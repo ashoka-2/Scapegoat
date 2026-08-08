@@ -3,10 +3,15 @@ import axios from "axios";
 // Read API base URL strictly from environment variables (VITE_BACKEND_URL or VITE_API_URL)
 const rawEnvUrl = import.meta.env.VITE_BACKEND_URL || import.meta.env.VITE_API_URL;
 
-// Ensure base URL has no trailing slash. If not defined in .env, default to empty string for relative dev/proxy routing.
-const API_BASE_URL = (rawEnvUrl && rawEnvUrl.trim())
-    ? rawEnvUrl.trim().replace(/\/+$/, "")
-    : "";
+// DEV (vite dev server): use RELATIVE URLs (/api/...) so every request goes through
+// the Vite proxy in vite.config.js → same-origin → zero CORS, cookies just work.
+// PROD (vite build): VITE_BACKEND_URL (set in Vercel dashboard) is baked in at build
+// time and points at the Render backend (cross-origin, handled by backend CORS).
+const API_BASE_URL = import.meta.env.DEV
+    ? ""
+    : (rawEnvUrl && rawEnvUrl.trim())
+        ? rawEnvUrl.trim().replace(/\/+$/, "")
+        : "";
 
 const customAxios = axios.create({
     baseURL: API_BASE_URL,

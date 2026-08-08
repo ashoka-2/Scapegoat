@@ -177,7 +177,7 @@ const SingleProduct = () => {
   const [quantity, setQuantity] = useState(1);
 
   // Active Specs Tab & Banner State
-  const [activeTab, setActiveTab] = useState("description");
+  const [activeTab, setActiveTab] = useState("specs");
   const [hasSidebarBanner, setHasSidebarBanner] = useState(false);
 
   const {
@@ -1131,7 +1131,6 @@ const SingleProduct = () => {
       <div className="bg-background border border-border-theme rounded-3xl p-6 sm:p-10 space-y-6 shadow-sm">
         <div className="flex items-center space-x-4 border-b border-border-theme pb-4">
           {[
-            { id: "description", label: "Product Description" },
             { id: "specs", label: "Specifications & Details" },
             { id: "shipping", label: "Shipping & Returns" },
           ].map((tab) => (
@@ -1148,13 +1147,6 @@ const SingleProduct = () => {
             </button>
           ))}
         </div>
-
-        {activeTab === "description" && (
-          <div
-            dangerouslySetInnerHTML={{ __html: adaptDescriptionHtmlToTheme(product.description || "No full description provided for this product.") }}
-            className="rich-description-render max-w-none text-xs sm:text-sm leading-relaxed space-y-4"
-          />
-        )}
 
         {activeTab === "specs" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -1252,6 +1244,18 @@ const SingleProduct = () => {
           />
         </div>
       )}
+
+      {/* ── 📝 Full Product Description (below recently viewed, above reviews) ── */}
+      <div className="bg-background border border-border-theme rounded-3xl p-6 sm:p-10 space-y-6 shadow-sm">
+        <h2 className="text-xl sm:text-2xl font-black tracking-tighter text-foreground flex items-center gap-2">
+          <i className="ri-file-text-line text-accent" />
+          <span>Product Description</span>
+        </h2>
+        <div
+          dangerouslySetInnerHTML={{ __html: adaptDescriptionHtmlToTheme(product.description || "No full description provided for this product.") }}
+          className="rich-description-render max-w-none text-xs sm:text-sm leading-relaxed space-y-4"
+        />
+      </div>
 
       {/* ── 🌟 Customer Ratings & Reviews Section with Conditional Sidebar Banner ── */}
       <div className="flex flex-col lg:flex-row items-start gap-8">

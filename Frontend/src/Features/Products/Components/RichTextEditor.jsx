@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { uploadDescriptionImageApi } from "../Services/product.api.js";
 
 /**
  * WooCommerce-style Rich Text Editor for Product Descriptions
@@ -26,6 +27,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
   const [imageTab, setImageTab] = useState(productImages && productImages.length > 0 ? "library" : "upload"); // 'library' | 'upload' | 'url'
   const [imageUrlInput, setImageUrlInput] = useState("");
   const [imageAltInput, setImageAltInput] = useState("");
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
 
   // Selected Image Adjuster State (when user clicks an image inside the editor)
   const [selectedImg, setSelectedImg] = useState(null);
@@ -253,7 +255,12 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
     setImageAltInput("");
   };
 
-  const handleFileUpload = (e) => {
+  /**
+   * Upload the selected file to the backend (ImageKit) and insert the returned
+   * public URL. NEVER embed base64 data URLs — a single encoded image can be
+   * 100KB+ of text, which instantly blows the description length limit.
+   */
+  const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
 
@@ -262,12 +269,23 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      insertImageHtml(event.target.result, imageAltInput || file.name);
-    };
-    reader.readAsDataURL(file);
+    // Reset input so selecting the same file again still fires onChange
     e.target.value = "";
+    setIsUploadingImage(true);
+
+    try {
+      const res = await uploadDescriptionImageApi(file);
+      if (res && res.success && res.url) {
+        insertImageHtml(res.url, imageAltInput || file.name.replace(/\.[^.]+$/, ""));
+      } else {
+        alert(res?.message || "Image upload failed. Please try again.");
+      }
+    } catch (err) {
+      console.error("Description image upload error:", err);
+      alert(err?.response?.data?.message || "Image upload failed. Please check your connection and try again.");
+    } finally {
+      setIsUploadingImage(false);
+    }
   };
 
   // ── Image Adjustment Logic (Live Updating Selected Image) ──────────────────
@@ -886,7 +904,7 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
 
       {/* 📝 Content Area (Clean single scrollable container matching storefront width) */}
       <div className={isFullScreen ? "flex-1 overflow-y-auto min-h-0 p-4 sm:p-10 flex flex-col items-center bg-background/60" : "w-full"}>
-        <div className={isFullScreen ? "w-full max-w-4xl bg-surface border border-border-theme p-6 sm:p-12 rounded-3xl shadow-2xl space-y-4 my-6 shrink-0" : "w-full"}>
+        <div className={isFullScreen ? "w-full max-w-[1392px] bg-surface border border-border-theme p-6 sm:p-10 rounded-3xl shadow-2xl space-y-4 my-6 shrink-0" : "w-full"}>
           {isHtmlMode ? (
             <textarea
               value={htmlContent}
@@ -905,8 +923,8 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
               onPaste={handlePaste}
               placeholder={placeholder}
               className={`w-full ${
-                isFullScreen ? "min-h-[500px] overflow-visible" : "min-h-[160px] max-h-[450px] overflow-y-auto"
-              } p-4 bg-surface text-foreground text-sm outline-none focus:outline-none rich-description-render max-w-none leading-relaxed`}
+                isFullScreen ? "min-h-[500px] overflow-visible" : "min-h-[160px]"
+              } bg-surface text-foreground text-sm outline-none focus:outline-none rich-description-render max-w-none leading-relaxed`}
               style={{ minHeight: isFullScreen ? "500px" : "160px" }}
             />
           )}
@@ -1011,18 +1029,35 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
             {imageTab === "upload" && (
               <div className="space-y-4 pt-2">
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-border-theme hover:border-accent rounded-xl p-8 text-center cursor-pointer transition group bg-background/50"
+                  onClick={() => {
+                    if (!isUploadingImage) fileInputRef.current?.click();
+                  }}
+                  className={`border-2 border-dashed rounded-xl p-8 text-center transition group bg-background/50 ${
+                    isUploadingImage
+                      ? "border-accent/50 opacity-60 cursor-wait"
+                      : "border-border-theme hover:border-accent cursor-pointer"
+                  }`}
                 >
-                  <i className="ri-upload-cloud-2-line text-4xl text-foreground/40 group-hover:text-accent transition" />
-                  <p className="mt-2 text-xs font-bold text-foreground">Click to select an image from your computer</p>
-                  <p className="text-[11px] text-foreground/50 mt-1">Supports PNG, JPG, WebP, GIF (Max {MAX_DESCRIPTION_IMAGES} images)</p>
+                  {isUploadingImage ? (
+                    <>
+                      <i className="ri-loader-4-line text-4xl text-accent animate-spin inline-block" />
+                      <p className="mt-2 text-xs font-bold text-accent">Uploading image to ImageKit…</p>
+                      <p className="text-[11px] text-foreground/50 mt-1">Please wait a moment</p>
+                    </>
+                  ) : (
+                    <>
+                      <i className="ri-upload-cloud-2-line text-4xl text-foreground/40 group-hover:text-accent transition" />
+                      <p className="mt-2 text-xs font-bold text-foreground">Click to select an image from your computer</p>
+                      <p className="text-[11px] text-foreground/50 mt-1">Supports PNG, JPG, WebP, GIF (Max {MAX_DESCRIPTION_IMAGES} images)</p>
+                    </>
+                  )}
                 </div>
                 <input
                   ref={fileInputRef}
                   type="file"
                   accept="image/*"
                   onChange={handleFileUpload}
+                  disabled={isUploadingImage}
                   className="hidden"
                 />
               </div>

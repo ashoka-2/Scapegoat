@@ -6,11 +6,7 @@ const productApiInstance = createApiInstance("/api/products");
  * Create a new product (supports multipart form data with images array)
  */
 export async function createProductApi(formData) {
-  const response = await productApiInstance.post("", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+  const response = await productApiInstance.post("", formData);
   return response.data;
 }
 
@@ -47,14 +43,22 @@ export async function getSellerAnalyticsApi() {
 }
 
 /**
+ * Upload a single image for the rich-text product description.
+ * Returns the ImageKit URL so the editor can insert a compact <img> tag
+ * instead of a bloated base64 data URL.
+ */
+export async function uploadDescriptionImageApi(file) {
+  const formData = new FormData();
+  formData.append("image", file);
+  const response = await productApiInstance.post("/upload-description-image", formData);
+  return response.data;
+}
+
+/**
  * Update an existing product
  */
 export async function updateProductApi(id, formData) {
-  const response = await productApiInstance.put(`/${id}`, formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-  });
+  const response = await productApiInstance.put(`/${id}`, formData);
   return response.data;
 }
 

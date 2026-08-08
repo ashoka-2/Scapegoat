@@ -94,7 +94,9 @@ const productSchema = new Schema(
     description: {
       type: String,
       required: [true, "Product description is required"],
-      maxlength: [5000, "Description cannot exceed 5000 characters"],
+      // Rich HTML descriptions (formatted text + up to 7 image tags) can legitimately
+      // reach 10-20k chars. 50k is a safe ceiling for full rich descriptions.
+      maxlength: [50000, "Description cannot exceed 50000 characters"],
     },
     shortDescription: {
       type: String,

@@ -15,6 +15,7 @@ import {
   aiImageSearchProducts,
   suggestProductDescription,
   getSellerAnalytics,
+  uploadDescriptionImage,
 } from "../controllers/product.controller.js";
 import { getFrequentlyBoughtTogether } from "../controllers/userActivity.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
@@ -71,6 +72,15 @@ router.get(
   verifyToken,
   requireRole("seller", "admin"),
   getSellerAnalytics
+);
+
+// Upload a single image for use inside a product rich-text description (returns ImageKit URL)
+router.post(
+  "/upload-description-image",
+  verifyToken,
+  requireRole("seller", "admin"),
+  upload.single("image"),
+  uploadDescriptionImage
 );
 
 // Get similar / "You May Also Like" product recommendations (AI Vector Similarity + Multi-Seller boost)

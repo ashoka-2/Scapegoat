@@ -30,9 +30,7 @@ export const getBannerByIdApi = async (id) => {
  * ADMIN — Create a new banner (multipart form data)
  */
 export const createBannerApi = async (formData) => {
-  const response = await bannerApiInstance.post("", formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const response = await bannerApiInstance.post("", formData);
   return response.data;
 };
 
@@ -40,9 +38,7 @@ export const createBannerApi = async (formData) => {
  * ADMIN — Update an existing banner (multipart form data)
  */
 export const updateBannerApi = async (id, formData) => {
-  const response = await bannerApiInstance.put(`/${id}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  const response = await bannerApiInstance.put(`/${id}`, formData);
   return response.data;
 };
 

@@ -15,6 +15,7 @@ import { mergeAttributeItem, normalizeAttributesArray } from "../../../utils/att
 import { generateEAN13Barcode, generateCode128Barcode } from "../../../utils/barcodeUtils";
 import { suggestProductDescriptionApi } from "../Services/product.api";
 import RichTextEditor from "../Components/RichTextEditor";
+import { cleanDescriptionHtml } from "../../../utils/cleanDescription";
 import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 
@@ -721,7 +722,11 @@ const CreateProduct = () => {
   const validateForm = () => {
     const errors = {};
     if (!formData.title.trim()) errors.title = "Product title is required";
-    if (!formData.description.trim()) errors.description = "Description is required";
+    if (!formData.description.trim()) {
+      errors.description = "Description is required";
+    } else if (cleanDescriptionHtml(formData.description).length > 50000) {
+      errors.description = "Description is too long (max 50,000 characters). Try removing some images or formatting.";
+    }
     if (!formData.category) errors.category = "Category selection is required";
     if (!formData.maxPriceAmount || Number(formData.maxPriceAmount) <= 0) {
       errors.maxPriceAmount = "Valid MRP Price is required";
@@ -749,7 +754,9 @@ const CreateProduct = () => {
     const payload = new FormData();
     payload.append("title", formData.title);
     payload.append("shortDescription", formData.shortDescription);
-    payload.append("description", formData.description);
+    // Clean editor bloat (empty nested tags, font metadata, editor artifacts) before saving
+    const cleanDescription = cleanDescriptionHtml(formData.description);
+    payload.append("description", cleanDescription);
     payload.append("category", formData.category);
     if (formData.brand) payload.append("brand", formData.brand);
     if (formData.unit) payload.append("unit", formData.unit);
@@ -885,7 +892,9 @@ const CreateProduct = () => {
   return (
     <div className="w-full text-foreground py-6 px-4 sm:px-6 transition-colors duration-300 font-sans">
       {/* WooCommerce Style Full-Width Container (Main Content 75% + Right Sidebar 25%) */}
-      <form onSubmit={(e) => handleSubmit(e, "published")} className="flex flex-col lg:flex-row gap-6 w-full">
+      <form onSubmit={(e) => handleSubmit(e, "published")} className="flex flex-col gap-6 w-full">
+        {/* Two-column row: main content (75%) + right sidebar (25%) */}
+        <div className="flex flex-col lg:flex-row gap-6 w-full">
         {/* LEFT COLUMN (75% width): Main Form Title, Editor & Product Data Container */}
         <div className="flex-1 space-y-6 min-w-0">
           {/* Main Title Input (WooCommerce Add Product Header Input) */}
@@ -965,22 +974,10 @@ const CreateProduct = () => {
 
           {/* Full Description & Catalog Description Suggestion */}
           <div className="bg-surface border border-border-theme p-6 rounded-2xl space-y-4 shadow-sm">
-            <div className="flex items-center justify-between border-b border-border-theme pb-3">
-              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
-                <i className="ri-file-text-line text-accent text-base" />
-                <span>Product Description</span>
-              </h2>
-
-              <button
-                type="button"
-                onClick={handleSuggestCatalogDescription}
-                disabled={isAiLoading}
-                className="text-xs font-bold text-accent bg-accent/10 border border-accent/30 hover:bg-accent hover:text-accent-content px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5"
-              >
-                <i className="ri-sparkling-line" />
-                <span>{isAiLoading ? "Searching Catalog..." : "Suggest Catalog Description"}</span>
-              </button>
-            </div>
+            <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2 border-b border-border-theme pb-3">
+              <i className="ri-file-text-line text-accent text-base" />
+              <span>Short Summary</span>
+            </h2>
 
             <FormField label="Short Summary / Subtitle" loading={fetchingEditProduct}>
               <input
@@ -992,41 +989,6 @@ const CreateProduct = () => {
                 className={inputClass}
               />
             </FormField>
-
-            <FormField label="Full Detailed Description" required error={formErrors.description} loading={fetchingEditProduct} skeletonHeight="h-36">
-              <RichTextEditor
-                value={formData.description}
-                onChange={(newVal) => setFormData((prev) => ({ ...prev, description: newVal }))}
-                placeholder="Enter detailed product description, specifications, washing instructions, features..."
-                productImages={[
-                  ...mainImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
-                  ...galleryImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
-                  ...variantsList.flatMap((v) => (v.images || []).map((img) => (typeof img === "string" ? img : img.preview || img.url))),
-                ].filter(Boolean)}
-              />
-            </FormField>
-
-            {aiSuggestion && (
-              <div className="bg-accent/10 border border-accent/30 rounded-2xl p-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold text-accent flex items-center gap-1">
-                    <i className="ri-sparkling-fill" />
-                    <span>Catalog Match: {matchedCatalogTitle || "Database Match"}</span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setFormData((prev) => ({ ...prev, description: aiSuggestion }));
-                      setAiSuggestion("");
-                    }}
-                    className="text-xs font-bold bg-accent text-accent-content px-3 py-1 rounded-xl cursor-pointer"
-                  >
-                    Apply Description
-                  </button>
-                </div>
-                <p className="text-xs text-foreground/80 leading-relaxed font-sans">{aiSuggestion}</p>
-              </div>
-            )}
           </div>
 
           {/* Product Data Box (WooCommerce Layout with Left Vertical Tabs Bar) */}
@@ -1801,6 +1763,67 @@ const CreateProduct = () => {
               <div className="w-full h-32 bg-foreground/15 rounded-2xl animate-pulse border border-border-theme/40" />
             ) : (
               <ImageDropzone images={galleryImages} setImages={setGalleryImages} maxImages={6} />
+            )}
+          </div>
+        </div>
+        </div>
+
+        {/* FULL-WIDTH RICH DESCRIPTION — mirrors the SingleProduct page layout so image
+            sizes & float positions render identically (true WYSIWYG). The negative
+            margins cancel the page wrapper's px so this section is as wide as the
+            storefront's max-w-[1440px] container (no w-full — flex stretch + negative
+            margins is what actually widens it); p-6 sm:p-10 matches the storefront card. */}
+        <div className="-mx-4 sm:-mx-6">
+          <div className="bg-surface border border-border-theme rounded-2xl p-6 sm:p-10 space-y-6 shadow-sm">
+            <div className="flex items-center justify-between gap-3 border-b border-border-theme pb-3">
+              <h2 className="text-sm font-bold text-foreground uppercase tracking-wider flex items-center gap-2">
+                <i className="ri-file-text-line text-accent text-base" />
+                <span>Full Detailed Description</span>
+                <span className="text-red-500">*</span>
+              </h2>
+              <button
+                type="button"
+                onClick={handleSuggestCatalogDescription}
+                disabled={isAiLoading}
+                className="text-xs font-bold text-accent bg-accent/10 border border-accent/30 hover:bg-accent hover:text-accent-content px-3 py-1.5 rounded-xl transition cursor-pointer flex items-center gap-1.5 shrink-0"
+              >
+                <i className="ri-sparkling-line" />
+                <span>{isAiLoading ? "Searching Catalog..." : "Suggest Catalog Description"}</span>
+              </button>
+            </div>
+            <FormField error={formErrors.description} loading={fetchingEditProduct} skeletonHeight="h-36">
+              <RichTextEditor
+                value={formData.description}
+                onChange={(newVal) => setFormData((prev) => ({ ...prev, description: newVal }))}
+                placeholder="Enter detailed product description, specifications, washing instructions, features..."
+                productImages={[
+                  ...mainImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
+                  ...galleryImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
+                  ...variantsList.flatMap((v) => (v.images || []).map((img) => (typeof img === "string" ? img : img.preview || img.url))),
+                ].filter(Boolean)}
+              />
+            </FormField>
+
+            {aiSuggestion && (
+              <div className="bg-accent/10 border border-accent/30 rounded-2xl p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-accent flex items-center gap-1">
+                    <i className="ri-sparkling-fill" />
+                    <span>Catalog Match: {matchedCatalogTitle || "Database Match"}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData((prev) => ({ ...prev, description: aiSuggestion }));
+                      setAiSuggestion("");
+                    }}
+                    className="text-xs font-bold bg-accent text-accent-content px-3 py-1 rounded-xl cursor-pointer"
+                  >
+                    Apply Description
+                  </button>
+                </div>
+                <p className="text-xs text-foreground/80 leading-relaxed font-sans">{aiSuggestion}</p>
+              </div>
             )}
           </div>
         </div>

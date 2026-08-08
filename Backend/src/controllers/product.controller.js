@@ -419,6 +419,53 @@ const ensureVariantAttributesMap = (variants = [], mainAttributes = []) => {
  * @route   POST /api/products
  * @access  Private (Seller, Admin)
  */
+/**
+ * @desc    Upload a single image for use inside a product rich-text description
+ * @route   POST /api/products/upload-description-image
+ * @access  Private (Seller, Admin)
+ * Uploads to ImageKit and returns the public URL so the RichTextEditor can insert
+ * a compact <img src="https://..."> tag instead of a bloated base64 data URL.
+ */
+export const uploadDescriptionImage = async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.status(400).json({
+        success: false,
+        message: "No image file provided. Attach the file under the field name 'image'.",
+      });
+    }
+
+    const ext = req.file.originalname ? req.file.originalname.split(".").pop() : "jpg";
+    const uploadRes = await Promise.race([
+      uploadFile({
+        file: req.file.buffer,
+        filename: `desc_${Date.now()}.${ext}`,
+        folder: "/products/description",
+      }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Image upload timeout")), 15000)),
+    ]);
+
+    if (!uploadRes || !uploadRes.url) {
+      return res.status(502).json({
+        success: false,
+        message: "Image upload to ImageKit failed. Please try again.",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Description image uploaded successfully",
+      url: uploadRes.url,
+    });
+  } catch (error) {
+    console.error("Error uploading description image:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to upload description image",
+    });
+  }
+};
+
 export const createProduct = async (req, res) => {
   try {
     const productData = {

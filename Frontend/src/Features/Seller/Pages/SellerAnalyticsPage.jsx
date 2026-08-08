@@ -17,7 +17,7 @@ const StatCard = ({ title, value, subtext, icon, iconBg, valueColor = "text-fore
 );
 
 const SellerAnalyticsPage = () => {
-  const { data, loading, error } = useSellerAnalytics();
+  const { data, loading, error, refetch: fetchAnalytics } = useSellerAnalytics();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("totalProfit"); // 'totalProfit' | 'unitsSold' | 'totalRevenue' | 'marginPercent'
