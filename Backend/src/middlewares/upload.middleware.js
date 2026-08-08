@@ -16,7 +16,9 @@ export const upload = multer({
   storage,
   fileFilter,
   limits: {
-    fileSize: 25 * 1024 * 1024, // 25MB max file size per image
-    fieldSize: 50 * 1024 * 1024, // 50MB max text field size (for descriptions containing Base64 images)
+    // Tight limits keep the 512MB Render free instance safe from OOM kills.
+    // Description images are small (crop uploads ≈ 100-300KB; product photos ≤ ~5MB).
+    fileSize: 8 * 1024 * 1024, // 8MB max file size per image
+    fieldSize: 1 * 1024 * 1024, // 1MB max text field (descriptions are ≤50KB; base64 era is over)
   },
 });
