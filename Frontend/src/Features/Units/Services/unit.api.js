@@ -1,15 +1,12 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const unitApiInstance = axios.create({
-  baseURL: "/api/units",
-  withCredentials: true,
-});
+const unitApiInstance = createApiInstance("/api/units");
 
 /**
  * Fetch all units
  */
 export async function getAllUnitsApi(all = true) {
-  const response = await unitApiInstance.get("/", { params: { all } });
+  const response = await unitApiInstance.get("", { params: { all } });
   return response.data;
 }
 
@@ -17,7 +14,7 @@ export async function getAllUnitsApi(all = true) {
  * Create a new unit
  */
 export async function createUnitApi(unitData) {
-  const response = await unitApiInstance.post("/", unitData);
+  const response = await unitApiInstance.post("", unitData);
   return response.data;
 }
 

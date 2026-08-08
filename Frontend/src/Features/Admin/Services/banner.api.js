@@ -1,8 +1,6 @@
-import customAxios from "../../../utils/axios.js";
+import { createApiInstance } from "../../../utils/axios.js";
 
-const bannerApiInstance = customAxios.create({
-  baseURL: (customAxios.defaults.baseURL || "") + "/api/banners",
-});
+const bannerApiInstance = createApiInstance("/api/banners");
 
 /**
  * PUBLIC — Fetch active banners by placement and page

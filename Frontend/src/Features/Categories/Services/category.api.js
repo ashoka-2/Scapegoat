@@ -1,15 +1,12 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const categoryApiInstance = axios.create({
-  baseURL: "/api/categories",
-  withCredentials: true,
-});
+const categoryApiInstance = createApiInstance("/api/categories");
 
 /**
  * Fetch all categories
  */
 export async function getAllCategoriesApi(all = true) {
-  const response = await categoryApiInstance.get("/", { params: { all } });
+  const response = await categoryApiInstance.get("", { params: { all } });
   return response.data;
 }
 
@@ -17,7 +14,7 @@ export async function getAllCategoriesApi(all = true) {
  * Create a new category or subcategory
  */
 export async function createCategoryApi(categoryData) {
-  const response = await categoryApiInstance.post("/", categoryData);
+  const response = await categoryApiInstance.post("", categoryData);
   return response.data;
 }
 

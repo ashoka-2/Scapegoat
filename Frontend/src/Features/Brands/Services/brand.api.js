@@ -1,15 +1,12 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const brandApiInstance = axios.create({
-  baseURL: "/api/brands",
-  withCredentials: true,
-});
+const brandApiInstance = createApiInstance("/api/brands");
 
 /**
  * Fetch all brands
  */
 export async function getAllBrandsApi(all = true) {
-  const response = await brandApiInstance.get("/", { params: { all } });
+  const response = await brandApiInstance.get("", { params: { all } });
   return response.data;
 }
 
@@ -17,7 +14,7 @@ export async function getAllBrandsApi(all = true) {
  * Create a new brand
  */
 export async function createBrandApi(brandData) {
-  const response = await brandApiInstance.post("/", brandData);
+  const response = await brandApiInstance.post("", brandData);
   return response.data;
 }
 

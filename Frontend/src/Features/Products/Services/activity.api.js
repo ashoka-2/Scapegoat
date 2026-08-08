@@ -1,14 +1,7 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const activityApi = axios.create({
-  baseURL: "/api/activity",
-  withCredentials: true,
-});
-
-const productApi = axios.create({
-  baseURL: "/api/products",
-  withCredentials: true,
-});
+const activityApi = createApiInstance("/api/activity");
+const productApi = createApiInstance("/api/products");
 
 /** Track a product view (backend + localStorage fallback) */
 export async function trackViewApi(productId) {

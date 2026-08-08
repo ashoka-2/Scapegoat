@@ -1,8 +1,6 @@
-import axios from "../../../utils/axios.js";
+import { createApiInstance } from "../../../utils/axios.js";
 
-const authApiInstance = axios.create({
-  baseURL: axios.defaults.baseURL + "/api/auth",
-});
+const authApiInstance = createApiInstance("/api/auth");
 
 export async function register({
   email,

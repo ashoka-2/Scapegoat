@@ -1,11 +1,9 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const wishlistApiInstance = axios.create({
-  baseURL: axios.defaults.baseURL + "/api/wishlist",
-});
+const wishlistApiInstance = createApiInstance("/api/wishlist");
 
 export async function fetchUserWishlist() {
-  const response = await wishlistApiInstance.get("/");
+  const response = await wishlistApiInstance.get("");
   return response.data;
 }
 

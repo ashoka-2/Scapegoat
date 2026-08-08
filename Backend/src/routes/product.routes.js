@@ -62,13 +62,6 @@ router.get("/seller/:sellerId", (req, res, next) => {
   return getProductsBySeller(req, res, next);
 });
 
-// Get similar / "You May Also Like" product recommendations (AI Vector Similarity + Multi-Seller boost)
-router.get("/:id/similar", getSimilarProducts);
-router.get("/:id/you-may-also-like", getYouMayAlsoLikeProducts);
-router.get("/:id/frequently-bought-together", getFrequentlyBoughtTogether);
-
-// ── Protected Seller / Admin Routes ──────────────────────────────────────────
-
 // Get Seller Performance Analytics, Profit & Loss Breakdown & Top Sold Items
 router.get(
   "/seller-analytics",
@@ -76,6 +69,11 @@ router.get(
   requireRole("seller", "admin"),
   getSellerAnalytics
 );
+
+// Get similar / "You May Also Like" product recommendations (AI Vector Similarity + Multi-Seller boost)
+router.get("/:id/similar", getSimilarProducts);
+router.get("/:id/you-may-also-like", getYouMayAlsoLikeProducts);
+router.get("/:id/frequently-bought-together", getFrequentlyBoughtTogether);
 
 // Create a new product (supports up to 7 image uploads)
 router.post(

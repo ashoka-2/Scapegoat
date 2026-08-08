@@ -1,8 +1,6 @@
-import customAxios from "../../../utils/axios.js";
+import { createApiInstance } from "../../../utils/axios.js";
 
-const adminApiInstance = customAxios.create({
-  baseURL: (customAxios.defaults.baseURL || "") + "/api/admin",
-});
+const adminApiInstance = createApiInstance("/api/admin");
 
 export const getDashboardStatsApi = async (params = {}) => {
   const response = await adminApiInstance.get("/dashboard", { params });

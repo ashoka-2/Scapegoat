@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import axios from "axios";
+import customAxios from "../utils/axios.js";
 import "./App.css";
 import { RouterProvider } from "react-router-dom";
 
@@ -45,9 +45,7 @@ const App = () => {
 
     const checkServer = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || "";
-        await axios.get(`${backendUrl}/api/auth/getMe`, {
-          withCredentials: true,
+        await customAxios.get("/api/auth/getMe", {
           timeout: 2000,
         });
         setIsServerReady(true);

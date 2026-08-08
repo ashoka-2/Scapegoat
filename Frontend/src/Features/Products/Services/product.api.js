@@ -1,15 +1,12 @@
-import axios from "../../../utils/axios";
+import { createApiInstance } from "../../../utils/axios";
 
-const productApiInstance = axios.create({
-  baseURL: "/api/products",
-  withCredentials: true,
-});
+const productApiInstance = createApiInstance("/api/products");
 
 /**
  * Create a new product (supports multipart form data with images array)
  */
 export async function createProductApi(formData) {
-  const response = await productApiInstance.post("/", formData, {
+  const response = await productApiInstance.post("", formData, {
     headers: {
       "Content-Type": "multipart/form-data",
     },
@@ -21,7 +18,7 @@ export async function createProductApi(formData) {
  * Fetch all published products
  */
 export async function getAllProductsApi(params = {}) {
-  const response = await productApiInstance.get("/", { params });
+  const response = await productApiInstance.get("", { params });
   return response.data;
 }
 

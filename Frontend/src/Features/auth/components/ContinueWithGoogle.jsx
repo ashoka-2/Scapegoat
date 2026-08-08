@@ -1,8 +1,8 @@
 import React from 'react'
-import axios from '../../../utils/axios'
+import { API_BASE_URL } from '../../../utils/axios'
 
 const ContinueWithGoogle = () => {
-    const googleHref = (axios.defaults.baseURL || "") + "/api/auth/google";
+    const googleHref = (API_BASE_URL || "") + "/api/auth/google";
     return (
         <a href={googleHref}
             className="flex items-center justify-center w-full bg-transparent border border-[#2a2a2a] text-[#d4d4d4] px-4 py-4 text-[10px] font-sans uppercase tracking-[0.2em] hover:bg-white hover:text-black transition-all duration-500 group"
