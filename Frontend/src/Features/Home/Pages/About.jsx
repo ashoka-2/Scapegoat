@@ -27,7 +27,8 @@ const About = () => {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-12 space-y-8 font-sans">
-      {/* Inline About Banner */}
+      {/* Hero & Inline About Banners */}
+      <BannerCarousel page="about" placement="hero" />
       <BannerCarousel page="about" placement="inline" />
 
       <div className="text-center space-y-3 border-b border-border-theme pb-8">

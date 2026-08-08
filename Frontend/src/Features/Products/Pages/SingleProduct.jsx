@@ -176,8 +176,9 @@ const SingleProduct = () => {
   const [selectedAttributes, setSelectedAttributes] = useState({});
   const [quantity, setQuantity] = useState(1);
 
-  // Active Specs Tab
+  // Active Specs Tab & Banner State
   const [activeTab, setActiveTab] = useState("description");
+  const [hasSidebarBanner, setHasSidebarBanner] = useState(false);
 
   const {
     trackView,
@@ -676,6 +677,9 @@ const SingleProduct = () => {
 
   return (
     <div className="min-h-screen space-y-12 pb-20 selection:bg-accent selection:text-accent-content">
+      {/* ── Product Page Hero Carousel Banner ── */}
+      <BannerCarousel page="product" placement="hero" />
+
       {/* ── Breadcrumb Header ── */}
       <nav className="flex items-center space-x-2 text-xs font-semibold text-foreground/50 border-b border-border-theme pb-4">
         <Link to="/" className="hover:text-accent transition">
@@ -1120,14 +1124,8 @@ const SingleProduct = () => {
               </span>
             </div>
           )}
-
-          {/* Product Page Sidebar Banner */}
-          <BannerCarousel page="product" placement="sidebar" />
         </div>
       </div>
-
-      {/* Product Page Inline Banner */}
-      <BannerCarousel page="product" placement="inline" />
 
       {/* ── Product Specifications & Details Tabs ── */}
       <div className="bg-background border border-border-theme rounded-3xl p-6 sm:p-10 space-y-6 shadow-sm">
@@ -1199,6 +1197,9 @@ const SingleProduct = () => {
         )}
       </div>
 
+      {/* Product Page Inline Banner — Rendered after Description */}
+      <BannerCarousel page="product" placement="inline" />
+
       {/* ── 🛒 Frequently Bought Together ── */}
       {fbtProducts && fbtProducts.length > 0 && (
         <div className="pt-8">
@@ -1252,8 +1253,20 @@ const SingleProduct = () => {
         </div>
       )}
 
-      {/* ── 🌟 Customer Ratings & Reviews Section (At the end of page before footer) ── */}
-      <ProductReviews productId={product._id} sellerId={product.seller?._id || product.seller} />
+      {/* ── 🌟 Customer Ratings & Reviews Section with Conditional Sidebar Banner ── */}
+      <div className="flex flex-col lg:flex-row items-start gap-8">
+        <div className="flex-1 w-full min-w-0">
+          <ProductReviews productId={product._id} sellerId={product.seller?._id || product.seller} />
+        </div>
+
+        <div className={hasSidebarBanner ? "w-full lg:w-[360px] shrink-0 sticky top-24" : "hidden"}>
+          <BannerCarousel
+            page="product"
+            placement="sidebar"
+            onBannerCountChange={(count) => setHasSidebarBanner(count > 0)}
+          />
+        </div>
+      </div>
     </div>
   );
 };

@@ -111,7 +111,8 @@ const MyOrders = () => {
 
   return (
     <div className="min-h-screen py-10 px-4 sm:px-6 md:px-12 max-w-5xl mx-auto font-sans space-y-8">
-      {/* Inline Orders Banner */}
+      {/* Hero & Inline Orders Banners */}
+      <BannerCarousel page="my-orders" placement="hero" />
       <BannerCarousel page="my-orders" placement="inline" />
 
       <div className="text-center space-y-2">

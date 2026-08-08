@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import gsap from "gsap";
 import { getActiveBannersApi } from "../../Admin/Services/banner.api.js";
+import { loadGoogleFont } from "../../Admin/Components/Canvas/canvasHelpers.js";
 
 // Helper for countdown display
 const formatCountdown = (targetDate) => {
@@ -33,7 +34,7 @@ const isDeviceEligible = (b, device) => {
   return b.deviceTargets.includes(device);
 };
 
-const BannerCarousel = ({ page = "home", placement = "hero" }) => {
+const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange }) => {
   const [banners, setBanners] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
@@ -95,16 +96,38 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
     return () => window.removeEventListener("banner_update", handleRealtimeUpdate);
   }, [page, placement, currentDevice]);
 
-  // Ticking offer timer
+  // Notify parent component if callback provided
+  useEffect(() => {
+    if (typeof onBannerCountChange === "function") {
+      onBannerCountChange(banners.length);
+    }
+  }, [banners, onBannerCountChange]);
+
+  // Ticking offer timer & Google Font loader
   useEffect(() => {
     const currentBanner = banners[currentIndex];
-    if (currentBanner?.timerOverlay?.showTimer) {
-      setCountdownText(formatCountdown(currentBanner.timerOverlay.endDate));
-      const interval = setInterval(() => {
-        setCountdownText(formatCountdown(currentBanner.timerOverlay.endDate));
-      }, 1000);
-      return () => clearInterval(interval);
+    if (!currentBanner) return;
+
+    if (Array.isArray(currentBanner.elements)) {
+      currentBanner.elements.forEach((el) => {
+        if (el.fontFamily) {
+          loadGoogleFont(el.fontFamily);
+        }
+      });
     }
+
+    const timerElement = currentBanner.elements?.find((el) => el.type === "timer");
+    const targetDate =
+      timerElement?.endDate ||
+      currentBanner.timerOverlay?.endDate ||
+      currentBanner.endDate ||
+      null;
+
+    setCountdownText(formatCountdown(targetDate));
+    const interval = setInterval(() => {
+      setCountdownText(formatCountdown(targetDate));
+    }, 1000);
+    return () => clearInterval(interval);
   }, [banners, currentIndex]);
 
   // Auto-advance slider
@@ -179,11 +202,14 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
       ? "w-full max-w-[1300px] mx-auto px-2 sm:px-6 my-6"
       : "w-full max-w-[1300px] mx-auto px-2 sm:px-6 mb-8";
 
-  const calcAspect = currentBanner.aspectRatio
-    ? currentBanner.aspectRatio.replace(":", "/")
-    : placement === "sidebar"
-    ? "4/5"
-    : "21/5";
+  const calcAspect =
+    currentBanner.canvasWidth && currentBanner.canvasHeight
+      ? `${currentBanner.canvasWidth} / ${currentBanner.canvasHeight}`
+      : currentBanner.aspectRatio && currentBanner.aspectRatio !== "custom"
+      ? currentBanner.aspectRatio.replace(":", "/")
+      : placement === "sidebar"
+      ? "4/5"
+      : "21/5";
 
   return (
     <div
@@ -195,7 +221,7 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
     >
       <motion.div
         layout
-        className="relative w-full rounded-[24px] sm:rounded-[36px] overflow-hidden shadow-2xl border border-border-theme/20"
+        className="relative w-full rounded-[24px] sm:rounded-[36px] overflow-hidden shadow-2xl border border-border-theme/20 [container-type:inline-size]"
         style={{ aspectRatio: calcAspect }}
       >
         {/* Banner Slide */}
@@ -213,7 +239,7 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
             <img
               src={getBannerImage(currentBanner)}
               alt={currentBanner.altText || currentBanner.title}
-              className="w-full h-auto object-cover"
+              className="w-full h-full object-cover"
               draggable={false}
             />
 
@@ -242,10 +268,10 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
               </div>
             )}
 
-            {/* Studio Elements: Interactive CTA Buttons with Link Redirection */}
+            {/* Studio Elements: Text Layers, Interactive CTA Buttons & Live Countdown Timers */}
             {Array.isArray(currentBanner.elements) && currentBanner.elements.length > 0 ? (
               currentBanner.elements
-                .filter(el => el.type === "button" && el.isVisible !== false)
+                .filter(el => (el.type === "text" || el.type === "button" || el.type === "timer") && el.isVisible !== false)
                 .map(el => {
                   const cWidth = currentBanner.canvasWidth || 1200;
                   const cHeight = currentBanner.canvasHeight || 500;
@@ -253,6 +279,70 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
                   const topPct = (el.y / cHeight) * 100;
                   const widthPct = (el.width / cWidth) * 100;
                   const heightPct = (el.height / cHeight) * 100;
+                  const fontSizeCqw = ((el.fontSize || 24) / cWidth) * 100;
+
+                  if (el.type === "text") {
+                    return (
+                      <div
+                        key={el.id}
+                        className="absolute z-20 flex items-center select-none leading-tight pointer-events-none"
+                        style={{
+                          left: `${leftPct}%`,
+                          top: `${topPct}%`,
+                          width: `${widthPct}%`,
+                          height: `${heightPct}%`,
+                          fontFamily: el.fontFamily || "Inter",
+                          fontSize: `${fontSizeCqw}cqw`,
+                          fontWeight: el.fontWeight || "bold",
+                          textAlign: el.textAlign || "left",
+                          justifyContent: el.textAlign === "center" ? "center" : el.textAlign === "right" ? "flex-end" : "flex-start",
+                          color: el.textColor || el.color || "#ffffff",
+                          letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : "normal",
+                          lineHeight: el.lineHeight ? `${el.lineHeight}` : "normal",
+                          textShadow: el.shadowColor ? `${el.shadowX || 0}px ${el.shadowY || 2}px ${el.shadowBlur || 4}px ${el.shadowColor}` : "none",
+                        }}
+                      >
+                        <span
+                          style={el.isGradientText ? {
+                            backgroundImage: el.textGradient || "linear-gradient(to right, #4facfe, #00f2fe)",
+                            WebkitBackgroundClip: "text",
+                            WebkitTextFillColor: "transparent",
+                          } : {}}
+                        >
+                          {el.content}
+                        </span>
+                      </div>
+                    );
+                  }
+
+                  if (el.type === "timer") {
+                    return (
+                      <div
+                        key={el.id}
+                        className="absolute z-20 flex items-center justify-center font-bold shadow-lg select-none"
+                        style={{
+                          left: `${leftPct}%`,
+                          top: `${topPct}%`,
+                          width: `${widthPct}%`,
+                          height: `${heightPct}%`,
+                          backgroundColor: el.bgColor || "rgba(0,0,0,0.75)",
+                          color: el.textColor || "#ffffff",
+                          borderColor: el.borderColor || "#ffffff",
+                          borderWidth: `${el.borderWidth || 0}px`,
+                          borderRadius: `${el.borderRadius || 12}px`,
+                          fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
+                        }}
+                      >
+                        <div className="flex items-center gap-1.5 whitespace-nowrap px-2 font-bold">
+                          <i className="ri-time-line text-amber-400" />
+                          <span>{el.label || el.content || "OFFER ENDS IN:"}</span>
+                          <span className="font-mono text-amber-400 tracking-wider bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                            {countdownText}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <a
@@ -277,7 +367,7 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
                         borderColor: el.borderColor || "#ffffff",
                         borderWidth: `${el.borderWidth || 0}px`,
                         borderRadius: `${el.borderRadius || 12}px`,
-                        fontSize: `clamp(11px, 1.2vw, ${el.fontSize || 14}px)`,
+                        fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
                       }}
                     >
                       {el.content || "SHOP NOW"}
@@ -309,7 +399,7 @@ const BannerCarousel = ({ page = "home", placement = "hero" }) => {
             )}
 
             {/* Gradient overlays for text readability */}
-            <div className="absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
+            <div className="absolute inset-x-0 bottom-0 max-h-[35%] h-24 bg-gradient-to-t from-black/40 to-transparent pointer-events-none" />
           </motion.div>
         </AnimatePresence>
 

@@ -527,6 +527,15 @@ const AdminBannersPage = () => {
 
   useEffect(() => {
     fetchBanners();
+
+    const handleRealtimeUpdate = (event) => {
+      const { type } = event.detail || {};
+      if (type?.startsWith("BANNER_")) {
+        fetchBanners();
+      }
+    };
+    window.addEventListener("banner_update", handleRealtimeUpdate);
+    return () => window.removeEventListener("banner_update", handleRealtimeUpdate);
   }, [fetchBanners]);
 
   const handleCreate = async (formData) => {

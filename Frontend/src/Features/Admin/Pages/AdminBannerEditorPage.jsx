@@ -24,6 +24,9 @@ import {
 const FONT_OPTIONS = [
   "Inter", "Outfit", "Montserrat", "Playfair Display",
   "Poppins", "Roboto", "Cinzel", "Bebas Neue",
+  "Oswald", "Syne", "Instrument Serif", "Space Grotesk",
+  "Caveat", "Lobster", "Anton", "Pacifico", "Abril Fatface",
+  "DM Sans", "Plus Jakarta Sans",
 ];
 
 const PRESET_BG_COLORS = [
@@ -562,11 +565,17 @@ const AdminBannerEditorPage = () => {
       if (tabletFile) fd.append("tabletImage", tabletFile);
       if (isEditing) await updateBannerApi(id, fd);
       else await createBannerApi(fd);
-      navigate("/admin/banners");
+
+      window.dispatchEvent(new CustomEvent("banner_update", { detail: { type: "BANNER_SAVED" } }));
+      setSaving(false);
+      setCompilingCanvas(false);
+      navigate("/admin/banners", { replace: true });
     } catch (err) {
       console.error("Save failed:", err);
       alert(err.response?.data?.message || "Failed to save banner");
-    } finally { setSaving(false); setCompilingCanvas(false); }
+      setSaving(false);
+      setCompilingCanvas(false);
+    }
   };
 
   if (loadingBanner) return <AdminBannerEditorSkeleton />;
@@ -693,22 +702,52 @@ const AdminBannerEditorPage = () => {
                 </Section>
                 <Section label="Canvas Size" icon="ri-ruler-line">
                   <div className="space-y-1.5">
-                    {CANVAS_SIZES.map(size => (
-                      <button key={size.name} type="button" onClick={() => { setCanvasWidth(size.width); setCanvasHeight(size.height); setAspectRatio(size.ratio); }}
-                        className={`w-full p-2 rounded-xl text-left text-[11px] font-bold border transition cursor-pointer flex items-center gap-2.5 ${
-                          canvasWidth === size.width && canvasHeight === size.height
-                            ? "bg-accent/15 border-accent text-accent"
-                            : "bg-transparent border-border-theme/15 text-foreground/60 hover:border-border-theme/40"
-                        }`}>
-                        <div className="flex-shrink-0 w-6 h-6 rounded border border-current/30 flex items-center justify-center" style={{
-                          aspectRatio: `${size.width}/${size.height}`,
-                          width: size.width > size.height ? "24px" : `${Math.round(24 * size.width / size.height)}px`,
-                          height: size.height > size.width ? "24px" : `${Math.round(24 * size.height / size.width)}px`,
-                        }}><span className="text-[7px] font-mono">{size.ratio}</span></div>
-                        <span className="truncate">{size.name}</span>
-                      </button>
-                    ))}
+                    {CANVAS_SIZES.map(size => {
+                      const isSelected = (canvasWidth === size.width && canvasHeight === size.height) || (size.ratio === "custom" && aspectRatio === "custom");
+                      return (
+                        <button key={size.name} type="button" onClick={() => { setCanvasWidth(size.width); setCanvasHeight(size.height); setAspectRatio(size.ratio); }}
+                          className={`w-full p-2 rounded-xl text-left text-[11px] font-bold border transition cursor-pointer flex items-center gap-2.5 ${
+                            isSelected
+                              ? "bg-accent/15 border-accent text-accent"
+                              : "bg-transparent border-border-theme/15 text-foreground/60 hover:border-border-theme/40"
+                          }`}>
+                          <div className="flex-shrink-0 w-6 h-6 rounded border border-current/30 flex items-center justify-center" style={{
+                            aspectRatio: `${size.width}/${size.height}`,
+                            width: size.width > size.height ? "24px" : `${Math.round(24 * size.width / size.height)}px`,
+                            height: size.height > size.width ? "24px" : `${Math.round(24 * size.height / size.width)}px`,
+                          }}><span className="text-[7px] font-mono">{size.ratio}</span></div>
+                          <span className="truncate">{size.name}</span>
+                        </button>
+                      );
+                    })}
                   </div>
+
+                  {aspectRatio === "custom" && (
+                    <div className="grid grid-cols-2 gap-2 pt-2 mt-2 border-t border-border-theme/20">
+                      <InputField
+                        label="Width (px)"
+                        type="number"
+                        min={200}
+                        max={3000}
+                        value={canvasWidth}
+                        onChange={e => {
+                          setCanvasWidth(Math.max(100, parseInt(e.target.value) || 100));
+                          setAspectRatio("custom");
+                        }}
+                      />
+                      <InputField
+                        label="Height (px)"
+                        type="number"
+                        min={100}
+                        max={3000}
+                        value={canvasHeight}
+                        onChange={e => {
+                          setCanvasHeight(Math.max(100, parseInt(e.target.value) || 100));
+                          setAspectRatio("custom");
+                        }}
+                      />
+                    </div>
+                  )}
                 </Section>
                 <Section label="Placement & Rules" icon="ri-layout-masonry-line">
                   <select
@@ -797,7 +836,7 @@ const AdminBannerEditorPage = () => {
                 borderRadius: "12px",
               }}
             >
-              {elements.filter(el => el.isVisible !== false && (!compilingCanvas || el.type !== "button")).map(el => (
+              {elements.filter(el => el.isVisible !== false && (!compilingCanvas || (el.type !== "button" && el.type !== "timer" && el.type !== "text"))).map(el => (
                 <CanvasElement
                   key={el.id} el={el}
                   selectedId={compilingCanvas ? null : selectedId} editingTextId={editingTextId}

@@ -120,7 +120,7 @@ const AdminNavbar = ({ onLogout, isCollapsed = false, setIsCollapsed }) => {
           mobileOpen ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         }`}
       >
-        <div className="flex flex-col gap-5 overflow-y-auto custom-scrollbar pr-0.5" data-lenis-prevent>
+        <div className="flex flex-col gap-5 overflow-y-auto scrollbar-hide pr-0.5" data-lenis-prevent>
           {/* Brand Header & Collapse Toggle */}
           <div className="flex items-center justify-between pb-3.5 border-b border-border-theme/60">
             <div className="flex items-center gap-3 overflow-hidden">

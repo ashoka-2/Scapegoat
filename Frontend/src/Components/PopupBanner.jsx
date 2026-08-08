@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import gsap from "gsap";
 import { getActiveBannersApi } from "../Features/Admin/Services/banner.api.js";
+import { loadGoogleFont } from "../Features/Admin/Components/Canvas/canvasHelpers.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -48,6 +49,20 @@ const recordPopupShown = (bannerId) => {
   } catch {
     // silent
   }
+};
+
+const formatCountdown = (targetDate) => {
+  if (!targetDate) return "12h 45m 30s";
+  const diff = new Date(targetDate).getTime() - Date.now();
+  if (diff <= 0) return "Offer Expired";
+
+  const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+  const hours = Math.floor((diff / (1000 * 60 * 60)) % 24);
+  const mins = Math.floor((diff / (1000 * 60)) % 60);
+  const secs = Math.floor((diff / 1000) % 60);
+
+  if (days > 0) return `${days}d ${hours}h ${mins}m`;
+  return `${hours}h ${mins}m ${secs}s`;
 };
 
 /**
@@ -124,6 +139,17 @@ const PopupBanner = () => {
       clearInterval(countdownRef.current);
     };
   }, [location.pathname]);
+
+  // Load Google Fonts for active popup banner
+  useEffect(() => {
+    if (banner?.elements && Array.isArray(banner.elements)) {
+      banner.elements.forEach((el) => {
+        if (el.fontFamily) {
+          loadGoogleFont(el.fontFamily);
+        }
+      });
+    }
+  }, [banner]);
 
   // Show the popup after the image is loaded + popupDelay
   useEffect(() => {
@@ -283,7 +309,7 @@ const PopupBanner = () => {
 
             {/* Banner Image */}
             <div
-              className="relative cursor-pointer select-none"
+              className="relative cursor-pointer select-none [container-type:inline-size]"
               onClick={handleBannerClick}
               style={{ backgroundColor: banner.backgroundColor || "transparent" }}
             >
@@ -316,10 +342,10 @@ const PopupBanner = () => {
                 </div>
               )}
 
-              {/* Studio Elements: Interactive CTA Buttons with Link Redirection */}
+              {/* Studio Elements: Text Layers, Interactive CTA Buttons & Live Countdown Timers */}
               {Array.isArray(banner.elements) && banner.elements.length > 0 ? (
                 banner.elements
-                  .filter(el => el.type === "button" && el.isVisible !== false)
+                  .filter(el => (el.type === "text" || el.type === "button" || el.type === "timer") && el.isVisible !== false)
                   .map(el => {
                     const cWidth = banner.canvasWidth || 1200;
                     const cHeight = banner.canvasHeight || 500;
@@ -327,6 +353,70 @@ const PopupBanner = () => {
                     const topPct = (el.y / cHeight) * 100;
                     const widthPct = (el.width / cWidth) * 100;
                     const heightPct = (el.height / cHeight) * 100;
+                    const fontSizeCqw = ((el.fontSize || 24) / cWidth) * 100;
+
+                    if (el.type === "text") {
+                      return (
+                        <div
+                          key={el.id}
+                          className="absolute z-20 flex items-center select-none leading-tight pointer-events-none"
+                          style={{
+                            left: `${leftPct}%`,
+                            top: `${topPct}%`,
+                            width: `${widthPct}%`,
+                            height: `${heightPct}%`,
+                            fontFamily: el.fontFamily || "Inter",
+                            fontSize: `${fontSizeCqw}cqw`,
+                            fontWeight: el.fontWeight || "bold",
+                            textAlign: el.textAlign || "left",
+                            justifyContent: el.textAlign === "center" ? "center" : el.textAlign === "right" ? "flex-end" : "flex-start",
+                            color: el.textColor || el.color || "#ffffff",
+                            letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : "normal",
+                            lineHeight: el.lineHeight ? `${el.lineHeight}` : "normal",
+                            textShadow: el.shadowColor ? `${el.shadowX || 0}px ${el.shadowY || 2}px ${el.shadowBlur || 4}px ${el.shadowColor}` : "none",
+                          }}
+                        >
+                          <span
+                            style={el.isGradientText ? {
+                              backgroundImage: el.textGradient || "linear-gradient(to right, #4facfe, #00f2fe)",
+                              WebkitBackgroundClip: "text",
+                              WebkitTextFillColor: "transparent",
+                            } : {}}
+                          >
+                            {el.content}
+                          </span>
+                        </div>
+                      );
+                    }
+
+                    if (el.type === "timer") {
+                      return (
+                        <div
+                          key={el.id}
+                          className="absolute z-20 flex items-center justify-center font-bold shadow-lg select-none"
+                          style={{
+                            left: `${leftPct}%`,
+                            top: `${topPct}%`,
+                            width: `${widthPct}%`,
+                            height: `${heightPct}%`,
+                            backgroundColor: el.bgColor || "rgba(0,0,0,0.75)",
+                            color: el.textColor || "#ffffff",
+                            borderColor: el.borderColor || "#ffffff",
+                            borderWidth: `${el.borderWidth || 0}px`,
+                            borderRadius: `${el.borderRadius || 12}px`,
+                            fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
+                          }}
+                        >
+                          <div className="flex items-center gap-1.5 whitespace-nowrap px-2 font-bold">
+                            <i className="ri-time-line text-amber-400" />
+                            <span>{el.label || el.content || "OFFER ENDS IN:"}</span>
+                            <span className="font-mono text-amber-400 tracking-wider bg-amber-400/10 px-1.5 py-0.5 rounded border border-amber-400/30">
+                              {formatCountdown(el.endDate || banner.timerOverlay?.endDate || banner.endDate)}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    }
 
                     return (
                       <a
@@ -351,7 +441,7 @@ const PopupBanner = () => {
                           borderColor: el.borderColor || "#ffffff",
                           borderWidth: `${el.borderWidth || 0}px`,
                           borderRadius: `${el.borderRadius || 12}px`,
-                          fontSize: `clamp(10px, 1.2vw, ${el.fontSize || 14}px)`,
+                          fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
                         }}
                       >
                         {el.content || "SHOP NOW"}

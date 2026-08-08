@@ -45,18 +45,15 @@ const AdminLayout = () => {
           isCollapsed ? "lg:ml-[6.5rem]" : "lg:ml-[17.5rem]"
         } p-4 sm:p-6 md:p-8`}
       >
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={location.pathname}
-            initial={{ opacity: 0, y: 12, scale: 0.99 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -12, scale: 0.99 }}
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            className="w-full"
-          >
-            <Outlet />
-          </motion.div>
-        </AnimatePresence>
+        <motion.div
+          key={location.pathname}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, ease: "easeOut" }}
+          className="w-full"
+        >
+          <Outlet />
+        </motion.div>
       </main>
     </div>
   );

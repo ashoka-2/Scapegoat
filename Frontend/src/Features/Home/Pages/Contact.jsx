@@ -60,7 +60,8 @@ const Contact = () => {
 
   return (
     <div className="min-h-screen py-12 px-4 sm:px-6 md:px-12 max-w-7xl mx-auto font-sans">
-      {/* Inline Contact Banner */}
+      {/* Hero & Inline Contact Banners */}
+      <BannerCarousel page="contact" placement="hero" />
       <BannerCarousel page="contact" placement="inline" />
 
       <div className="text-center mb-12 md:mb-16 space-y-4">
