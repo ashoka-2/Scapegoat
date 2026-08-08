@@ -998,6 +998,11 @@ const CreateProduct = () => {
                 value={formData.description}
                 onChange={(newVal) => setFormData((prev) => ({ ...prev, description: newVal }))}
                 placeholder="Enter detailed product description, specifications, washing instructions, features..."
+                productImages={[
+                  ...mainImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
+                  ...galleryImages.map((img) => (typeof img === "string" ? img : img.preview || img.url)),
+                  ...variantsList.flatMap((v) => (v.images || []).map((img) => (typeof img === "string" ? img : img.preview || img.url))),
+                ].filter(Boolean)}
               />
             </FormField>
 

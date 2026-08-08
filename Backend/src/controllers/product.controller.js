@@ -608,10 +608,82 @@ export const updateProduct = async (req, res) => {
       }
     });
 
+    // Helper to convert FormData flat keys (maxPrice[amount], dimensions[length], seo[metaTitle], etc.) into nested Objects
+    const parseFlatFormData = (bodyData) => {
+      const data = { ...bodyData };
+
+      if (data["maxPrice[amount]"] !== undefined) {
+        data.maxPrice = {
+          amount: Number(data["maxPrice[amount]"]),
+          currency: data["maxPrice[currency]"] || "INR",
+        };
+        delete data["maxPrice[amount]"];
+        delete data["maxPrice[currency]"];
+      }
+
+      if (data["sellingPrice[amount]"] !== undefined) {
+        data.sellingPrice = {
+          amount: Number(data["sellingPrice[amount]"]),
+          currency: data["sellingPrice[currency]"] || "INR",
+        };
+        delete data["sellingPrice[amount]"];
+        delete data["sellingPrice[currency]"];
+      }
+
+      if (data["costPrice[amount]"] !== undefined) {
+        data.costPrice = {
+          amount: Number(data["costPrice[amount]"]),
+          currency: data["costPrice[currency]"] || "INR",
+        };
+        delete data["costPrice[amount]"];
+        delete data["costPrice[currency]"];
+      }
+
+      if (
+        data["dimensions[length]"] !== undefined ||
+        data["dimensions[width]"] !== undefined ||
+        data["dimensions[height]"] !== undefined
+      ) {
+        data.dimensions = {
+          length: Number(data["dimensions[length]"] || 0),
+          width: Number(data["dimensions[width]"] || 0),
+          height: Number(data["dimensions[height]"] || 0),
+          unit: data["dimensions[unit]"] || "cm",
+        };
+        delete data["dimensions[length]"];
+        delete data["dimensions[width]"];
+        delete data["dimensions[height]"];
+        delete data["dimensions[unit]"];
+      }
+
+      if (
+        data["seo[metaTitle]"] !== undefined ||
+        data["seo[metaDescription]"] !== undefined ||
+        data["seo[canonicalUrl]"] !== undefined
+      ) {
+        data.seo = {
+          metaTitle: data["seo[metaTitle]"] || "",
+          metaDescription: data["seo[metaDescription]"] || "",
+          canonicalUrl: data["seo[canonicalUrl]"] || "",
+        };
+        delete data["seo[metaTitle]"];
+        delete data["seo[metaDescription]"];
+        delete data["seo[canonicalUrl]"];
+      }
+
+      ["category", "brand", "unit"].forEach((field) => {
+        if (!data[field] || typeof data[field] !== "string" || !data[field].match(/^[0-9a-fA-F]{24}$/)) {
+          delete data[field];
+        }
+      });
+
+      return data;
+    };
+
     // Process all file uploads and external image URLs in PARALLEL (<1-2s total!)
     const updatedUploadedImages = await processImageUploadsParallel(req.files || [], rawUrls);
-    // Parse JSON strings for complex fields sent via FormData
-    const updateData = { ...req.body };
+    // Parse JSON strings and flat keys for complex fields sent via FormData
+    const updateData = parseFlatFormData(req.body);
 
     if (typeof updateData.variants === "string") {
       try { updateData.variants = JSON.parse(updateData.variants); } catch (e) {}

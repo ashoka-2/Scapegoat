@@ -123,3 +123,37 @@ html, body {
 .rich-description-render font {
   color: inherit;
 }
+
+.rich-description-render img {
+  max-width: 100%;
+  height: auto;
+  object-fit: cover;
+  transition: all 0.2s ease;
+}
+
+/* Enforce precise WYSIWYG float & alignment rules across editor & product pages */
+.rich-description-render img[style*="float: left"],
+.rich-description-render img[style*="float:left"] {
+  float: left;
+  margin: 8px 20px 16px 0;
+  display: inline-block;
+}
+
+.rich-description-render img[style*="float: right"],
+.rich-description-render img[style*="float:right"] {
+  float: right;
+  margin: 8px 0 16px 20px;
+  display: inline-block;
+}
+
+.rich-description-render img[style*="margin: 16px auto"] {
+  display: block;
+  margin-left: auto;
+  margin-right: auto;
+  clear: both;
+}
+
+.rich-description-render img.selected-editor-img {
+  outline: 3px solid #6366f1;
+  outline-offset: 3px;
+}

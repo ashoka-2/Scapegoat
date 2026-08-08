@@ -41,12 +41,15 @@ router.get("/search/ai", aiSearchProducts);
 router.post("/search/visual", upload.array("images", 1), aiImageSearchProducts);
 
 // Get single product by ID or Slug (with optional token verification so sellers can edit drafts)
-router.get("/single/:identifier", (req, res, next) => {
+const handleGetSingleProduct = (req, res, next) => {
   if (req.cookies && req.cookies.token) {
     return verifyToken(req, res, () => getSingleProduct(req, res, next));
   }
   return getSingleProduct(req, res, next);
-});
+};
+
+router.get("/single/:identifier", handleGetSingleProduct);
+router.get("/detail/:identifier", handleGetSingleProduct);
 
 // Get products by Category (ID or Slug)
 router.get("/category/:categoryIdentifier", getProductsByCategory);
