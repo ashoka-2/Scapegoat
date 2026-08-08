@@ -205,21 +205,18 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
   };
 
   // ── Drag-to-Move: dragging the BODY of an already-selected image repositions it ──
-  // (The component advertises "Drag & Drop positioning anywhere" — this makes it real.)
-  // Floated images move freely (margin-left + margin-top). Block/centered images keep
-  // their auto side margins (stay centered) and only move vertically.
+  // The first real movement LIFTS the image out of the document flow (position:absolute)
+  // so it floats over the description — dragging never displaces the content around it.
+  // The saved inline styles (position/top/left/z-index) render identically on the
+  // storefront because .rich-description-render is position:relative on both sides.
   const moveDragRef = useRef(null);
 
   const handleEditorMouseDown = (e) => {
     const target = e.target;
     if (target && target.tagName === "IMG" && selectedImg === target) {
-      const cs = getComputedStyle(target);
       moveDragRef.current = {
         startX: e.clientX,
         startY: e.clientY,
-        origML: parseFloat(cs.marginLeft) || 0,
-        origMT: parseFloat(cs.marginTop) || 0,
-        mlIsAuto: /auto/i.test(cs.marginLeft),
         moved: false,
       };
       e.preventDefault();
@@ -231,13 +228,32 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
 
   const handleMoveDrag = (e) => {
     const d = moveDragRef.current;
-    if (!d || !selectedImg || !editorRootRef.current) return;
+    if (!d || !selectedImg || !editorRef.current) return;
     const dx = e.clientX - d.startX;
     const dy = e.clientY - d.startY;
     if (!d.moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return; // still a click, not a drag
-    d.moved = true;
-    if (!d.mlIsAuto) selectedImg.style.marginLeft = `${Math.round(d.origML + dx)}px`;
-    selectedImg.style.marginTop = `${Math.round(d.origMT + dy)}px`;
+
+    if (!d.moved) {
+      // Lift the image out of the flow at its current visual position (no jump)
+      const imgR = selectedImg.getBoundingClientRect();
+      const cR = editorRef.current.getBoundingClientRect();
+      d.baseTop = imgR.top - cR.top;
+      d.baseLeft = imgR.left - cR.left;
+      d.imgW = imgR.width;
+      selectedImg.style.position = "absolute";
+      selectedImg.style.zIndex = "5";
+      selectedImg.style.margin = "0px";
+      selectedImg.style.float = "none";
+      d.moved = true;
+    }
+
+    // Free placement, clamped inside the description box (top edge + horizontal)
+    const cR = editorRef.current.getBoundingClientRect();
+    const maxLeft = Math.max(0, cR.width - d.imgW);
+    const top = Math.max(0, d.baseTop + dy);
+    const left = Math.min(Math.max(0, d.baseLeft + dx), maxLeft);
+    selectedImg.style.top = `${Math.round(top)}px`;
+    selectedImg.style.left = `${Math.round(left)}px`;
 
     const imgR = selectedImg.getBoundingClientRect();
     const rootR = editorRootRef.current.getBoundingClientRect();
@@ -399,6 +415,15 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
   // ── Image Adjustment Logic (Live Updating Selected Image) ──────────────────
   const applyImageChanges = (newWidth, newAlign, newRounded, newShadow, newAlt, newLink) => {
     if (!selectedImg) return;
+
+    // If the image was free-placed (dragged to position:absolute), applying an alignment
+    // returns it to the normal flow — top/left/z-index no longer apply.
+    if (selectedImg.style.position === "absolute") {
+      selectedImg.style.position = "";
+      selectedImg.style.top = "";
+      selectedImg.style.left = "";
+      selectedImg.style.zIndex = "";
+    }
 
     // Width & Aspect Ratio
     selectedImg.style.width = newWidth;

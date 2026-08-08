@@ -108,6 +108,7 @@ html, body {
 /* Theme-Adaptive Rich Description Formatting */
 .rich-description-render {
   color: var(--color-text) !important;
+  position: relative; /* anchors free-placed (dragged → position:absolute) description images */
 }
 
 .rich-description-render p,

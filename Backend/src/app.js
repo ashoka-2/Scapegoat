@@ -76,6 +76,13 @@ app.get("/", (_req, res) => {
   res.status(200).json({ message: "Scapegoat API Server is running" });
 });
 
+// Public health endpoint — used by the frontend wake-ping and uptime keep-alive
+// monitors so the Render free tier doesn't serve 502s while spinning up.
+app.get("/api/health", (_req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.status(200).json({ ok: true, service: "scapegoat-api", uptime: Math.round(process.uptime()) });
+});
+
 // 4. API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/products", productRouter);
