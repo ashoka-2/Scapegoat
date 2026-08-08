@@ -1,11 +1,19 @@
 import React, { useEffect, useState } from "react";
-import axios from "axios";
 import { useDispatch } from "react-redux";
 import { addToast } from "../../../utils/toast.slice";
 import AdminSettingsSkeleton from "../Components/Skeletons/AdminSettingsSkeleton";
 import { MapContainer, TileLayer, Marker, useMapEvents } from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
+import {
+  getSettings,
+  updateAbout,
+  updateContact,
+  updateFooter,
+  updatePrivacyPolicy,
+  updateTermsOfService,
+  updateReturnPolicy,
+} from "../../Settings/Services/settings.api.js";
 
 // Fix Leaflet default marker icon broken in Webpack/Vite
 delete L.Icon.Default.prototype._getIconUrl;
@@ -73,9 +81,9 @@ const AdminSettingsPage = () => {
   const fetchSettings = async () => {
     setLoading(true);
     try {
-      const res = await axios.get("http://localhost:3000/api/settings", { withCredentials: true });
-      const settingsData = res.data.settings || res.data.data;
-      if (res.data.success && settingsData) {
+      const resData = await getSettings();
+      const settingsData = resData.settings || resData.data;
+      if (resData.success && settingsData) {
         const { about, contact, footer, legal } = settingsData;
         if (about) {
           setAboutForm({
@@ -127,8 +135,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("about");
     try {
-      const res = await axios.put("http://localhost:3000/api/settings/about", aboutForm, { withCredentials: true });
-      if (res.data.success) {
+      const resData = await updateAbout(aboutForm);
+      if (resData.success) {
         dispatch(addToast({ message: "About Us section updated!", type: "success" }));
       }
     } catch (err) {
@@ -142,8 +150,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("contact");
     try {
-      const res = await axios.put("http://localhost:3000/api/settings/contact", contactForm, { withCredentials: true });
-      if (res.data.success) {
+      const resData = await updateContact(contactForm);
+      if (resData.success) {
         dispatch(addToast({ message: "Contact & Map settings updated!", type: "success" }));
       }
     } catch (err) {
@@ -157,8 +165,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("footer");
     try {
-      const res = await axios.put("http://localhost:3000/api/settings/footer", footerForm, { withCredentials: true });
-      if (res.data.success) {
+      const resData = await updateFooter(footerForm);
+      if (resData.success) {
         dispatch(addToast({ message: "Footer & Social links updated!", type: "success" }));
       }
     } catch (err) {
@@ -172,12 +180,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("privacy");
     try {
-      const res = await axios.put(
-        "http://localhost:3000/api/settings/legal/privacy",
-        { privacyPolicy: legalForm.privacyPolicy },
-        { withCredentials: true }
-      );
-      if (res.data.success) {
+      const resData = await updatePrivacyPolicy(legalForm.privacyPolicy);
+      if (resData.success) {
         dispatch(addToast({ message: "Privacy Policy updated!", type: "success" }));
       }
     } catch (err) {
@@ -191,12 +195,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("terms");
     try {
-      const res = await axios.put(
-        "http://localhost:3000/api/settings/legal/terms",
-        { termsOfService: legalForm.termsOfService },
-        { withCredentials: true }
-      );
-      if (res.data.success) {
+      const resData = await updateTermsOfService(legalForm.termsOfService);
+      if (resData.success) {
         dispatch(addToast({ message: "Terms of Service updated!", type: "success" }));
       }
     } catch (err) {
@@ -210,12 +210,8 @@ const AdminSettingsPage = () => {
     e.preventDefault();
     setSavingSection("returns");
     try {
-      const res = await axios.put(
-        "http://localhost:3000/api/settings/legal/returns",
-        { returnPolicy: legalForm.returnPolicy },
-        { withCredentials: true }
-      );
-      if (res.data.success) {
+      const resData = await updateReturnPolicy(legalForm.returnPolicy);
+      if (resData.success) {
         dispatch(addToast({ message: "Return Policy updated!", type: "success" }));
       }
     } catch (err) {

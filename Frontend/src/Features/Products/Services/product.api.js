@@ -42,6 +42,14 @@ export async function getSellerProductsApi(sellerId, params = {}) {
 }
 
 /**
+ * Fetch seller financial analytics & itemized performance
+ */
+export async function getSellerAnalyticsApi() {
+  const response = await productApiInstance.get("/seller-analytics");
+  return response.data;
+}
+
+/**
  * Update an existing product
  */
 export async function updateProductApi(id, formData) {

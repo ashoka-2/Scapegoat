@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
-import axios from "axios";
+import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { useSellerAnalytics } from "../Hooks/useSellerAnalytics.js";
 
 const StatCard = ({ title, value, subtext, icon, iconBg, valueColor = "text-foreground" }) => (
   <div className="bg-surface border border-border-theme p-5 rounded-2xl space-y-2 shadow-sm relative overflow-hidden group hover:border-accent/50 transition duration-300">
@@ -17,48 +17,10 @@ const StatCard = ({ title, value, subtext, icon, iconBg, valueColor = "text-fore
 );
 
 const SellerAnalyticsPage = () => {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState({
-    summary: {
-      totalOrders: 0,
-      totalUnitsSold: 0,
-      totalRevenue: 0,
-      totalCost: 0,
-      netProfit: 0,
-      overallMargin: 0,
-    },
-    mostSoldProduct: null,
-    mostProfitableProduct: null,
-    dailyTrends: [],
-    itemizedPerformance: [],
-  });
+  const { data, loading, error } = useSellerAnalytics();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [sortField, setSortField] = useState("totalProfit"); // 'totalProfit' | 'unitsSold' | 'totalRevenue' | 'marginPercent'
-
-  const fetchAnalytics = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axios.get("http://localhost:3000/api/products/seller-analytics", {
-        withCredentials: true,
-      });
-
-      if (response.data?.success) {
-        setData(response.data);
-      }
-    } catch (err) {
-      console.error("Error fetching seller analytics:", err);
-      setError(err.response?.data?.message || "Failed to load seller financial analytics");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchAnalytics();
-  }, []);
 
   const summary = data.summary || {};
   const mostSold = data.mostSoldProduct;

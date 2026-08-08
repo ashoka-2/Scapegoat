@@ -1,12 +1,14 @@
-import axios from "axios";
+import customAxios from "../../../utils/axios.js";
 
-const API_BASE = "http://localhost:3000/api/banners";
+const bannerApiInstance = customAxios.create({
+  baseURL: (customAxios.defaults.baseURL || "") + "/api/banners",
+});
 
 /**
  * PUBLIC — Fetch active banners by placement and page
  */
 export const getActiveBannersApi = async (params = {}) => {
-  const response = await axios.get(`${API_BASE}/active`, { params, withCredentials: true });
+  const response = await bannerApiInstance.get("/active", { params });
   return response.data;
 };
 
@@ -14,7 +16,7 @@ export const getActiveBannersApi = async (params = {}) => {
  * ADMIN — Fetch all banners with filters and pagination
  */
 export const getAllBannersApi = async (params = {}) => {
-  const response = await axios.get(API_BASE, { params, withCredentials: true });
+  const response = await bannerApiInstance.get("", { params });
   return response.data;
 };
 
@@ -22,7 +24,7 @@ export const getAllBannersApi = async (params = {}) => {
  * ADMIN — Get single banner by ID
  */
 export const getBannerByIdApi = async (id) => {
-  const response = await axios.get(`${API_BASE}/${id}`, { withCredentials: true });
+  const response = await bannerApiInstance.get(`/${id}`);
   return response.data;
 };
 
@@ -30,8 +32,7 @@ export const getBannerByIdApi = async (id) => {
  * ADMIN — Create a new banner (multipart form data)
  */
 export const createBannerApi = async (formData) => {
-  const response = await axios.post(API_BASE, formData, {
-    withCredentials: true,
+  const response = await bannerApiInstance.post("", formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return response.data;
@@ -41,8 +42,7 @@ export const createBannerApi = async (formData) => {
  * ADMIN — Update an existing banner (multipart form data)
  */
 export const updateBannerApi = async (id, formData) => {
-  const response = await axios.put(`${API_BASE}/${id}`, formData, {
-    withCredentials: true,
+  const response = await bannerApiInstance.put(`/${id}`, formData, {
     headers: { "Content-Type": "multipart/form-data" },
   });
   return response.data;
@@ -52,9 +52,8 @@ export const updateBannerApi = async (id, formData) => {
  * ADMIN — Delete banner (soft or permanent)
  */
 export const deleteBannerApi = async (id, permanent = false) => {
-  const response = await axios.delete(`${API_BASE}/${id}`, {
+  const response = await bannerApiInstance.delete(`/${id}`, {
     params: { permanent },
-    withCredentials: true,
   });
   return response.data;
 };
@@ -63,7 +62,7 @@ export const deleteBannerApi = async (id, permanent = false) => {
  * ADMIN — Restore a trashed banner
  */
 export const restoreBannerApi = async (id) => {
-  const response = await axios.patch(`${API_BASE}/${id}/restore`, {}, { withCredentials: true });
+  const response = await bannerApiInstance.patch(`/${id}/restore`, {});
   return response.data;
 };
 
@@ -71,7 +70,7 @@ export const restoreBannerApi = async (id) => {
  * ADMIN — Toggle banner active/inactive
  */
 export const toggleBannerStatusApi = async (id) => {
-  const response = await axios.patch(`${API_BASE}/${id}/toggle`, {}, { withCredentials: true });
+  const response = await bannerApiInstance.patch(`/${id}/toggle`, {});
   return response.data;
 };
 
@@ -79,6 +78,6 @@ export const toggleBannerStatusApi = async (id) => {
  * ADMIN — Batch reorder banners
  */
 export const reorderBannersApi = async (banners) => {
-  const response = await axios.put(`${API_BASE}/reorder`, { banners }, { withCredentials: true });
+  const response = await bannerApiInstance.put("/reorder", { banners });
   return response.data;
 };

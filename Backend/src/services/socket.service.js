@@ -10,7 +10,10 @@ const activeSocketsMap = new Map();
 export const setupSocket = (httpServer) => {
   io = new Server(httpServer, {
     cors: {
-      origin: config.FRONTEND_URL,
+      origin: (origin, callback) => {
+        if (!origin) return callback(null, true);
+        return callback(null, true);
+      },
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
       credentials: true,
     },
