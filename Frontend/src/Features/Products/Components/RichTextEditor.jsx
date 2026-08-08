@@ -693,7 +693,12 @@ const RichTextEditor = ({ value = "", onChange, placeholder = "Enter product des
       setCropModal(null);
     } catch (err) {
       console.error("Crop error:", err);
-      alert(err.message || "Cropping failed. The image source may not allow editing.");
+      const networkish = !err.response || [502, 503, 504].includes(err.response?.status);
+      alert(
+        networkish
+          ? "Image upload failed after retries — the backend may still be starting up. Please try Apply Crop again in a moment."
+          : err.message || "Cropping failed. The image source may not allow editing."
+      );
     } finally {
       setIsCropping(false);
     }

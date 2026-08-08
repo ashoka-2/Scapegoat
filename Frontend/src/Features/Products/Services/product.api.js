@@ -46,12 +46,29 @@ export async function getSellerAnalyticsApi() {
  * Upload a single image for the rich-text product description.
  * Returns the ImageKit URL so the editor can insert a compact <img> tag
  * instead of a bloated base64 data URL.
+ *
+ * Retries with backoff: the Render free tier can be mid cold-start (~30–60s)
+ * and answer 502 Bad Gateway; a re-uploaded image is harmless (worst case an
+ * orphan file in ImageKit), so retrying is safe here.
  */
-export async function uploadDescriptionImageApi(file) {
+const UPLOAD_RETRY_DELAYS = [8000, 15000, 25000]; // ≈ 48s total, covers a cold start
+const UPLOAD_RETRYABLE_CODES = new Set([502, 503, 504]);
+
+export async function uploadDescriptionImageApi(file, attempt = 0) {
   const formData = new FormData();
   formData.append("image", file);
-  const response = await productApiInstance.post("/upload-description-image", formData);
-  return response.data;
+  try {
+    const response = await productApiInstance.post("/upload-description-image", formData);
+    return response.data;
+  } catch (error) {
+    const status = error.response ? error.response.status : 0; // 0 = network/CORS-level failure
+    const retryable = status === 0 || UPLOAD_RETRYABLE_CODES.has(status);
+    if (retryable && attempt < UPLOAD_RETRY_DELAYS.length) {
+      await new Promise((r) => setTimeout(r, UPLOAD_RETRY_DELAYS[attempt]));
+      return uploadDescriptionImageApi(file, attempt + 1);
+    }
+    throw error;
+  }
 }
 
 /**
