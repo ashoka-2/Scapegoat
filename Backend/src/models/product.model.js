@@ -77,6 +77,28 @@ const variantSchema = new Schema({
 
 // ── Main Product Schema ─────────────────────────────────────────────────────
 
+// ── Embedding stripper ───────────────────────────────────────────────────────
+// AI vector embeddings (root embedding/imageEmbedding + nested image
+// embeddings on product & variant images) are used ONLY for server-side
+// similarity math (search/ai, similar, visual search). Each 384-float vector
+// adds ~2-3KB of useless payload, so strip them from every serialized product.
+const stripEmbeddings = (_doc, ret) => {
+  delete ret.embedding;
+  delete ret.imageEmbedding;
+  const imageLists = [ret.images];
+  if (Array.isArray(ret.variants)) {
+    ret.variants.forEach((v) => {
+      if (v && Array.isArray(v.images)) imageLists.push(v.images);
+    });
+  }
+  imageLists.filter(Array.isArray).forEach((list) => {
+    list.forEach((img) => {
+      if (img && typeof img === "object") delete img.embedding;
+    });
+  });
+  return ret;
+};
+
 const productSchema = new Schema(
   {
     // ── Basic Info ─────────────────────────────────────────────────────────
@@ -306,9 +328,10 @@ const productSchema = new Schema(
   },
   {
     timestamps: true,
-    // Enables virtual fields (like computed properties) in JSON/Object output
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+    // Enables virtual fields (like computed properties) in JSON/Object output.
+    // The transform strips AI vector embeddings so no API response ships them.
+    toJSON: { virtuals: true, transform: stripEmbeddings },
+    toObject: { virtuals: true, transform: stripEmbeddings },
     // Optimistic concurrency: prevents race conditions on stock updates.
     // When two users try to buy the last item simultaneously, Mongoose adds a
     // __v (version) field. Each save increments __v. If two saves happen on the
