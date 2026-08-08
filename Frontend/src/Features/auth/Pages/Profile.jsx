@@ -473,7 +473,7 @@ const Profile = () => {
             >
               {/* Manage Orders */}
               <div
-                onClick={() => navigate(user?.role === "seller" ? "/seller/orders" : "/my-orders")}
+                onClick={() => navigate(user?.role === "seller" ? "/my-orders" : "/my-orders")}
                 className="bg-surface border border-border-theme/80 hover:border-accent rounded-2xl p-5 flex items-center justify-between cursor-pointer transition-all shadow-sm group"
               >
                 <div className="flex items-center gap-4">
