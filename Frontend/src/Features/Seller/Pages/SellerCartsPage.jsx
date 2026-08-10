@@ -23,7 +23,7 @@ const SellerCartsPage = () => {
             product: item.product,
             quantity: item.quantity,
             user: userObj,
-            updatedAt: cart.updatedAt || cart.createdAt,
+            updatedAt: item.addedAt || cart.updatedAt || cart.createdAt,
           });
         }
       });

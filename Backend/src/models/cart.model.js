@@ -23,6 +23,12 @@ const cartItemSchema = new mongoose.Schema({
         min: [1, "Quantity cannot be less than 1"],
         default: 1,
     },
+    // When THIS item was added — never bumped on quantity changes, so the
+    // seller carts page can show only the newly added item at the top
+    addedAt: {
+        type: Date,
+        default: Date.now,
+    },
 });
 
 const cartSchema = new mongoose.Schema(

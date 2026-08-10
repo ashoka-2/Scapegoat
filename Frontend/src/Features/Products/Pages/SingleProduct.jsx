@@ -356,7 +356,9 @@ const SingleProduct = () => {
         const parts = String(item).split(",");
         parts.forEach((p) => {
           const cleaned = p.trim();
-          if (cleaned) attrMap.get(existingKey).add(cleaned);
+          // Canonical UPPERCASE: dedupes "XL"/"xl" into one chip and matches
+          // the new uppercase storage standard
+          if (cleaned) attrMap.get(existingKey).add(cleaned.toUpperCase());
         });
       });
     };
