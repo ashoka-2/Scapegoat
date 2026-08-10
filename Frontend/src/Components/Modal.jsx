@@ -13,9 +13,11 @@ const Modal = ({
   isOpen,
   onClose,
   onSubmit,
+  onConfirm, // alias for onSubmit (SellerCatalog etc.)
   title,
   description,
   variant = "default", // "default" | "danger" | "destructive" | "success" | "info"
+  type, // alias for variant
   size = "sm", // "sm" | "md" | "lg" | "xl" | "full"
   icon = null,
   confirmText = "Confirm",
@@ -31,6 +33,9 @@ const Modal = ({
   closeOnEsc = true,
   children,
 }) => {
+  // Both onSubmit and onConfirm are accepted; onConfirm is the older alias
+  const submitHandler = onSubmit || onConfirm;
+  const effectiveVariant = type || variant;
   // Lock body scroll when modal is open
   useEffect(() => {
     if (isOpen) {
@@ -56,8 +61,8 @@ const Modal = ({
 
   const handleFormSubmit = (e) => {
     e.preventDefault();
-    if (onSubmit && !loading && !isConfirmDisabled) {
-      onSubmit(e);
+    if (submitHandler && !loading && !isConfirmDisabled) {
+      submitHandler(e);
     }
   };
 
@@ -71,9 +76,9 @@ const Modal = ({
   }[size] || "max-w-md";
 
   // Determine variant styling & default icons
-  const isDanger = variant === "danger" || variant === "destructive";
-  const isSuccess = variant === "success";
-  const isInfo = variant === "info";
+  const isDanger = effectiveVariant === "danger" || effectiveVariant === "destructive";
+  const isSuccess = effectiveVariant === "success";
+  const isInfo = effectiveVariant === "info";
 
   const resolvedConfirmVariant = confirmVariant || (isDanger ? "danger" : isSuccess ? "success" : "accent");
 
@@ -157,7 +162,7 @@ const Modal = ({
             )}
 
             {/* Modal Body / Children */}
-            {onSubmit ? (
+            {submitHandler ? (
               <form onSubmit={handleFormSubmit} className="space-y-5">
                 {children && <div className="space-y-4">{children}</div>}
 
@@ -219,6 +224,9 @@ const Modal = ({
                         </button>
                         <button
                           type="button"
+                          onClick={() => {
+                            if (submitHandler && !loading && !isConfirmDisabled) submitHandler();
+                          }}
                           disabled={loading || isConfirmDisabled}
                           className={`px-5 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition disabled:opacity-40 cursor-pointer flex items-center gap-1.5 ${confirmBtnClasses}`}
                         >
