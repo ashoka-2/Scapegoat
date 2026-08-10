@@ -73,7 +73,9 @@ const ImageDropzone = ({ images = [], setImages: setImagesProp, onImagesChange, 
         url: cleanUrl,
         preview: cleanUrl,
       };
-      return [...prev, ...newImage];
+      // NOTE: append the object as ONE element — `...newImage` would spread a
+      // plain object, which is not iterable and crashes with "n is not iterable".
+      return [...prev, newImage];
     });
   };
 
