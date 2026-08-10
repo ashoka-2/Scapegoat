@@ -281,6 +281,16 @@ const CreateProduct = () => {
             );
           }
 
+          // Prefill the scheduled publish time so editing/duplicating a
+          // scheduled product keeps its date (missing prefill made the field
+          // look empty and silently dropped the schedule on save)
+          if (prod.scheduledPublishDate) {
+            const d = new Date(prod.scheduledPublishDate);
+            if (!isNaN(d.getTime())) {
+              setScheduledPublishDate(d.toLocaleString("sv-SE").replace(" ", "T").slice(0, 16));
+            }
+          }
+
           if (prod.variants && prod.variants.length > 0) {
             setVariantsList(
               prod.variants.map((v, i) => ({
@@ -731,17 +741,33 @@ const CreateProduct = () => {
     if (!formData.maxPriceAmount || Number(formData.maxPriceAmount) <= 0) {
       errors.maxPriceAmount = "Valid MRP Price is required";
     }
-    if (formData.status === "scheduled" && !scheduledPublishDate) {
-      errors.scheduledPublishDate = "Pick a publish date & time for scheduled products";
+    if (formData.status === "scheduled") {
+      if (!scheduledPublishDate) {
+        errors.scheduledPublishDate = "Pick a publish date & time for scheduled products";
+      } else {
+        const d = new Date(scheduledPublishDate);
+        if (isNaN(d.getTime()) || d.getTime() <= Date.now()) {
+          errors.scheduledPublishDate = "Pick a future date & time (the publish time must be ahead)";
+        }
+      }
     }
     setFormErrors(errors);
-    return Object.keys(errors).length === 0;
+    return errors;
   };
 
   const handleSubmit = async (e, targetStatus = null) => {
     if (e) e.preventDefault();
-    if (!validateForm()) {
+    const validationErrors = validateForm();
+    if (Object.keys(validationErrors).length > 0) {
       setActiveTab("general");
+      const vals = Object.values(validationErrors).slice(0, 3);
+      const more = Object.keys(validationErrors).length - vals.length;
+      dispatch(
+        addToast({
+          message: `Please fix these before uploading: ${vals.join("; ")}${more > 0 ? ` (+${more} more)` : ""}`,
+          type: "error",
+        })
+      );
       return;
     }
 
@@ -765,7 +791,13 @@ const CreateProduct = () => {
     if (formData.unit) payload.append("unit", formData.unit);
     payload.append("productType", formData.productType);
     payload.append("status", finalStatus);
-    if (scheduledPublishDate) payload.append("scheduledPublishDate", scheduledPublishDate);
+    // Send the publish time as UTC ISO (the browser's tz-less datetime-local
+    // string would be misread as UTC by the Render backend, shifting the
+    // publish moment by the user's timezone offset)
+    if (formData.status === "scheduled" && scheduledPublishDate) {
+      const d = new Date(scheduledPublishDate);
+      if (!isNaN(d.getTime())) payload.append("scheduledPublishDate", d.toISOString());
+    }
     payload.append("manageStock", formData.manageStock);
     payload.append("stockStatus", formData.stockStatus);
     payload.append("stock", formData.stock);
@@ -990,6 +1022,17 @@ const CreateProduct = () => {
                 value={formData.shortDescription}
                 onChange={handleChange}
                 placeholder="e.g. High-performance gaming laptop with RTX 4060 & AMD Ryzen 7"
+                className={inputClass}
+              />
+            </FormField>
+
+            <FormField label="Tags (comma separated)" loading={fetchingEditProduct}>
+              <input
+                type="text"
+                name="tags"
+                value={formData.tags}
+                onChange={handleChange}
+                placeholder="e.g. summer, linen, casual, k-drama"
                 className={inputClass}
               />
             </FormField>

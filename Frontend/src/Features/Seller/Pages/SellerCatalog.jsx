@@ -368,6 +368,13 @@ const SellerCatalog = () => {
                             <span className="text-[10px] font-extrabold uppercase bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full">
                               Draft
                             </span>
+                          ) : prod.status === "scheduled" ? (
+                            <span className="text-[10px] font-extrabold uppercase bg-sky-500/10 text-sky-500 border border-sky-500/20 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <i className="ri-time-line text-[10px]" />
+                              {prod.scheduledPublishDate
+                                ? `Scheduled · ${new Date(prod.scheduledPublishDate).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "numeric", minute: "2-digit" })}`
+                                : "Scheduled"}
+                            </span>
                           ) : null}
                         </div>
 
