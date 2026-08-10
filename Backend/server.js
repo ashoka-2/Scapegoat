@@ -4,6 +4,7 @@ import {createServer} from "http";
 import connectDB from "./src/config/db.js";
 
 import { setupSocket } from "./src/services/socket.service.js";
+import { warmUpEmbeddings } from "./src/utils/aiEmbedding.js";
 
 dotenv.config();
 
@@ -18,7 +19,9 @@ const startServer = async () =>{
 
         httpServer.listen(PORT,()=>{
             console.log(`Server listening on port ${PORT} (Socket.io enabled)`);
-            
+            // Pre-warm the AI embedding pipeline in the background so model
+            // downloads happen during the cold start, not on the first request
+            warmUpEmbeddings();
         })
     }
     catch(error){

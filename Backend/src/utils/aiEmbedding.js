@@ -1,21 +1,76 @@
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+// ── Transformers.js (local ONNX embeddings) ──────────────────────────────────
+// Models are downloaded from HuggingFace at runtime and cached. On Render's
+// free tier the filesystem is ephemeral and a download can be interrupted by a
+// restart/OOM kill, which corrupts the partial files — onnxruntime then fails
+// with "protobuf parsing failed" and falls back to slow WASM. We:
+//   1. cache inside the project (stable across restarts),
+//   2. auto-clear a corrupt model cache and retry the load once,
+//   3. pre-warm the text pipeline at boot so downloads happen during cold start,
+//   4. gate the heavy CLIP vision model (~350MB) behind AI_VISION_ENABLED —
+//      it is NOT viable on the 512MB Render free instance (OOM risk).
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CACHE_DIR = path.join(__dirname, "..", "..", ".transformers-cache");
+
+// CLIP vision model: ON by default in local dev (ample RAM), OFF by default in
+// production (the ~350MB model is not viable on the 512MB Render free instance).
+// Explicit override: AI_VISION_ENABLED=true|false always wins.
+const VISION_ENABLED =
+  process.env.AI_VISION_ENABLED === "true" ||
+  (process.env.AI_VISION_ENABLED !== "false" && process.env.NODE_ENV !== "production");
+let visionWarned = false;
 
 let textPipelineInstance = null;
 let visionPipelineInstance = null;
+let transformersEnvConfigured = false;
+
+/** Lazily imports Transformers.js and applies our env config once. */
+async function getPipelineFactory() {
+  const { env, pipeline } = await import("@xenova/transformers");
+  if (!transformersEnvConfigured) {
+    env.cacheDir = CACHE_DIR;
+    env.allowRemoteModels = true;
+    transformersEnvConfigured = true;
+  }
+  return pipeline;
+}
+
+/** Loads a pipeline; on failure clears the (possibly corrupt) model cache and retries once. */
+async function loadPipelineWithRecovery(pipeline, task, modelId) {
+  try {
+    return await pipeline(task, modelId);
+  } catch (err) {
+    console.warn(`[AI Search] ${modelId} load failed (${err.message}) — clearing cache and retrying once`);
+    try {
+      const fs = await import("node:fs");
+      const modelCachePath = path.join(CACHE_DIR, `models--Xenova--${modelId.split("/").pop()}`);
+      if (fs.existsSync(modelCachePath)) {
+        fs.rmSync(modelCachePath, { recursive: true, force: true });
+      }
+    } catch {
+      /* cache cleanup is best-effort */
+    }
+    return pipeline(task, modelId);
+  }
+}
 
 /**
  * Initializes or reuses the local text feature-extraction pipeline.
  */
 async function getTextPipeline() {
   if (textPipelineInstance) return textPipelineInstance;
-
   try {
-    const { pipeline } = await import("@xenova/transformers");
+    const pipeline = await getPipelineFactory();
     // Load MiniLM model for fast, lightweight local text embeddings (384 dimensions)
-    textPipelineInstance = await pipeline("feature-extraction", "Xenova/all-MiniLM-L6-v2");
+    textPipelineInstance = await loadPipelineWithRecovery(pipeline, "feature-extraction", "Xenova/all-MiniLM-L6-v2");
     return textPipelineInstance;
   } catch (error) {
     console.warn(
-      "[AI Search] @xenova/transformers package not installed yet. Run 'npm install @xenova/transformers' to enable AI search embeddings."
+      "[AI Search] Text embeddings unavailable (no @xenova/transformers or model download failed):",
+      error.message
     );
     return null;
   }
@@ -23,19 +78,42 @@ async function getTextPipeline() {
 
 /**
  * Initializes or reuses the local vision feature-extraction pipeline (CLIP model).
+ * Disabled by default in production — the ~350MB model is not viable on the
+ * 512MB Render free instance. Enable explicitly with AI_VISION_ENABLED=true.
  */
 async function getVisionPipeline() {
-  if (visionPipelineInstance) return visionPipelineInstance;
-
-  try {
-    const { pipeline } = await import("@xenova/transformers");
-    // Load CLIP model for visual embeddings (image to product matching / Snap2Bill camera scan)
-    visionPipelineInstance = await pipeline("image-feature-extraction", "Xenova/clip-vit-base-patch32");
-    return visionPipelineInstance;
-  } catch (error) {
-    console.warn("[AI Search] Vision pipeline unavailable. Ensure @xenova/transformers is installed.");
+  if (!VISION_ENABLED) {
+    if (!visionWarned) {
+      visionWarned = true;
+      console.log("[AI Search] Vision (CLIP) embeddings disabled. Set AI_VISION_ENABLED=true to enable (not recommended on the free tier).");
+    }
     return null;
   }
+  if (visionPipelineInstance) return visionPipelineInstance;
+  try {
+    const pipeline = await getPipelineFactory();
+    // Load CLIP model for visual embeddings (image to product matching / Snap2Bill camera scan)
+    visionPipelineInstance = await loadPipelineWithRecovery(pipeline, "image-feature-extraction", "Xenova/clip-vit-base-patch32");
+    return visionPipelineInstance;
+  } catch (error) {
+    console.warn("[AI Search] Vision pipeline unavailable:", error.message);
+    return null;
+  }
+}
+
+/**
+ * Pre-warms the text embedding pipeline in the background (fire-and-forget).
+ * Call once at server boot so model downloads happen during the cold start
+ * instead of lazily on the first product save / search.
+ */
+export function warmUpEmbeddings() {
+  setTimeout(() => {
+    getTextPipeline()
+      .then((p) => {
+        if (p) console.log("[AI Search] Text embedding pipeline ready (MiniLM)");
+      })
+      .catch(() => {});
+  }, 1500);
 }
 
 /**

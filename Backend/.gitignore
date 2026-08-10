@@ -1,2 +1,4 @@
 node_modules
 .env
+# Local ONNX embedding model cache (downloaded at runtime; ~90-450MB)
+.transformers-cache
