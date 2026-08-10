@@ -282,7 +282,7 @@ const toTitleCase = (str) => {
 
 /**
  * Normalize an attributes array:
- * - Title Case all attribute names and option values
+ * - Title Case all attribute names; UPPERCASE all option values
  * - Merge duplicate attribute names (case-insensitive)
  * - Deduplicate option values (case-insensitive)
  */
@@ -302,7 +302,7 @@ const normalizeAttributes = (attrs = []) => {
     const seenLower = new Set();
     rawOptions.forEach((opt) => {
       if (!opt) return;
-      const normOpt = toTitleCase(String(opt));
+      const normOpt = String(opt).trim().toUpperCase(); // values stored UPPERCASE
       const lower = normOpt.toLowerCase();
       if (!seenLower.has(lower)) {
         seenLower.add(lower);
@@ -338,6 +338,22 @@ const normalizeAttributes = (attrs = []) => {
   });
 
   return result;
+};
+
+/**
+ * Scheduled-status handling: a "scheduled" product with a FUTURE date stays
+ * scheduled (the scheduler publishes it when the time arrives). A missing,
+ * invalid, or past date means it should already be live → publish immediately.
+ */
+const normalizeScheduledStatus = (data) => {
+  if (data && data.status === "scheduled") {
+    const date = data.scheduledPublishDate ? new Date(data.scheduledPublishDate) : null;
+    if (!date || isNaN(date.getTime()) || date.getTime() <= Date.now()) {
+      data.status = "published";
+      data.scheduledPublishDate = null;
+    }
+  }
+  return data;
 };
 
 /**
@@ -564,7 +580,7 @@ export const createProduct = async (req, res) => {
       await processVariantImagesUpload(productData.variants);
     }
 
-    const newProduct = await productModel.create(productData);
+    const newProduct = await productModel.create(normalizeScheduledStatus(productData));
 
     // Broadcast live "Just Dropped!" notification to all online shoppers if published
     if (newProduct.status === "published") {
@@ -768,6 +784,7 @@ export const updateProduct = async (req, res) => {
 
     // Update fields
     Object.assign(product, updateData);
+    normalizeScheduledStatus(product);
 
     if (updatedUploadedImages.length > 0) {
       product.images = updatedUploadedImages;
@@ -968,10 +985,11 @@ export const getSingleProduct = async (req, res) => {
       });
     }
 
-    // Only hide trashed products from public callers unless they are the owner/admin
-    if (product.status === "trash") {
-      const canViewTrash = req.user && isOwnerOrAdmin(product, req.user);
-      if (!canViewTrash) {
+    // Public visibility: only published products are visible to normal users.
+    // Owners/admins may preview drafts and scheduled products.
+    if (product.status !== "published") {
+      const canView = req.user && isOwnerOrAdmin(product, req.user);
+      if (!canView) {
         return res.status(404).json({
           success: false,
           message: "Product not available",
@@ -1035,7 +1053,7 @@ export const getSingleProduct = async (req, res) => {
         const valStr = String(val).trim();
         const valLower = valStr.toLowerCase();
         if (valStr && !inferredAttrMap.get(normKey).has(valLower)) {
-          inferredAttrMap.get(normKey).set(valLower, toTitleCase(valStr));
+          inferredAttrMap.get(normKey).set(valLower, valStr.toUpperCase()); // values stored UPPERCASE
         }
       };
 

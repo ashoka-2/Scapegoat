@@ -22,22 +22,16 @@ export const normalizeAttributeKey = (key) => {
 };
 
 /**
- * Normalizes a single attribute VALUE to Title Case.
- * e.g. "BLUE" -> "Blue", "uk 6" -> "UK 6" (preserves all-upper short codes)
- * Special rule: if ALL chars are uppercase and length <= 4 (e.g. "UK", "XL"), keep as-is.
+ * Normalizes a single attribute VALUE to UPPERCASE.
+ * e.g. "BLUE" -> "BLUE", "xl" -> "XL", "uk 6" -> "UK 6", "extra large" -> "EXTRA LARGE"
+ * Values are stored uppercased so filters and product pages look consistent
+ * (sizes like xxl / Xl / xl all become "XXL").
  */
 export const normalizeAttributeValue = (val) => {
   if (!val) return "";
   const s = String(val).trim();
   if (!s) return "";
-
-  return s
-    .split(/\s+/)
-    .map((token) => {
-      if (/^[A-Z0-9]+$/.test(token) && token.length <= 4) return token;
-      return token.charAt(0).toUpperCase() + token.slice(1).toLowerCase();
-    })
-    .join(" ");
+  return s.toUpperCase();
 };
 
 /**

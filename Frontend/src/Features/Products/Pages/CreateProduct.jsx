@@ -731,6 +731,9 @@ const CreateProduct = () => {
     if (!formData.maxPriceAmount || Number(formData.maxPriceAmount) <= 0) {
       errors.maxPriceAmount = "Valid MRP Price is required";
     }
+    if (formData.status === "scheduled" && !scheduledPublishDate) {
+      errors.scheduledPublishDate = "Pick a publish date & time for scheduled products";
+    }
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -762,6 +765,7 @@ const CreateProduct = () => {
     if (formData.unit) payload.append("unit", formData.unit);
     payload.append("productType", formData.productType);
     payload.append("status", finalStatus);
+    if (scheduledPublishDate) payload.append("scheduledPublishDate", scheduledPublishDate);
     payload.append("manageStock", formData.manageStock);
     payload.append("stockStatus", formData.stockStatus);
     payload.append("stock", formData.stock);

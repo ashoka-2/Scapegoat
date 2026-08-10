@@ -134,6 +134,56 @@ const DualRangeSlider = ({ min, max, low, high, onChange }) => {
   );
 };
 
+// ── Attribute value collector ─────────────────────────────────────────────────
+// Collects a product's Color/Size values from BOTH top-level attributes (a
+// product may have attributes but no variants — same price/stock for all) AND
+// variant attributes. Values are uppercased so filtering is consistent no
+// matter how the values were stored.
+const collectProductAttrValues = (p, key) => {
+  const out = new Set();
+  const k = String(key).toLowerCase();
+
+  // Top-level attributes: [{ name, options: [...] }]
+  (p.attributes || []).forEach((attr) => {
+    const name = String(attr.name || attr.key || "").toLowerCase();
+    if (name !== k) return;
+    const vals = attr.options || attr.values || (attr.value ? [attr.value] : []);
+    vals.forEach((v) => {
+      if (v !== undefined && v !== null && String(v).trim() !== "") out.add(String(v).trim().toUpperCase());
+    });
+  });
+
+  // Variant attributes: map/object + dynamicAttributes
+  (p.variants || []).forEach((v) => {
+    if (v.attributes) {
+      const raw =
+        typeof v.attributes.forEach === "function"
+          ? Object.fromEntries(v.attributes)
+          : v.attributes._doc || v.attributes;
+      if (raw) {
+        Object.entries(raw).forEach(([kk, vv]) => {
+          if (String(kk).toLowerCase() !== k) return;
+          const vals = Array.isArray(vv) ? vv : [vv];
+          vals.forEach((val) => {
+            if (val !== undefined && val !== null && String(val).trim() !== "") out.add(String(val).trim().toUpperCase());
+          });
+        });
+      }
+    }
+    (v.dynamicAttributes || []).forEach((da) => {
+      const dk = String(da.key || da.name || "").toLowerCase();
+      const vals = da.values || da.options || (da.value ? [da.value] : []);
+      if (dk === k) {
+        vals.forEach((val) => {
+          if (val !== undefined && val !== null && String(val).trim() !== "") out.add(String(val).trim().toUpperCase());
+        });
+      }
+    });
+  });
+
+  return Array.from(out);
+};
+
 // ── Reusable Tag Filter Component ─────────────────────────────────────────────
 const TagFilter = ({ label, options, selected, onToggle, colorClass }) => {
   if (!options || !options.length) return null;
@@ -393,24 +443,15 @@ const Shop = () => {
         if (p.category?.name) categories.add(p.category.name);
         if (p.brand?.name) brands.add(p.brand.name);
 
-        (p.variants || []).forEach((v) => {
-          if (v.attributes) {
-            const raw =
-              typeof v.attributes.forEach === "function"
-                ? Object.fromEntries(v.attributes)
-                : v.attributes._doc || v.attributes;
-            if (raw) {
-              if (raw.Color || raw.color) colors.add(raw.Color || raw.color);
-              if (raw.Size || raw.size) sizes.add(raw.Size || raw.size);
-            }
-          }
-          (v.dynamicAttributes || []).forEach((da) => {
-            const k = (da.key || da.name || "").toLowerCase();
-            const vals = da.values || da.options || (da.value ? [da.value] : []);
-            if (k === "color") vals.forEach((val) => colors.add(val));
-            if (k === "size") vals.forEach((val) => sizes.add(val));
-          });
-        });
+        // Category-scoped attribute facets: when one or more categories are
+        // selected, Color/Size options come only from products in those
+        // categories; with no category selected they come from all products.
+        const inSelectedCategories =
+          !selectedCategories.length || selectedCategories.includes(p.category?.name);
+        if (inSelectedCategories) {
+          collectProductAttrValues(p, "color").forEach((c) => colors.add(c));
+          collectProductAttrValues(p, "size").forEach((s) => sizes.add(s));
+        }
       });
     }
 
@@ -422,7 +463,7 @@ const Shop = () => {
       minPrice: minPrice === Infinity ? 0 : Math.floor(minPrice),
       maxPrice: maxPrice || 50000,
     };
-  }, [allProducts]);
+  }, [allProducts, selectedCategories]);
 
   useEffect(() => {
     if (filterOptions.maxPrice > 0) {
@@ -463,26 +504,8 @@ const Shop = () => {
       const matchBrand = !selectedBrands.length || selectedBrands.includes(p.brand?.name);
       const matchPrice = price >= priceLow && price <= priceHigh;
 
-      let pColors = [];
-      let pSizes = [];
-      (p.variants || []).forEach((v) => {
-        if (v.attributes) {
-          const raw =
-            typeof v.attributes.forEach === "function"
-              ? Object.fromEntries(v.attributes)
-              : v.attributes._doc || v.attributes;
-          if (raw) {
-            if (raw.Color || raw.color) pColors.push(raw.Color || raw.color);
-            if (raw.Size || raw.size) pSizes.push(raw.Size || raw.size);
-          }
-        }
-        (v.dynamicAttributes || []).forEach((da) => {
-          const k = (da.key || da.name || "").toLowerCase();
-          const vals = da.values || da.options || (da.value ? [da.value] : []);
-          if (k === "color") pColors.push(...vals);
-          if (k === "size") pSizes.push(...vals);
-        });
-      });
+      const pColors = collectProductAttrValues(p, "color");
+      const pSizes = collectProductAttrValues(p, "size");
 
       const matchColor = !selectedColors.length || pColors.some((c) => selectedColors.includes(c));
       const matchSize = !selectedSizes.length || pSizes.some((s) => selectedSizes.includes(s));

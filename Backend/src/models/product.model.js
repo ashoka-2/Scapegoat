@@ -206,8 +206,13 @@ const productSchema = new Schema(
     // ── Status & Visibility ───────────────────────────────────────────────
     status: {
       type: String,
-      enum: ["draft", "published", "trash"],
+      enum: ["draft", "published", "scheduled", "trash"],
       default: "draft",
+    },
+    // Auto-published by the product scheduler when this moment arrives
+    scheduledPublishDate: {
+      type: Date,
+      default: null,
     },
     // Controls storefront visibility based on stock availability
     // "instock" = visible & buyable, "outofstock" = hidden/disabled, "onbackorder" = visible but ships later

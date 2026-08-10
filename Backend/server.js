@@ -5,6 +5,7 @@ import connectDB from "./src/config/db.js";
 
 import { setupSocket } from "./src/services/socket.service.js";
 import { warmUpEmbeddings } from "./src/utils/aiEmbedding.js";
+import { startProductScheduler } from "./src/services/productScheduler.service.js";
 
 dotenv.config();
 
@@ -22,6 +23,8 @@ const startServer = async () =>{
             // Pre-warm the AI embedding pipeline in the background so model
             // downloads happen during the cold start, not on the first request
             warmUpEmbeddings();
+            // Auto-publish scheduled products when their time arrives
+            startProductScheduler();
         })
     }
     catch(error){

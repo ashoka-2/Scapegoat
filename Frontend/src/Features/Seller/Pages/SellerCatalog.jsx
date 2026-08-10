@@ -79,6 +79,7 @@ const SellerCatalog = () => {
   const countPublished = sellerProducts.filter((p) => p.status === "published").length;
   const countDraft = sellerProducts.filter((p) => p.status === "draft").length;
   const countTrash = sellerProducts.filter((p) => p.status === "trash").length;
+  const countScheduled = sellerProducts.filter((p) => p.status === "scheduled").length;
 
   // Checkbox Select All Toggle
   const isAllSelected =
@@ -190,6 +191,14 @@ const SellerCatalog = () => {
             className={`hover:text-foreground cursor-pointer ${statusFilter === "draft" ? "text-accent font-extrabold underline" : ""}`}
           >
             Draft ({countDraft})
+          </button>
+          <span>|</span>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("scheduled")}
+            className={`hover:text-foreground cursor-pointer ${statusFilter === "scheduled" ? "text-accent font-extrabold underline" : ""}`}
+          >
+            Scheduled ({countScheduled})
           </button>
           <span>|</span>
           <button
