@@ -54,8 +54,29 @@ if (!import.meta.env.DEV && API_BASE_URL) {
     fetch(`${API_BASE_URL}/api/health`, { method: "GET" }).catch(() => {});
 }
 
+// ── Bearer-token auth (Brave/third-party-cookie-blocked browsers) ─────────────
+// Browsers like Brave block cross-site cookies by default, so a cookie set on
+// the Render backend never reaches it from vercel.app. The Google OAuth
+// redirect now returns ?token=…; we store it here and send it as an
+// Authorization header on every request. Cookie auth still works too.
+export const AUTH_TOKEN_KEY = "scapegoat_token";
+
+export function attachAuthHeader(instance) {
+    instance.interceptors.request.use((config) => {
+        const token = localStorage.getItem(AUTH_TOKEN_KEY);
+        if (token && !(config.headers || {}).Authorization) {
+            config.headers = config.headers || {};
+            config.headers.Authorization = `Bearer ${token}`;
+        }
+        return config;
+    });
+    return instance;
+}
+
 attachRetryInterceptor(customAxios);
 attachRetryInterceptor(axios); // global axios instance used across the app
+attachAuthHeader(customAxios);
+attachAuthHeader(axios);
 
 // Configure global axios defaults
 axios.defaults.baseURL = API_BASE_URL;
@@ -67,10 +88,10 @@ axios.defaults.withCredentials = true;
  */
 export function createApiInstance(endpoint = "") {
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-    return attachRetryInterceptor(axios.create({
+    return attachAuthHeader(attachRetryInterceptor(axios.create({
         baseURL: `${API_BASE_URL}${normalizedEndpoint}`,
         withCredentials: true,
-    }));
+    })));
 }
 
 export default customAxios;

@@ -14,6 +14,7 @@ import {
   becomeSellerApi,
 } from "../Services/auth.api.js";
 import { addToast } from "../../../utils/toast.slice.js";
+import { AUTH_TOKEN_KEY } from "../../../utils/axios.js";
 import { clearCart } from "../../Cart/State/cart.slice.js";
 import { clearWishlist } from "../../Wishlist/State/wishlist.slice.js";
 
@@ -69,6 +70,17 @@ export const useAuth = () => {
 
   const fetchMe = useCallback(async () => {
     dispatch(setLoading(true));
+    // Capture ?token= from the Google OAuth redirect (Bearer-token path for
+    // browsers that block cross-site cookies, e.g. Brave Shields), then clean
+    // the URL so the token never lingers in the address bar.
+    const params = new URLSearchParams(window.location.search);
+    const oauthToken = params.get("token");
+    if (oauthToken) {
+      localStorage.setItem(AUTH_TOKEN_KEY, oauthToken);
+      params.delete("token");
+      const qs = params.toString();
+      window.history.replaceState(null, "", window.location.pathname + (qs ? `?${qs}` : ""));
+    }
     try {
       const data = await getMe();
       dispatch(setUser(data.user));
@@ -86,6 +98,7 @@ export const useAuth = () => {
     } catch (error) {
       console.error("Logout failed", error);
     } finally {
+      localStorage.removeItem(AUTH_TOKEN_KEY);
       dispatch(clearCart());
       dispatch(clearWishlist());
       dispatch(setUser(null));

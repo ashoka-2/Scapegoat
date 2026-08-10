@@ -6,7 +6,16 @@ import redisClient from "../config/redis.js";
 import { parseUserAgent } from "../utils/userAgentParser.js";
 
 export const verifyToken = async (req,res,next)=>{
-    const token = req.cookies.token;
+    // Cookie-first (works in Chrome/Firefox), then Bearer-header fallback for
+    // browsers that block cross-site cookies in third-party/embedded contexts
+    // (Brave Shields). The Google OAuth redirect stores a token that the
+    // frontend sends as `Authorization: Bearer <token>`; email/password login
+    // also returns the cookie normally.
+    const bearer =
+        req.headers.authorization && req.headers.authorization.startsWith("Bearer ")
+            ? req.headers.authorization.slice(7)
+            : null;
+    const token = req.cookies.token || bearer;
 
     if(!token){
         return res.status(401).json({

@@ -271,7 +271,10 @@ export const googleCallback = async (req,res) => {
             sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
         });
 
-        res.redirect(config.FRONTEND_URL);
+        // Also pass the token in the URL so the frontend can store it and send
+        // it as a Bearer header — this covers browsers that block cross-site
+        // cookies (e.g. Brave Shields), where the cookie alone won't reach the API.
+        res.redirect(`${config.FRONTEND_URL}/login?token=${token}`);
     } catch (error) {
         console.log(error);
         res.redirect(`${config.FRONTEND_URL}/login?error=server_error`);
