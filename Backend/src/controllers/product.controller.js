@@ -119,8 +119,32 @@ const generateAllProductEmbeddings = async (targetProduct) => {
 };
 
 /**
- * Helper to upload raw image files & external URLs to ImageKit in PARALLEL with a safety timeout
+ * Download an EXTERNAL image URL and re-upload it into ImageKit so every
+ * product image lives in the seller's ImageKit CDN no matter how it was added
+ * (local file, pasted link, or a link from another site). Falls back to the
+ * original URL if the download/upload fails so product creation never breaks.
  */
+const uploadImageFromUrlToImageKit = async (url, folder, filename) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  try {
+    const resp = await fetch(url, { signal: controller.signal, redirect: "follow" });
+    if (!resp.ok) throw new Error(`download failed: HTTP ${resp.status}`);
+    const buf = Buffer.from(await resp.arrayBuffer());
+    if (buf.length > 12 * 1024 * 1024) {
+      throw new Error(`image too large (${(buf.length / 1024 / 1024).toFixed(1)}MB)`);
+    }
+    const uploadRes = await uploadFile({ file: buf, filename, folder });
+    if (uploadRes && uploadRes.url) return uploadRes.url;
+    throw new Error("ImageKit upload returned no URL");
+  } catch (err) {
+    console.warn(`[ImageKit URL Upload Warning]: ${err.message}`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 const processImageUploadsParallel = async (files = [], rawUrls = []) => {
   const tasks = [];
 
@@ -177,8 +201,16 @@ const processImageUploadsParallel = async (files = [], rawUrls = []) => {
             return null;
           }
 
-          // Existing HTTP/HTTPS URLs (ImageKit, Unsplash, external) -> Keep URL directly
+          // Existing HTTP/HTTPS URLs -> re-upload to ImageKit (unless already an ImageKit URL)
           if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+            if (!cleanUrl.includes("imagekit.io")) {
+              const proxied = await uploadImageFromUrlToImageKit(
+                cleanUrl,
+                "/products",
+                `main_${Date.now()}_${i}.jpg`
+              );
+              if (proxied) return { url: proxied };
+            }
             return { url: cleanUrl };
           }
 
@@ -242,6 +274,14 @@ const processVariantImagesUpload = async (variants = []) => {
             }
 
             if (cleanUrl.startsWith("http://") || cleanUrl.startsWith("https://")) {
+              if (!cleanUrl.includes("imagekit.io")) {
+                const proxied = await uploadImageFromUrlToImageKit(
+                  cleanUrl,
+                  "/products/variants",
+                  `variant_${vIdx}_${Date.now()}_${imgIdx}.jpg`
+                );
+                if (proxied) return { url: proxied };
+              }
               return { url: cleanUrl };
             }
 
