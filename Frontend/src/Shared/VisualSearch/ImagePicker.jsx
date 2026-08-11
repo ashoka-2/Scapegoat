@@ -26,13 +26,13 @@ export default function ImagePicker({ onFile, capture, label, iconClass, primary
       <button
         type="button"
         onClick={() => inputRef.current && inputRef.current.click()}
-        className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+        className={`flex w-full items-center justify-center gap-2.5 px-4 py-3.5 rounded-2xl text-sm font-bold transition-all duration-200 cursor-pointer select-none ${
           primary
-            ? "bg-accent text-accent-foreground hover:opacity-90 shadow-md"
-            : "bg-surface border border-border-theme text-foreground hover:border-accent/50"
+            ? "bg-gradient-to-r from-accent via-accent to-accent/80 text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.99]"
+            : "bg-surface border-2 border-border-theme text-foreground/80 hover:border-accent/60 hover:text-accent hover:bg-accent/5 active:scale-[0.99]"
         }`}
       >
-        <i className={iconClass || "ri-upload-2-line text-sm"} />
+        <i className={`${iconClass || "ri-upload-2-line"} text-base`} />
         {label}
       </button>
     </>

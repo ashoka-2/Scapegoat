@@ -84,15 +84,15 @@ export default function CameraCapture({ onCapture, onCancel }) {
           type="button"
           onClick={capture}
           disabled={!ready}
-          className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold bg-accent text-accent-foreground hover:opacity-90 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+          className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl text-sm font-bold bg-gradient-to-r from-accent via-accent to-accent/80 text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
         >
-          <i className="ri-camera-line text-sm" />
+          <i className="ri-camera-line text-base" />
           Capture Photo
         </button>
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2.5 rounded-xl text-xs font-bold bg-surface border border-border-theme text-foreground hover:border-red-500/50 hover:text-red-400 transition cursor-pointer"
+          className="px-5 py-3.5 rounded-2xl text-sm font-bold bg-surface border-2 border-border-theme text-foreground/80 hover:border-red-500/50 hover:text-red-400 transition cursor-pointer"
         >
           Cancel
         </button>

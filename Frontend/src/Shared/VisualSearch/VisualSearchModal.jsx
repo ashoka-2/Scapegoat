@@ -106,30 +106,32 @@ export default function VisualSearchModal({ isOpen, onClose }) {
 
   return (
     <div
-      className="fixed inset-0 z-[1200] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[1200] flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-md sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md bg-surface border border-border-theme rounded-2xl shadow-2xl p-5 space-y-4"
+        className="w-full sm:max-w-md bg-surface sm:border border-border-theme sm:rounded-3xl rounded-t-3xl shadow-2xl max-h-[92vh] sm:max-h-[85vh] overflow-y-auto p-5 sm:p-6 space-y-4 sm:space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-black text-foreground flex items-center gap-2">
-              <i className="ri-camera-lens-line text-accent" />
-              Search by Image
-            </h3>
-            <p className="text-[10px] text-foreground/50 mt-0.5">
-              Take a photo or pick one — we find the closest products
-            </p>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 shrink-0 rounded-2xl bg-gradient-to-br from-accent to-accent/60 flex items-center justify-center text-accent-foreground shadow-md shadow-accent/25">
+              <i className="ri-camera-lens-line text-lg" />
+            </div>
+            <div>
+              <h3 className="text-base font-black text-foreground leading-tight">Search by Image</h3>
+              <p className="text-[11px] text-foreground/50 mt-0.5">
+                Snap or pick a photo — we find the closest products
+              </p>
+            </div>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full bg-background/60 text-foreground/60 hover:text-foreground transition cursor-pointer"
+            className="w-9 h-9 shrink-0 flex items-center justify-center rounded-full bg-background/60 text-foreground/60 hover:text-foreground hover:bg-background transition cursor-pointer"
             aria-label="Close"
           >
-            <i className="ri-close-line text-sm" />
+            <i className="ri-close-line text-base" />
           </button>
         </div>
 
@@ -179,8 +181,9 @@ export default function VisualSearchModal({ isOpen, onClose }) {
                     )}
                   </>
                 )}
-                <p className="text-[9px] text-foreground/40 text-center pt-1">
-                  Your photo is only used to find matches — it is never saved or uploaded anywhere
+                <p className="flex items-center justify-center gap-1.5 text-[10px] text-foreground/45 pt-1">
+                  <i className="ri-shield-check-line text-[11px] text-emerald-500" />
+                  Your photo is used only to find matches — it is never saved or uploaded
                 </p>
               </div>
             )}
@@ -203,16 +206,16 @@ export default function VisualSearchModal({ isOpen, onClose }) {
                 type="button"
                 onClick={handleSearch}
                 disabled={searching}
-                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black bg-accent text-accent-foreground hover:opacity-90 transition cursor-pointer disabled:opacity-40"
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-3.5 rounded-2xl text-sm font-black bg-gradient-to-r from-accent via-accent to-accent/80 text-accent-foreground shadow-lg shadow-accent/25 hover:shadow-accent/40 hover:-translate-y-0.5 active:translate-y-0 transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:translate-y-0"
               >
                 {searching ? (
                   <>
-                    <span className="w-3.5 h-3.5 border-2 border-accent-foreground border-t-transparent rounded-full animate-spin" />
+                    <span className="w-4 h-4 border-2 border-accent-foreground border-t-transparent rounded-full animate-spin" />
                     Finding matches…
                   </>
                 ) : (
                   <>
-                    <i className="ri-search-eye-line text-sm" />
+                    <i className="ri-search-eye-line text-base" />
                     Search with this Image
                   </>
                 )}
@@ -220,7 +223,7 @@ export default function VisualSearchModal({ isOpen, onClose }) {
               <button
                 type="button"
                 onClick={clearImage}
-                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-surface border border-border-theme text-foreground hover:border-red-500/50 hover:text-red-400 transition cursor-pointer"
+                className="px-5 py-3.5 rounded-2xl text-sm font-bold bg-surface border-2 border-border-theme text-foreground/80 hover:border-red-500/50 hover:text-red-400 transition cursor-pointer"
               >
                 Change
               </button>
