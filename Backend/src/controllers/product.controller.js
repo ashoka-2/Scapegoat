@@ -1294,14 +1294,24 @@ export const getProductsBySeller = async (req, res) => {
       filter.status = "published";
     }
 
-    const total = await productModel.countDocuments(filter);
-    const products = await productModel
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limit)
-      .populate("category", "name slug")
-      .populate("brand", "name slug image");
+    // Single aggregation round-trip: data page + total count via $facet
+    const pipeline = [
+      { $match: filter },
+      {
+        $facet: {
+          data: [
+            ...productLookupStages(),
+            { $sort: { createdAt: -1 } },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+    const [faceted] = await productModel.aggregate(pipeline);
+    const products = faceted.data;
+    const total = faceted.total && faceted.total[0] ? faceted.total[0].count : 0;
 
     return res.status(200).json({
       success: true,
@@ -1322,6 +1332,50 @@ export const getProductsBySeller = async (req, res) => {
 /**
  * Cosine Similarity Helper for Vector Embeddings
  */
+// ── Shared product aggregation helpers ───────────────────────────────────────
+// $lookup category/subcategories/brand/seller + $project ONLY the fields the
+// shop/search needs (no full-document materialization). Options:
+//   { embedding }      → include the text vector
+//   { imageEmbedding } → include image + variant image vectors
+const productLookupStages = (opts = {}) => {
+  const project = {
+    title: 1, description: 1, shortDescription: 1, sku: 1, tags: 1,
+    attributes: 1, variants: 1, images: 1, maxPrice: 1, sellingPrice: 1,
+    price: 1, stock: 1, stockStatus: 1, slug: 1, productType: 1,
+    soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
+    createdAt: 1, isCodAvailable: 1, averageRating: 1,
+    category: { name: 1, slug: 1 },
+    subcategories: { name: 1, slug: 1 },
+    brand: { name: 1, slug: 1, image: 1 },
+    seller: { fullname: 1, profilePic: 1, email: 1, contact: 1 },
+  };
+  if (opts.embedding) project.embedding = 1;
+  if (opts.costPrice) project.costPrice = 1;
+  if (opts.imageEmbedding) {
+    project.imageEmbedding = 1;
+    project["images.embedding"] = 1;
+    project["variants.images.embedding"] = 1;
+  }
+
+  return [
+    { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
+    { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: "subcategories", localField: "subcategories", foreignField: "_id", as: "subcategories" } },
+    { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
+    { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+    { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
+    { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
+    { $project: project },
+  ];
+};
+
+// Full pipeline: $match + lookups/projection (+ optional $limit)
+const buildProductAggregation = (match, opts = {}) => {
+  const pipeline = [{ $match: match }, ...productLookupStages(opts)];
+  if (opts.limit) pipeline.push({ $limit: opts.limit });
+  return pipeline;
+};
+
 const cosineSimilarity = (vecA, vecB) => {
   if (!vecA || !vecB || vecA.length !== vecB.length || vecA.length === 0) return 0;
   let dotProduct = 0;
@@ -1426,30 +1480,22 @@ export const getSimilarProducts = async (req, res) => {
       category: product.category,
     };
 
-    let candidates = await productModel
-      .find(filter)
-      .select("+embedding")
-      .populate("category", "name slug")
-      .populate("subcategories", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic email contact");
+    let candidates = await productModel.aggregate(buildProductAggregation(filter, { embedding: true }));
 
     // If the category is thin, widen just enough to fill results — same
     // productType as a secondary (not primary) signal, still ranked below.
     if (candidates.length < 4) {
       const excludeIds = [product._id, ...candidates.map((c) => c._id)];
-      const fallback = await productModel
-        .find({
-          _id: { $nin: excludeIds },
-          status: "published",
-          productType: product.productType,
-        })
-        .select("+embedding")
-        .limit(12)
-        .populate("category", "name slug")
-        .populate("subcategories", "name slug")
-        .populate("brand", "name slug image")
-        .populate("seller", "fullname profilePic email contact");
+      const fallback = await productModel.aggregate(
+        buildProductAggregation(
+          {
+            _id: { $nin: excludeIds },
+            status: "published",
+            productType: product.productType,
+          },
+          { embedding: true, limit: 12 }
+        )
+      );
       candidates = [...candidates, ...fallback];
     }
 
@@ -1513,30 +1559,24 @@ export const getYouMayAlsoLikeProducts = async (req, res) => {
       category: product.category,
     };
 
-    let candidates = await productModel
-      .find(filter)
-      .populate("category", "name slug")
-      .populate("subcategories", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic email contact");
+    let candidates = await productModel.aggregate(buildProductAggregation(filter));
 
     if (candidates.length < 4) {
       const excludeIds = [product._id, ...candidates.map((c) => c._id)];
-      const fallback = await productModel
-        .find({
-          _id: { $nin: excludeIds },
-          status: "published",
-          $or: [
-            { subcategories: { $in: product.subcategories || [] } },
-            { brand: product.brand },
-            { tags: { $in: product.tags || [] } },
-          ],
-        })
-        .limit(12)
-        .populate("category", "name slug")
-        .populate("subcategories", "name slug")
-        .populate("brand", "name slug image")
-        .populate("seller", "fullname profilePic email contact");
+      const fallback = await productModel.aggregate(
+        buildProductAggregation(
+          {
+            _id: { $nin: excludeIds },
+            status: "published",
+            $or: [
+              { subcategories: { $in: product.subcategories || [] } },
+              { brand: product.brand },
+              { tags: { $in: product.tags || [] } },
+            ],
+          },
+          { limit: 12 }
+        )
+      );
       candidates = [...candidates, ...fallback];
     }
 
@@ -1635,16 +1675,24 @@ export const getAllProducts = async (req, res) => {
     if (req.query.sort === "rating") sort = { averageRating: -1 };
     if (req.query.sort === "oldest") sort = { createdAt: 1 };
 
-    const total = await productModel.countDocuments(filter);
-    const products = await productModel
-      .find(filter)
-      .sort(sort)
-      .skip(skip)
-      .limit(limit)
-      .populate("category", "name slug")
-      .populate("subcategories", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic");
+    // Single aggregation round-trip: data page + total count via $facet
+    const pipeline = [
+      { $match: filter },
+      {
+        $facet: {
+          data: [
+            ...productLookupStages(),
+            { $sort: sort },
+            { $skip: skip },
+            { $limit: limit },
+          ],
+          total: [{ $count: "count" }],
+        },
+      },
+    ];
+    const [faceted] = await productModel.aggregate(pipeline);
+    const products = faceted.data;
+    const total = faceted.total && faceted.total[0] ? faceted.total[0].count : 0;
 
     return res.status(200).json({
       success: true,
@@ -1690,13 +1738,47 @@ export const aiSearchProducts = async (req, res) => {
     // Generate local 384-dimensional vector embedding for prompt
     const queryEmbedding = await generateTextEmbedding(queryText);
 
-    const candidates = await productModel
-      .find({ status: "published" })
-      .select("+embedding")
-      .populate("category", "name slug")
-      .populate("subcategories", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic");
+    // ── Aggregation pipeline ─────────────────────────────────────────────────
+    // $match pre-filters (status + detected category when the query names one),
+    // $lookup joins category/brand/seller, $project returns ONLY the fields the
+    // scoring + shop need — no full-document materialization.
+    let categoryFilter = null;
+    const cats = await categoryModel.find({}, "name slug").lean().limit(100);
+    for (const c of cats || []) {
+      const cname = (c.name || "").toLowerCase();
+      if (cname.length >= 5 && queryLower.includes(cname)) {
+        categoryFilter = c._id;
+        break;
+      }
+    }
+
+    const aiMatch = categoryFilter
+      ? { status: "published", category: categoryFilter }
+      : { status: "published" };
+
+    const candidates = await productModel.aggregate([
+      { $match: aiMatch },
+      { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "subcategories", localField: "subcategories", foreignField: "_id", as: "subcategories" } },
+      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
+      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
+      { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          title: 1, description: 1, shortDescription: 1, sku: 1, tags: 1,
+          attributes: 1, variants: 1, images: 1, maxPrice: 1, sellingPrice: 1,
+          price: 1, stock: 1, stockStatus: 1, slug: 1, productType: 1,
+          soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
+          createdAt: 1, embedding: 1,
+          category: { name: 1, slug: 1 },
+          subcategories: { name: 1, slug: 1 },
+          brand: { name: 1, slug: 1, image: 1 },
+          seller: { fullname: 1, profilePic: 1 },
+        },
+      },
+    ]);
 
     let results = [];
 
@@ -1909,12 +1991,31 @@ export const aiImageSearchProducts = async (req, res) => {
       });
     }
 
-    const candidates = await productModel
-      .find({ status: "published" })
-      .select("+imageEmbedding +images.embedding +variants.images.embedding")
-      .populate("category", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic");
+    // ── Aggregation pipeline ─────────────────────────────────────────────────
+    // $match published only, then $project the image-embedding fields + the
+    // minimal display fields — avoids materializing every full product doc.
+    const candidates = await productModel.aggregate([
+      { $match: { status: "published" } },
+      { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
+      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
+      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
+      { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          title: 1, sku: 1, slug: 1, images: 1, variants: 1, attributes: 1,
+          maxPrice: 1, sellingPrice: 1, price: 1, stock: 1, stockStatus: 1,
+          soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
+          createdAt: 1, imageEmbedding: 1,
+          "images.embedding": 1,
+          "variants.images.embedding": 1,
+          category: { name: 1, slug: 1 },
+          brand: { name: 1, slug: 1, image: 1 },
+          seller: { fullname: 1, profilePic: 1 },
+        },
+      },
+    ]);
 
     let results = [];
 
@@ -1965,6 +2066,14 @@ export const aiImageSearchProducts = async (req, res) => {
     } else {
       results = candidates;
     }
+
+    // Strip embedding vectors from the payload — the client only displays the
+    // products (embeddings would bloat the response + sessionStorage).
+    results.forEach((p) => {
+      delete p.imageEmbedding;
+      (p.images || []).forEach((img) => delete img.embedding);
+      (p.variants || []).forEach((v) => (v.images || []).forEach((vi) => delete vi.embedding));
+    });
 
     return res.status(200).json({
       success: true,
@@ -2062,34 +2171,81 @@ export const getSellerAnalytics = async (req, res) => {
   try {
     const sellerId = req.user._id;
 
-    // 1. Fetch all products listed by seller (with +costPrice)
-    const sellerProducts = await productModel
-      .find({ seller: sellerId })
-      .select("+costPrice")
-      .populate("category", "name slug")
-      .populate("brand", "name slug")
-      .lean();
+    // 1. Seller products (with costPrice) via aggregation
+    const sellerProducts = await productModel.aggregate(
+      buildProductAggregation({ seller: sellerId }, { costPrice: true })
+    );
 
     const productMap = new Map();
     sellerProducts.forEach((p) => {
       productMap.set(String(p._id), p);
     });
 
-    // 2. Fetch all orders containing items for this seller
-    const orderDocs = await orderModel
-      .find({ "orderItems.seller": sellerId })
-      .sort({ createdAt: -1 })
-      .lean();
+    // 2. Order analytics — one aggregation: unwind orderItems → project
+    //    revenue/cost per line → $facet groups for summary / per-product /
+    //    per-day stats (heavy math happens DB-side, not in Node).
+    const [orderAgg] = await orderModel.aggregate([
+      { $match: { "orderItems.seller": sellerId } },
+      { $unwind: "$orderItems" },
+      { $match: { "orderItems.seller": sellerId } },
+      {
+        $project: {
+          orderId: "$_id",
+          date: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt", timezone: "UTC" } },
+          product: "$orderItems.product",
+          qty: { $ifNull: ["$orderItems.quantity", 1] },
+          price: { $ifNull: ["$orderItems.price", 0] },
+        },
+      },
+      { $lookup: { from: "products", localField: "product", foreignField: "_id", as: "p" } },
+      { $unwind: { path: "$p", preserveNullAndEmptyArrays: true } },
+      {
+        $project: {
+          orderId: 1, date: 1, product: 1, qty: 1, price: 1,
+          revenue: { $multiply: ["$price", "$qty"] },
+          cost: { $multiply: [{ $ifNull: ["$p.costPrice.amount", 0] }, "$qty"] },
+        },
+      },
+      {
+        $facet: {
+          summary: [
+            { $group: { _id: "$orderId", revenue: { $sum: "$revenue" }, cost: { $sum: "$cost" }, qty: { $sum: "$qty" } } },
+            {
+              $group: {
+                _id: null,
+                totalRevenue: { $sum: "$revenue" },
+                totalCost: { $sum: "$cost" },
+                totalUnitsSold: { $sum: "$qty" },
+                totalOrdersCount: { $sum: 1 },
+              },
+            },
+          ],
+          byProduct: [
+            { $group: { _id: "$product", unitsSold: { $sum: "$qty" }, totalRevenue: { $sum: "$revenue" }, totalCost: { $sum: "$cost" } } },
+          ],
+          byDate: [
+            {
+              $group: {
+                _id: "$date",
+                revenue: { $sum: "$revenue" },
+                cost: { $sum: "$cost" },
+                profit: { $sum: { $subtract: ["$revenue", "$cost"] } },
+                orders: { $sum: 1 },
+              },
+            },
+          ],
+        },
+      },
+    ]);
 
-    let totalRevenue = 0;
-    let totalCost = 0;
-    let totalUnitsSold = 0;
-    let totalOrdersCount = orderDocs.length;
+    const summary = (orderAgg.summary && orderAgg.summary[0]) || {};
+    const totalRevenue = summary.totalRevenue || 0;
+    const totalCost = summary.totalCost || 0;
+    const totalUnitsSold = summary.totalUnitsSold || 0;
+    const totalOrdersCount = summary.totalOrdersCount || 0;
 
-    // Map to compute itemized stats for each product
+    // Itemized per-product stats (aggregation rows merged with product docs)
     const productStats = new Map();
-
-    // Pre-populate stats for all seller products
     sellerProducts.forEach((p) => {
       const sellPriceNum = p.sellingPrice?.amount || p.maxPrice?.amount || 0;
       const costPriceNum = p.costPrice?.amount || 0;
@@ -2110,70 +2266,26 @@ export const getSellerAnalytics = async (req, res) => {
         marginPercent: 0,
       });
     });
-
-    // Daily revenue & profit trends
-    const dailyTrendsMap = new Map();
-
-    orderDocs.forEach((ord) => {
-      const orderDateStr = ord.createdAt
-        ? new Date(ord.createdAt).toISOString().split("T")[0]
-        : new Date().toISOString().split("T")[0];
-
-      ord.orderItems?.forEach((item) => {
-        if (String(item.seller) === String(sellerId)) {
-          const itemProdId = String(item.product);
-          const qty = item.quantity || 1;
-          const price = item.price || 0;
-
-          const pDoc = productMap.get(itemProdId);
-          const unitCost = pDoc?.costPrice?.amount || 0;
-
-          const itemRev = price * qty;
-          const itemCogs = unitCost * qty;
-          const itemProfit = itemRev - itemCogs;
-
-          totalRevenue += itemRev;
-          totalCost += itemCogs;
-          totalUnitsSold += qty;
-
-          // Product Level Stats
-          const pStat = productStats.get(itemProdId) || {
-            _id: itemProdId,
-            title: item.name || "Product",
-            image: item.image || null,
-            sellingPrice: price,
-            costPrice: unitCost,
-            unitProfit: price - unitCost,
-            unitsSold: 0,
-            totalRevenue: 0,
-            totalCost: 0,
-            totalProfit: 0,
-            marginPercent: 0,
-          };
-
-          pStat.unitsSold += qty;
-          pStat.totalRevenue += itemRev;
-          pStat.totalCost += itemCogs;
-          pStat.totalProfit += itemProfit;
-          pStat.marginPercent =
-            pStat.totalRevenue > 0 ? (pStat.totalProfit / pStat.totalRevenue) * 100 : 0;
-          productStats.set(itemProdId, pStat);
-
-          // Daily Trend Stats
-          const dayStat = dailyTrendsMap.get(orderDateStr) || {
-            date: orderDateStr,
-            revenue: 0,
-            cost: 0,
-            profit: 0,
-            orders: 0,
-          };
-          dayStat.revenue += itemRev;
-          dayStat.cost += itemCogs;
-          dayStat.profit += itemProfit;
-          dayStat.orders += 1;
-          dailyTrendsMap.set(orderDateStr, dayStat);
-        }
-      });
+    (orderAgg.byProduct || []).forEach((row) => {
+      const st = productStats.get(String(row._id)) || {
+        _id: row._id,
+        title: "Product",
+        image: null,
+        sellingPrice: 0,
+        costPrice: 0,
+        unitProfit: 0,
+        unitsSold: 0,
+        totalRevenue: 0,
+        totalCost: 0,
+        totalProfit: 0,
+        marginPercent: 0,
+      };
+      st.unitsSold = row.unitsSold || 0;
+      st.totalRevenue = row.totalRevenue || 0;
+      st.totalCost = row.totalCost || 0;
+      st.totalProfit = st.totalRevenue - st.totalCost;
+      st.marginPercent = st.totalRevenue > 0 ? (st.totalProfit / st.totalRevenue) * 100 : 0;
+      productStats.set(String(row._id), st);
     });
 
     const itemizedPerformance = Array.from(productStats.values());
@@ -2189,9 +2301,15 @@ export const getSellerAnalytics = async (req, res) => {
     const netProfit = totalRevenue - totalCost;
     const overallMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-    const dailyTrends = Array.from(dailyTrendsMap.values()).sort((a, b) =>
-      a.date.localeCompare(b.date)
-    );
+    const dailyTrends = (orderAgg.byDate || [])
+      .map((d) => ({
+        date: d._id,
+        revenue: d.revenue || 0,
+        cost: d.cost || 0,
+        profit: d.profit || 0,
+        orders: d.orders || 0,
+      }))
+      .sort((a, b) => a.date.localeCompare(b.date));
 
     return res.status(200).json({
       success: true,

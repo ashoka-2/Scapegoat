@@ -29,16 +29,24 @@ const calculateCartTotals = (cart) => {
  * @route   GET /api/cart
  * @access  Private
  */
+// Lightweight product projection for cart payloads — only the fields the cart
+// drawer/page renders (title, prices, main image, stock, names, and the
+// variant subfields needed to identify the selected option + its image).
+const CART_PRODUCT_POPULATE = {
+  path: "items.product",
+  select:
+    "title slug maxPrice sellingPrice images stock stockStatus manageStock category brand attributes " +
+    "variants._id variants.name variants.sku variants.attributes variants.price variants.sellingPrice " +
+    "variants.stock variants.stockStatus variants.images",
+  populate: [
+    { path: "category", select: "name slug" },
+    { path: "brand", select: "name slug image" },
+  ],
+};
+
 export const getCart = async (req, res) => {
   try {
-    let cart = await cartModel.findOne({ user: req.user._id }).populate({
-      path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock category brand attributes variants",
-      populate: [
-        { path: "category", select: "name slug" },
-        { path: "brand", select: "name slug image" },
-      ],
-    });
+    let cart = await cartModel.findOne({ user: req.user._id }).populate(CART_PRODUCT_POPULATE);
 
     if (!cart) {
       cart = await cartModel.create({ user: req.user._id, items: [] });
@@ -144,10 +152,9 @@ export const addToCart = async (req, res) => {
     await cart.save();
 
     // Re-populate and return updated cart
-    const updatedCart = await cartModel.findById(cart._id).populate({
-      path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock attributes variants",
-    });
+    const updatedCart = await cartModel
+      .findById(cart._id)
+      .populate(CART_PRODUCT_POPULATE);
 
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);
 
@@ -229,10 +236,9 @@ export const updateQuantity = async (req, res) => {
 
     await cart.save();
 
-    const updatedCart = await cartModel.findById(cart._id).populate({
-      path: "items.product",
-      select: "title slug maxPrice sellingPrice images stock stockStatus manageStock attributes variants",
-    });
+    const updatedCart = await cartModel
+      .findById(cart._id)
+      .populate(CART_PRODUCT_POPULATE);
 
     const { totalItems, subtotal } = calculateCartTotals(updatedCart);
 

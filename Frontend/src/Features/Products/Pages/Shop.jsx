@@ -351,6 +351,51 @@ const FilterSidebarContent = ({
   </div>
 );
 
+// Expand products into display units: a product whose variants carry DIFFERENT
+// colors (each with its own images) shows one card per color — e.g. a product
+// with Red (main) + Blue (variant) appears as two cards, each linking to the
+// product page with that color preselected.
+const expandProductColorUnits = (products) => {
+  const units = [];
+  for (const p of products || []) {
+    const colorAttr = (p.attributes || []).find((a) => /color/i.test(a.name || ""));
+    if (!colorAttr) {
+      units.push({ product: p, color: null, image: "", key: `${p._id}` });
+      continue;
+    }
+    const colorGroups = new Map();
+    (p.variants || []).forEach((v) => {
+      const raw = v.attributes || {};
+      const val = typeof raw.get === "function" ? raw.get("Color") : raw.Color || raw.color;
+      if (!val) return;
+      const key = String(val).toLowerCase();
+      if (!colorGroups.has(key)) {
+        colorGroups.set(key, { value: String(val), image: "" });
+      }
+      // Prefer a variant that actually HAS images (the first variant of a
+      // color may be image-less while a later size carries the photos)
+      const grp = colorGroups.get(key);
+      if (!grp.image) {
+        const img = Array.isArray(v.images) && v.images[0] ? v.images[0].url || v.images[0] : "";
+        if (img) grp.image = img;
+      }
+    });
+    if (colorGroups.size > 1) {
+      colorGroups.forEach((g) => {
+        units.push({
+          product: p,
+          color: g.value,
+          image: g.image,
+          key: `${p._id}:${g.value.toLowerCase()}`,
+        });
+      });
+    } else {
+      units.push({ product: p, color: null, image: "", key: `${p._id}` });
+    }
+  }
+  return units;
+};
+
 // ── Main Shop Page Component ──────────────────────────────────────────────────
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -609,6 +654,9 @@ const Shop = () => {
     return filteredProducts.slice(0, visibleCount);
   }, [filteredProducts, visibleCount, visualResults]);
 
+  // Color-expanded display units for the grid (one card per color variant)
+  const displayedUnits = useMemo(() => expandProductColorUnits(displayedProducts), [displayedProducts]);
+
   const clearFilters = () => {
     setSelectedCategories([]);
     setSelectedBrands([]);
@@ -737,8 +785,14 @@ const Shop = () => {
           ) : displayedProducts.length > 0 ? (
             <>
               <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                {displayedProducts.map((product) => (
-                  <ProductCard key={product._id} product={product} />
+                {displayedUnits.map((unit) => (
+                  <ProductCard
+                    key={unit.key}
+                    product={unit.product}
+                    imageOverride={unit.image}
+                    colorLabel={unit.color}
+                    colorParam={unit.color}
+                  />
                 ))}
               </div>
 

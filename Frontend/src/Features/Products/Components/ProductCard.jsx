@@ -6,7 +6,7 @@ import { addToast } from "../../../utils/toast.slice";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { useWishlist } from "../../Wishlist/Hooks/useWishlist";
 
-const ProductCard = ({ product }) => {
+const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth?.user);
@@ -101,6 +101,7 @@ const ProductCard = ({ product }) => {
   const title = product?.title || "Premium Apparel";
   const categoryName = product?.category?.name || product?.brand?.name || "ScapeGoat Drop";
   const image =
+    imageOverride ||
     product?.images?.[0]?.url ||
     (typeof product?.images?.[0] === "string" ? product.images[0] : null) ||
     defaultImage;
@@ -116,11 +117,21 @@ const ProductCard = ({ product }) => {
   return (
     <div
       ref={cardRef}
-      onClick={() => navigate(`/product/${product?._id || product?.slug}`)}
+      onClick={() =>
+        navigate(
+          `/product/${product?._id || product?.slug}${colorParam ? `?color=${encodeURIComponent(colorParam)}` : ""}`
+        )
+      }
       className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex-shrink-0 cursor-pointer p-2.5"
     >
       {/* Image Container with Inset Padding */}
       <div className="relative w-full aspect-[4/5] rounded-[1.6rem] overflow-hidden bg-background-alt">
+        {colorLabel && (
+          <span className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-sm text-[9px] font-bold uppercase tracking-wider text-white">
+            <span className="w-2 h-2 rounded-full bg-white/90" />
+            {colorLabel}
+          </span>
+        )}
         <img
           src={image}
           alt={title}
