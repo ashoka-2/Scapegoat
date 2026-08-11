@@ -11,6 +11,10 @@ import { useInfiniteScroll } from "../../../utils/useInfiniteScroll";
 import { aiSearchProductsApi } from "../Services/product.api";
 import BannerCarousel from "../../Home/Components/BannerCarousel";
 
+// Transient session key for visual-search results (the query image itself is
+// never persisted — see Shared/VisualSearch/VisualSearchModal.jsx)
+const VISUAL_SESSION_KEY = "scapegoatVisualResults";
+
 function calculateProductMatchScore(product, query) {
   if (!query || !query.trim()) return 0;
   const q = query.trim().toLowerCase();
@@ -349,7 +353,7 @@ const FilterSidebarContent = ({
 
 // ── Main Shop Page Component ──────────────────────────────────────────────────
 const Shop = () => {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
   const initialSort = searchParams.get("sortBy") || "newest";
   const initialFilter = searchParams.get("filter") || "";
@@ -359,6 +363,47 @@ const Shop = () => {
   const { recentlyViewed, forYouProducts, fetchRecentlyViewed, fetchForYou } = useUserActivity();
 
   const [rawSearchQuery, setRawSearchQuery] = useState(initialQuery);
+
+  // ── Visual (image) search mode ─────────────────────────────────────────────
+  // The query image is NEVER persisted — only the matched products are kept
+  // transiently in sessionStorage by the VisualSearchModal.
+  const [visualResults, setVisualResults] = useState(null);
+
+  // Activate visual results whenever the URL carries ?visual=1 — including when
+  // the user is ALREADY on the shop page (e.g. after a text search/filters):
+  // clear the stale search + filters so the image matches are what's shown.
+  useEffect(() => {
+    if (searchParams.get("visual") === "1") {
+      try {
+        const raw = sessionStorage.getItem(VISUAL_SESSION_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setVisualResults(parsed);
+            setRawSearchQuery("");
+            setAiVectorResults(null);
+            setSelectedCategories([]);
+            setSelectedBrands([]);
+            setSelectedColors([]);
+            setSelectedSizes([]);
+            setPriceLow(0);
+            setPriceHigh(50000);
+          }
+        }
+      } catch (err) {
+        /* ignore malformed session */
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  const clearVisualResults = () => {
+    sessionStorage.removeItem(VISUAL_SESSION_KEY);
+    setVisualResults(null);
+    const params = new URLSearchParams(searchParams);
+    params.delete("visual");
+    setSearchParams(params, { replace: true });
+  };
 
   // Sync search input when URL query param `q` updates
   useEffect(() => {
@@ -559,8 +604,10 @@ const Shop = () => {
   const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || isAiLoading);
 
   const displayedProducts = useMemo(() => {
+    // Visual mode: the backend already ranked by similarity — keep its order
+    if (visualResults) return visualResults;
     return filteredProducts.slice(0, visibleCount);
-  }, [filteredProducts, visibleCount]);
+  }, [filteredProducts, visibleCount, visualResults]);
 
   const clearFilters = () => {
     setSelectedCategories([]);
@@ -666,6 +713,25 @@ const Shop = () => {
 
         {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">
+          {visualResults && (
+            <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3">
+              <div className="flex items-center gap-2 min-w-0">
+                <i className="ri-camera-lens-line text-accent text-lg shrink-0" />
+                <p className="text-xs font-black uppercase tracking-widest text-accent truncate">
+                  Visual Search Results — {visualResults.length}{" "}
+                  {visualResults.length === 1 ? "match" : "matches"}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={clearVisualResults}
+                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border-theme text-[10px] font-bold uppercase tracking-widest text-foreground/70 hover:text-red-400 hover:border-red-500/40 transition cursor-pointer"
+              >
+                <i className="ri-close-line text-xs" />
+                Clear
+              </button>
+            </div>
+          )}
           {loading && (!allProducts || allProducts.length === 0) ? (
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
@@ -678,7 +744,7 @@ const Shop = () => {
 
               {/* Infinite Scroll Sentinel Element */}
               <div ref={sentinelRef} className="w-full py-8 flex items-center justify-center min-h-[60px]">
-                {hasMore && (
+                {!visualResults && hasMore && (
                   <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-foreground/50">
                     <div className="w-4 h-4 border-2 border-accent border-t-transparent rounded-full animate-spin"></div>
                     Loading 20 more drops...

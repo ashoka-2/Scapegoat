@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../Features/auth/Hooks/useAuth";
 import { useCart } from "../Features/Cart/Hooks/useCart";
 import { aiSearchProductsApi } from "../Features/Products/Services/product.api";
+import VisualSearchModal from "./VisualSearch/VisualSearchModal";
 import { useDebounce } from "../utils/timingUtils";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
@@ -13,6 +14,7 @@ const appName = "ScapeGoat";
 const Navbar = ({ toggleTheme, isDarkMode }) => {
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
   const [lastScrollY, setLastScrollY] = useState(0);
@@ -287,6 +289,15 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                   <i className="ri-arrow-right-line text-xs" />
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setVisualSearchOpen(true)}
+                className="text-foreground/50 hover:text-accent hover:scale-110 transition cursor-pointer p-0.5 ml-1"
+                title="Search by Image"
+                aria-label="Search by image"
+              >
+                <i className="ri-camera-lens-line text-sm" />
+              </button>
             </div>
 
             {/* AI Live Search Dropdown Popup */}
@@ -617,9 +628,34 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 </div>
               </Link>
             ))}
+            <button
+              type="button"
+              onClick={() => {
+                setMobileMenuOpen(false);
+                setVisualSearchOpen(true);
+              }}
+              className="group relative flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 cursor-pointer"
+            >
+              <div className="flex items-center gap-4 sm:gap-6 w-full border-b border-border-theme/10 sm:border-transparent pb-3 sm:pb-0">
+                <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">
+                  05
+                </span>
+                <div className="overflow-hidden flex-1 flex justify-between items-center group-hover:pl-2 sm:group-hover:pl-0 transition-all duration-500">
+                  <h2 className="text-4xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
+                    SEARCH BY IMAGE
+                  </h2>
+                  <i className="ri-camera-lens-line text-2xl text-border-theme/40 sm:hidden group-hover:text-accent transition-all duration-500"></i>
+                </div>
+              </div>
+            </button>
           </div>
         </div>
       </div>
+
+      <VisualSearchModal
+        isOpen={visualSearchOpen}
+        onClose={() => setVisualSearchOpen(false)}
+      />
     </>
   );
 };

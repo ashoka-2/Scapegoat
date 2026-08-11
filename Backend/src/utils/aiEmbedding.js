@@ -158,6 +158,39 @@ export async function generateImageEmbedding(imageUrlOrPath) {
 }
 
 /**
+ * Generate a CLIP embedding from a raw image BUFFER (multer memory upload).
+ * PRIVACY-FIRST: the buffer is written to a transient temp file (Node's fetch
+ * cannot decode data: URLs for the vision processor), embedded, and the temp
+ * file is deleted immediately — the query image is never stored in the
+ * database or ImageKit.
+ */
+export async function generateImageEmbeddingFromBuffer(buffer, mimeType = "image/jpeg") {
+  if (!buffer || !buffer.length) return [];
+
+  const extractor = await getVisionPipeline();
+  if (!extractor) return [];
+
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const ext = (mimeType.split("/")[1] || "jpeg").replace("jpeg", "jpg");
+  const tmpPath = path.join(os.tmpdir(), `scapegoat-query-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+
+  try {
+    fs.writeFileSync(tmpPath, buffer);
+    const output = await extractor(tmpPath);
+    return Array.from(output.data);
+  } catch (err) {
+    console.error("[AI Search] Error embedding image buffer:", err.message);
+    return [];
+  } finally {
+    try {
+      fs.unlinkSync(tmpPath);
+    } catch { /* ignore cleanup errors */ }
+  }
+}
+
+/**
  * Helper to combine product attributes into a rich text string for AI embedding generation.
  * @param {Object} product - Product document data (title, description, tags, categoryName, brandName)
  * @returns {string} Combined rich text string

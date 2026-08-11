@@ -2,7 +2,7 @@ import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import orderModel from "../models/order.model.js";
-import { generateTextEmbedding, generateImageEmbedding, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
+import { generateTextEmbedding, generateImageEmbedding, generateImageEmbeddingFromBuffer, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
 
@@ -1336,6 +1336,73 @@ const cosineSimilarity = (vecA, vecB) => {
   return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
 };
 
+// ── AI search helpers (fuzzy matching, stop words) ───────────────────────────
+// Tiny Levenshtein distance — powers typo-tolerant matching ("t-shrit" → "t-shirt")
+const levenshteinDistance = (a, b) => {
+  if (a === b) return 0;
+  const m = a.length, n = b.length;
+  if (m === 0) return n;
+  if (n === 0) return m;
+  let prev = new Array(n + 1);
+  let curr = new Array(n + 1);
+  for (let j = 0; j <= n; j++) prev[j] = j;
+  for (let i = 1; i <= m; i++) {
+    curr[0] = i;
+    for (let j = 1; j <= n; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(curr[j - 1] + 1, prev[j] + 1, prev[j - 1] + cost);
+    }
+    [prev, curr] = [curr, prev];
+  }
+  return prev[n];
+};
+
+// Function words / generic shopping verbs that add no ranking signal
+const SEARCH_STOP_WORDS = new Set([
+  "the", "a", "an", "and", "or", "for", "of", "in", "on", "at", "to", "with",
+  "buy", "get", "show", "me", "want", "need", "looking", "best", "cheap",
+  "online", "price", "new", "latest", "top", "under", "from", "for", "my",
+  "this", "that", "please", "help", "product", "products", "only", "no",
+  "not", "without", "except", "just",
+]);
+
+// Intent words that change the meaning of the NEXT token
+const NEGATION_WORDS = new Set(["no", "not", "without", "except", "exclude", "excluding", "none"]);
+const REQUIREMENT_WORDS = new Set(["only", "just"]);
+
+// Parse the query for "no X" / "only X" intents → terms to EXCLUDE / REQUIRE
+const parseQueryIntents = (queryLower) => {
+  // keep short intent words ("no", "not") — only the FOLLOWING term needs len > 2
+  const words = queryLower.split(/\s+/).filter((w) => w.length > 1);
+  const exclusions = [];
+  const requirements = [];
+  for (let i = 0; i < words.length; i++) {
+    if (NEGATION_WORDS.has(words[i])) {
+      const next = words[i + 1];
+      if (next && next.length > 2) exclusions.push(next);
+    } else if (REQUIREMENT_WORDS.has(words[i])) {
+      const next = words[i + 1];
+      if (next && next.length > 2) requirements.push(next);
+    }
+  }
+  return { exclusions, requirements };
+};
+
+// Typo-tolerant token match: exact word OR within 1 edit distance (len >= 4)
+const fuzzyIncludes = (text, token) => {
+  if (!text || !token) return false;
+  const t = token.toLowerCase();
+  if (text.includes(t)) return true;
+  if (t.length < 4) return false;
+  const words = text.split(/[^a-z0-9]+/);
+  for (const w of words) {
+    if (Math.abs(w.length - t.length) <= 1 && levenshteinDistance(w, t) <= 1) {
+      return true;
+    }
+  }
+  return false;
+};
+
 /**
  * @desc    Get Similar Products (AI Vector Cosine Similarity Matching)
  * @route   GET /api/products/:id/similar
@@ -1617,6 +1684,9 @@ export const aiSearchProducts = async (req, res) => {
     const queryNumber = parseFloat(queryText);
     const isNumericQuery = !isNaN(queryNumber) && queryNumber > 0;
 
+    // Parse "no X" / "only X" intents ("spiderman sneakers only no cloth products")
+    const { exclusions, requirements } = parseQueryIntents(queryLower);
+
     // Generate local 384-dimensional vector embedding for prompt
     const queryEmbedding = await generateTextEmbedding(queryText);
 
@@ -1658,13 +1728,43 @@ export const aiSearchProducts = async (req, res) => {
       });
       const attrLower = attrText.toLowerCase();
 
-      // Signal 1: AI Vector Cosine Similarity (0-1 range)
+      // "no X" intent: hard-exclude products matching an excluded term
+      // (e.g. "no cloth products" excludes the Clothing category)
+      for (const ex of exclusions) {
+        if (
+          fuzzyIncludes(titleLower, ex) ||
+          fuzzyIncludes(catLower, ex) ||
+          fuzzyIncludes(attrLower, ex) ||
+          fuzzyIncludes(brandLower, ex)
+        ) {
+          score = -1;
+          break;
+        }
+      }
+      if (score === -1) return { product, score, reasons: ["Excluded (no match)"] };
+
+      // "only X" intent: products not matching the required term are heavily
+      // penalized so they sink below genuine matches
+      for (const req of requirements) {
+        if (!fuzzyIncludes(titleLower, req) && !fuzzyIncludes(catLower, req) && !fuzzyIncludes(attrLower, req)) {
+          score *= 0.15;
+          break;
+        }
+      }
+
+      // Signal 1: AI Vector Cosine Similarity (0-1 range) — semantic meaning.
+      // Weighted up so semantic matches dominate over lexical noise.
       let vectorScore = 0;
       if (queryEmbedding && queryEmbedding.length > 0 &&
           product.embedding && product.embedding.length === queryEmbedding.length) {
         vectorScore = cosineSimilarity(queryEmbedding, product.embedding);
       }
-      score += vectorScore;
+      score += vectorScore * 1.25;
+      const reasons = [];
+      const noteReason = (label) => {
+        if (reasons.length < 4 && !reasons.includes(label)) reasons.push(label);
+      };
+      if (vectorScore >= 0.55) noteReason("Semantically similar");
 
       // Signal 2: SKU exact match (highest priority)
       if (skuLower && skuLower === queryLower) {
@@ -1692,17 +1792,49 @@ export const aiSearchProducts = async (req, res) => {
       if (descLower.includes(queryLower)) score += 0.2;
       if (shortDescLower.includes(queryLower)) score += 0.15;
 
-      // Signal 8: Token-level matching (each query word)
-      const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 1);
-      if (queryWords.length > 1) {
-        queryWords.forEach((w) => {
-          if (titleLower.includes(w)) score += 0.15;
-          if (catLower.includes(w)) score += 0.1;
-          if (brandLower.includes(w)) score += 0.1;
-          if (tagsLower.includes(w)) score += 0.08;
-          if (attrLower.includes(w)) score += 0.08;
+      // Signal 8: Token-level matching — stop-word filtered + typo-tolerant (fuzzy)
+      const queryWords = queryLower.split(/\s+/).filter((w) => w.length > 1 && !SEARCH_STOP_WORDS.has(w));
+      queryWords.forEach((w) => {
+        if (fuzzyIncludes(titleLower, w)) {
+          score += 0.35;
+          if (!reasons.includes(`Matched "${w}"`)) reasons.push(`Matched "${w}"`);
+        }
+        if (fuzzyIncludes(catLower, w)) {
+          score += 0.12;
+          if (product.category?.name && !reasons.includes(`Category: ${product.category.name}`)) reasons.push(`Category: ${product.category.name}`);
+        }
+        if (fuzzyIncludes(brandLower, w)) {
+          score += 0.12;
+          if (product.brand?.name && !reasons.includes(`Brand: ${product.brand.name}`)) reasons.push(`Brand: ${product.brand.name}`);
+        }
+        if (fuzzyIncludes(tagsLower, w)) score += 0.08;
+        if (fuzzyIncludes(attrLower, w)) score += 0.08;
+      });
+
+      // Signal 10: Attribute-aware boost — the query literally mentions this
+      // product's attribute VALUES (e.g. "red", "xxl", "cotton", "linen")
+      const attrValueSet = new Set();
+      (product.attributes || []).forEach((attr) => {
+        (attr.options || attr.values || []).forEach((opt) => {
+          const v = String(opt || "").toLowerCase().trim();
+          if (v.length >= 2) attrValueSet.add(v);
         });
-      }
+      });
+      (product.variants || []).forEach((v) => {
+        const rawAttrs2 = v.attributes instanceof Map
+          ? Object.fromEntries(v.attributes)
+          : (v.attributes?._doc || v.attributes || {});
+        Object.values(rawAttrs2).forEach((val) => {
+          const v = String(val || "").toLowerCase().trim();
+          if (v.length >= 2) attrValueSet.add(v);
+        });
+      });
+      attrValueSet.forEach((av) => {
+        if (av.length >= 3 && queryLower.includes(av)) {
+          score += 0.3;
+          noteReason(`Attribute: ${av}`);
+        }
+      });
 
       // Signal 9: Number-as-price matching
       if (isNumericQuery) {
@@ -1717,7 +1849,7 @@ export const aiSearchProducts = async (req, res) => {
         }
       }
 
-      return { product, score };
+      return { product, score, reasons };
     });
 
     // Apply minimum similarity threshold — only return genuinely matching products
@@ -1726,12 +1858,18 @@ export const aiSearchProducts = async (req, res) => {
 
     // Sort by score descending
     results.sort((a, b) => b.score - a.score);
-    results = results.map((r) => r.product);
+
+    const sliced = results.slice(0, 20);
+    const reasonsMap = {};
+    sliced.forEach((r) => {
+      reasonsMap[String(r.product._id)] = r.reasons || [];
+    });
 
     return res.status(200).json({
       success: true,
-      count: results.length,
-      data: results.slice(0, 20),
+      count: sliced.length,
+      data: sliced.map((r) => r.product),
+      reasons: reasonsMap,
     });
   } catch (error) {
     return res.status(500).json({
@@ -1748,27 +1886,28 @@ export const aiSearchProducts = async (req, res) => {
  */
 export const aiImageSearchProducts = async (req, res) => {
   try {
-    let imageUrl = req.body.imageUrl;
+    let imageUrl = req.body.imageUrl || null;
+    let imageEmbedding = [];
 
-    // If file uploaded via multipart form data
+    // PRIVACY-FIRST: the query image is embedded in memory and immediately
+    // discarded — it is NEVER uploaded to ImageKit, written to disk, or stored
+    // in the database.
     if (req.files && Array.isArray(req.files) && req.files.length > 0) {
-      const uploadRes = await uploadFile({
-        file: req.files[0].buffer,
-        filename: `search_${Date.now()}.jpg`,
-        folder: "/search",
-      });
-      imageUrl = uploadRes.url;
+      const file = req.files[0];
+      imageEmbedding = await generateImageEmbeddingFromBuffer(
+        file.buffer,
+        file.mimetype || "image/jpeg"
+      );
+    } else if (imageUrl) {
+      imageEmbedding = await generateImageEmbedding(imageUrl);
     }
 
-    if (!imageUrl) {
+    if (!imageEmbedding || imageEmbedding.length === 0) {
       return res.status(400).json({
         success: false,
-        message: "Please upload an image file or provide an imageUrl",
+        message: "Could not create an embedding from the image. Please upload a clear product photo.",
       });
     }
-
-    // Generate visual feature vector using CLIP model
-    const imageEmbedding = await generateImageEmbedding(imageUrl);
 
     const candidates = await productModel
       .find({ status: "published" })
@@ -1817,6 +1956,11 @@ export const aiImageSearchProducts = async (req, res) => {
       });
 
       results.sort((a, b) => b.score - a.score);
+
+      // Only return products that are genuinely CLOSE to the query image
+      // (cosine similarity threshold); no matches → no results shown.
+      const MIN_VISUAL_SCORE = parseFloat(req.query.threshold) || 0.78;
+      results = results.filter((r) => r.score >= MIN_VISUAL_SCORE);
       results = results.map((r) => r.product);
     } else {
       results = candidates;

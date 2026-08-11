@@ -1,15 +1,10 @@
 import React, { useRef, useState, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
-import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { motion, useAnimation } from "framer-motion";
 import { addToast } from "../../../utils/toast.slice";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { useWishlist } from "../../Wishlist/Hooks/useWishlist";
-
-gsap.registerPlugin(ScrollTrigger);
 
 const ProductCard = ({ product }) => {
   const dispatch = useDispatch();
@@ -27,29 +22,10 @@ const ProductCard = ({ product }) => {
     controls.set({ x: 0 });
   }, [controls]);
 
-  useGSAP(
-    () => {
-      if (cardRef.current) {
-        gsap.fromTo(
-          cardRef.current,
-          { opacity: 0, y: 30, scale: 0.98 },
-          {
-            opacity: 1,
-            y: 0,
-            scale: 1,
-            duration: 0.8,
-            ease: "power3.out",
-            scrollTrigger: {
-              trigger: cardRef.current,
-              start: "top 88%",
-              toggleActions: "play none none reverse",
-            },
-          }
-        );
-      }
-    },
-    { scope: cardRef }
-  );
+  // NOTE: the previous gsap ScrollTrigger entrance animation (opacity 0 →
+  // slide-in on scroll) was removed on purpose: it left cards below the fold
+  // INVISIBLE until a small scroll, hiding products that were already on
+  // screen. Cards now render fully visible immediately.
 
   const { handleAddToCart: addToCartFn } = useCart();
 
@@ -149,7 +125,7 @@ const ProductCard = ({ product }) => {
           src={image}
           alt={title}
           className="w-full h-full object-cover object-center transition-transform duration-1000 group-hover:scale-105"
-          loading="lazy"
+          loading="eager"
         />
 
         {/* Top Badges & Wishlist Heart */}
