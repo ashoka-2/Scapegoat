@@ -31,15 +31,23 @@ export const matchOptionInVariant = (variant, attrName, optionValue) => {
   if (!variant || !optionValue) return false;
   const optLower = String(optionValue).trim().toLowerCase();
   const attrNameLower = String(attrName).trim().toLowerCase();
+  const isColorAttr = /color/i.test(attrNameLower);
 
-  // 1. Check raw attributes map/object (e.g. { Color: "light blue", Size: ["UK 6", "UK 7", "UK 8"] })
+  // 1. Structured attributes map/object (e.g. { Color: "light blue", Size: ["UK 6", "UK 7", "UK 8"] })
+  //    For COLOR attributes this is AUTHORITATIVE: a variant that declares its
+  //    color in the map is matched ONLY by that value. The name/sku fallback
+  //    below is skipped for colors because variant names embed the product
+  //    title (e.g. "Linen Pants: Indigo - BLACK"), which would falsely match
+  //    every variant of a product whose title contains a color word.
   const rawAttrs =
     variant.attributes instanceof Map
       ? Object.fromEntries(variant.attributes)
       : variant.attributes?._doc || variant.attributes || {};
 
+  let structuredFound = false;
   for (const [k, v] of Object.entries(rawAttrs)) {
     if (String(k).trim().toLowerCase() === attrNameLower) {
+      structuredFound = true;
       const items = Array.isArray(v) ? v : [v];
       const match = items.some((item) => {
         if (!item) return false;
@@ -47,6 +55,7 @@ export const matchOptionInVariant = (variant, attrName, optionValue) => {
         return parts.some((p) => p.trim().toLowerCase() === optLower);
       });
       if (match) return true;
+      if (isColorAttr) return false; // declared color that doesn't match → no fallback
     }
   }
 
@@ -62,11 +71,13 @@ export const matchOptionInVariant = (variant, attrName, optionValue) => {
           return parts.some((p) => p.trim().toLowerCase() === optLower);
         });
         if (match) return true;
+        if (isColorAttr) return false;
       }
     }
   }
 
   // 3. Fallback to token/word matching against variant.sku AND variant.name
+  //    (only reached when the variant has no structured value for this attr)
   const textToSearch = `${variant.sku || ""} ${variant.name || ""}`.toLowerCase();
   const vTokens = textToSearch.split(/[\s/\-,_.]+/).filter(Boolean);
 
