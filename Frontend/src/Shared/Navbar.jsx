@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../Features/auth/Hooks/useAuth";
 import { useCart } from "../Features/Cart/Hooks/useCart";
 import { aiSearchProductsApi } from "../Features/Products/Services/product.api";
@@ -13,6 +13,7 @@ const appName = "ScapeGoat";
 
 const Navbar = ({ toggleTheme, isDarkMode }) => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
@@ -94,6 +95,15 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
       isMounted = false;
     };
   }, [debouncedSearchQuery]);
+
+  // Clear the search: wipe the input AND strip ?q= from the URL → /shop only
+  const handleClearSearch = () => {
+    setSearchQuery("");
+    setIsSearchOpen(false);
+    if (searchParams.get("q")) {
+      navigate("/shop");
+    }
+  };
 
   // Execute Search Navigation to /shop?q=searchTerm
   const handleExecuteSearch = (queryStr = searchQuery) => {
@@ -280,14 +290,25 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 className="w-full bg-transparent text-xs text-foreground outline-none placeholder:text-foreground/40 font-medium"
               />
               {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => handleExecuteSearch(searchQuery)}
-                  className="text-accent hover:scale-110 transition cursor-pointer p-0.5"
-                  title="Execute Search"
-                >
-                  <i className="ri-arrow-right-line text-xs" />
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={handleClearSearch}
+                    className="text-foreground/40 hover:text-foreground hover:scale-110 transition cursor-pointer p-0.5"
+                    title="Clear Search"
+                    aria-label="Clear search"
+                  >
+                    <i className="ri-close-line text-xs" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleExecuteSearch(searchQuery)}
+                    className="text-accent hover:scale-110 transition cursor-pointer p-0.5"
+                    title="Execute Search"
+                  >
+                    <i className="ri-arrow-right-line text-xs" />
+                  </button>
+                </>
               )}
               <button
                 type="button"

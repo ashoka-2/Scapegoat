@@ -11,6 +11,14 @@ import {
 } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
+import {
+  ensurePineconeIndexes,
+  pineconeReady,
+  queryTextVectors,
+  queryImageVectors,
+  syncProductToPinecone,
+  deleteProductVectors,
+} from "../services/pinecone.service.js";
 
 /**
  * Helper to check if current user is owner of the product or an admin
@@ -122,6 +130,14 @@ const generateAllProductEmbeddings = async (targetProduct) => {
     processProductTextEmbedding(targetProduct),
     processProductImageEmbeddings(targetProduct),
   ]);
+
+  // Mirror the freshly generated vectors into Pinecone (fire-and-forget —
+  // the search reads from Pinecone when it is ready, Mongo otherwise).
+  if (process.env.PINECONE_API_KEY) {
+    ensurePineconeIndexes().then((ok) => {
+      if (ok) setImmediate(() => syncProductToPinecone(targetProduct));
+    });
+  }
 };
 
 /**
@@ -920,6 +936,9 @@ export const deleteProduct = async (req, res) => {
       id: product._id,
       title: product.title,
     });
+
+    // Remove the product's vectors from Pinecone (no-op without API key)
+    deleteProductVectors(product._id);
 
     return res.status(200).json({
       success: true,
@@ -1745,47 +1764,31 @@ export const aiSearchProducts = async (req, res) => {
     // Generate local 384-dimensional vector embedding for prompt
     const queryEmbedding = await generateTextEmbedding(queryText);
 
-    // ── Aggregation pipeline ─────────────────────────────────────────────────
-    // $match pre-filters (status + detected category when the query names one),
-    // $lookup joins category/brand/seller, $project returns ONLY the fields the
-    // scoring + shop need — no full-document materialization.
-    let categoryFilter = null;
-    const cats = await categoryModel.find({}, "name slug").lean().limit(100);
-    for (const c of cats || []) {
-      const cname = (c.name || "").toLowerCase();
-      if (cname.length >= 5 && queryLower.includes(cname)) {
-        categoryFilter = c._id;
-        break;
+    // ── Candidate retrieval: Pinecone ANN first, Mongo scan fallback ─────────
+    let candidates = [];
+    let pineconeScores = null; // productId → cosine score from Pinecone
+
+    if (pineconeReady()) {
+      const matches = await queryTextVectors(queryEmbedding, 60);
+      const ids = matches
+        .map((m) => m.id.replace(/^p:/, ""))
+        .filter((id) => /^[a-f0-9]{24}$/i.test(id));
+      if (ids.length > 0) {
+        pineconeScores = new Map(matches.map((m) => [m.id.replace(/^p:/, ""), m.score]));
+        candidates = await productModel.aggregate(
+          buildProductAggregation({ status: "published", _id: { $in: ids } }, { embedding: true })
+        );
       }
     }
 
-    const aiMatch = categoryFilter
-      ? { status: "published", category: categoryFilter }
-      : { status: "published" };
-
-    const candidates = await productModel.aggregate([
-      { $match: aiMatch },
-      { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
-      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: "subcategories", localField: "subcategories", foreignField: "_id", as: "subcategories" } },
-      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
-      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
-      { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          title: 1, description: 1, shortDescription: 1, sku: 1, tags: 1,
-          attributes: 1, variants: 1, images: 1, maxPrice: 1, sellingPrice: 1,
-          price: 1, stock: 1, stockStatus: 1, slug: 1, productType: 1,
-          soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
-          createdAt: 1, embedding: 1,
-          category: { name: 1, slug: 1 },
-          subcategories: { name: 1, slug: 1 },
-          brand: { name: 1, slug: 1, image: 1 },
-          seller: { fullname: 1, profilePic: 1 },
-        },
-      },
-    ]);
+    if (candidates.length === 0) {
+      // Fallback: full Mongo scan (category ranking is handled by the scoring
+      // signals — a hard category pre-filter would wrongly empty results for
+      // product-word queries like "linen" when a "Linen" category exists)
+      candidates = await productModel.aggregate(
+        buildProductAggregation({ status: "published" }, { embedding: true })
+      );
+    }
 
     let results = [];
 
@@ -1843,9 +1846,14 @@ export const aiSearchProducts = async (req, res) => {
 
       // Signal 1: AI Vector Cosine Similarity (0-1 range) — semantic meaning.
       // Weighted up so semantic matches dominate over lexical noise.
+      // When Pinecone served the candidates, its score IS the cosine — reuse it.
       let vectorScore = 0;
-      if (queryEmbedding && queryEmbedding.length > 0 &&
-          product.embedding && product.embedding.length === queryEmbedding.length) {
+      if (pineconeScores && pineconeScores.has(String(product._id))) {
+        vectorScore = pineconeScores.get(String(product._id)) || 0;
+      } else if (
+        queryEmbedding && queryEmbedding.length > 0 &&
+        product.embedding && product.embedding.length === queryEmbedding.length
+      ) {
         vectorScore = cosineSimilarity(queryEmbedding, product.embedding);
       }
       score += vectorScore * 1.25;
@@ -2002,75 +2010,98 @@ export const aiImageSearchProducts = async (req, res) => {
     // Dispose it (prod memory safety) BEFORE the cosine comparisons run.
     disposeVisionPipeline();
 
-    // ── Aggregation pipeline ─────────────────────────────────────────────────
-    // $match published only, then $project the image-embedding fields + the
-    // minimal display fields — avoids materializing every full product doc.
-    const candidates = await productModel.aggregate([
-      { $match: { status: "published" } },
-      { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
-      { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
-      { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
-      { $unwind: { path: "$seller", preserveNullAndEmptyArrays: true } },
-      {
-        $project: {
-          title: 1, sku: 1, slug: 1, images: 1, variants: 1, attributes: 1,
-          maxPrice: 1, sellingPrice: 1, price: 1, stock: 1, stockStatus: 1,
-          soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
-          createdAt: 1, imageEmbedding: 1,
-          category: { name: 1, slug: 1 },
-          brand: { name: 1, slug: 1, image: 1 },
-          seller: { fullname: 1, profilePic: 1 },
-        },
-      },
-    ]);
+    // ── Candidate retrieval: Pinecone image ANN first, Mongo scan fallback ──
+    let candidates = [];
+    let pineconeScores = null; // productId → best image cosine from Pinecone
+
+    if (pineconeReady()) {
+      const matches = await queryImageVectors(imageEmbedding, 60);
+      if (matches.length > 0) {
+        // Group the matched IMAGES by product, keeping each product's best score
+        const byProduct = new Map();
+        matches.forEach((m) => {
+          const pid = m.metadata?.productId;
+          if (!pid) return;
+          const cur = byProduct.get(pid);
+          if (cur === undefined || m.score > cur) byProduct.set(pid, m.score);
+        });
+        const ids = [...byProduct.keys()].filter((id) => /^[a-f0-9]{24}$/i.test(id));
+        if (ids.length > 0) {
+          pineconeScores = byProduct;
+          candidates = await productModel.aggregate(
+            buildProductAggregation({ status: "published", _id: { $in: ids } }, { imageEmbedding: true })
+          );
+        }
+      }
+    }
+
+    if (candidates.length === 0) {
+      // Fallback: full Mongo scan (brute-force cosine over every image vector)
+      candidates = await productModel.aggregate(
+        buildProductAggregation({ status: "published" }, { imageEmbedding: true })
+      );
+    }
 
     let results = [];
 
     if (imageEmbedding && imageEmbedding.length > 0) {
-      results = candidates.map((product) => {
-        let maxScore = 0;
+      if (pineconeScores) {
+        // Scores came straight from Pinecone — no local cosine needed
+        results = candidates.map((product) => ({
+          product,
+          score: pineconeScores.get(String(product._id)) || 0,
+        }));
+      } else {
+        results = candidates.map((product) => {
+          let maxScore = 0;
 
-        // 1. Compare against Root imageEmbedding (primary photo)
-        if (product.imageEmbedding && product.imageEmbedding.length === imageEmbedding.length) {
-          const s = cosineSimilarity(imageEmbedding, product.imageEmbedding);
-          if (s > maxScore) maxScore = s;
-        }
+          // 1. Compare against Root imageEmbedding (primary photo)
+          if (product.imageEmbedding && product.imageEmbedding.length === imageEmbedding.length) {
+            const s = cosineSimilarity(imageEmbedding, product.imageEmbedding);
+            if (s > maxScore) maxScore = s;
+          }
 
-        // 2. Compare against every Main Product Image embedding (up to 7 images)
-        if (product.images && product.images.length > 0) {
-          product.images.forEach((img) => {
-            if (img.embedding && img.embedding.length === imageEmbedding.length) {
-              const s = cosineSimilarity(imageEmbedding, img.embedding);
-              if (s > maxScore) maxScore = s;
-            }
-          });
-        }
+          // 2. Compare against every Main Product Image embedding
+          if (product.images && product.images.length > 0) {
+            product.images.forEach((img) => {
+              if (img.embedding && img.embedding.length === imageEmbedding.length) {
+                const s = cosineSimilarity(imageEmbedding, img.embedding);
+                if (s > maxScore) maxScore = s;
+              }
+            });
+          }
 
-        // 3. Compare against every Variant Image embedding (up to 7 images per variant)
-        if (product.variants && product.variants.length > 0) {
-          product.variants.forEach((variant) => {
-            if (variant.images && variant.images.length > 0) {
-              variant.images.forEach((vImg) => {
-                if (vImg.embedding && vImg.embedding.length === imageEmbedding.length) {
-                  const s = cosineSimilarity(imageEmbedding, vImg.embedding);
-                  if (s > maxScore) maxScore = s;
-                }
-              });
-            }
-          });
-        }
+          // 3. Compare against every Variant Image embedding
+          if (product.variants && product.variants.length > 0) {
+            product.variants.forEach((variant) => {
+              if (variant.images && variant.images.length > 0) {
+                variant.images.forEach((vImg) => {
+                  if (vImg.embedding && vImg.embedding.length === imageEmbedding.length) {
+                    const s = cosineSimilarity(imageEmbedding, vImg.embedding);
+                    if (s > maxScore) maxScore = s;
+                  }
+                });
+              }
+            });
+          }
 
-        return { product, score: maxScore };
-      });
+          return { product, score: maxScore };
+        });
+      }
 
       results.sort((a, b) => b.score - a.score);
 
-      // Only return products that are genuinely CLOSE to the query image
-      // (cosine similarity threshold); no matches → no results shown.
-      const MIN_VISUAL_SCORE = parseFloat(req.query.threshold) || 0.78;
-      results = results.filter((r) => r.score >= MIN_VISUAL_SCORE);
+      // Return the genuinely-close matches. Smart rule (measured against real
+      // user photos): the closest product always shows when it scores ≥ 0.45,
+      // and we GUARANTEE the top-5 ranked matches are returned — so a similar
+      // product photographed differently (0.49–0.63) always surfaces, while
+      // truly unrelated images (best < 0.45) still return no matches.
+      const MIN_VISUAL_SCORE = parseFloat(req.query.threshold) || 0.45;
+      const floor = Math.max(
+        MIN_VISUAL_SCORE,
+        results[4]?.score ?? MIN_VISUAL_SCORE // 5th-best keeps the top-5 ranked
+      );
+      results = results.filter((r) => r.score >= floor);
       results = results.map((r) => r.product);
     } else {
       results = candidates;

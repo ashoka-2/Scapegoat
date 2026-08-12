@@ -6,6 +6,7 @@ import connectDB from "./src/config/db.js";
 import { setupSocket } from "./src/services/socket.service.js";
 import { warmUpEmbeddings } from "./src/utils/aiEmbedding.js";
 import { startProductScheduler } from "./src/services/productScheduler.service.js";
+import { ensurePineconeIndexes } from "./src/services/pinecone.service.js";
 
 dotenv.config();
 
@@ -25,6 +26,8 @@ const startServer = async () =>{
             warmUpEmbeddings();
             // Auto-publish scheduled products when their time arrives
             startProductScheduler();
+            // Ensure the Pinecone indexes exist (no-op without PINECONE_API_KEY)
+            ensurePineconeIndexes();
         })
     }
     catch(error){

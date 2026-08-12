@@ -291,7 +291,10 @@ const FilterSidebarContent = ({
       <h3 className="text-xs font-bold uppercase tracking-[0.2em] text-foreground/50 mb-3">Sort By</h3>
       <select
         value={sortBy}
-        onChange={(e) => setSortBy(e.target.value)}
+        onChange={(e) => {
+          userPickedSort.current = true;
+          setSortBy(e.target.value);
+        }}
         className="w-full bg-surface border border-border-theme/50 rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-accent"
       >
         {debouncedSearchQuery && <option value="relevance">Best Match</option>}
@@ -400,7 +403,7 @@ const expandProductColorUnits = (products) => {
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
-  const initialSort = searchParams.get("sortBy") || "newest";
+  const initialSort = searchParams.get("sortBy") || (searchParams.get("q") ? "relevance" : "newest");
   const initialFilter = searchParams.get("filter") || "";
 
   const { handleFetchAllProducts } = useProduct();
@@ -471,6 +474,7 @@ const Shop = () => {
   const [priceHigh, setPriceHigh] = useState(50000);
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState(initialSort);
+  const userPickedSort = useRef(false); // true once the user picks a sort manually
 
   // Infinite Scroll Pagination State (20 items per batch)
   const [visibleCount, setVisibleCount] = useState(20);
@@ -514,7 +518,13 @@ const Shop = () => {
     };
   }, [debouncedSearchQuery]);
 
-  // Extract unique filter options dynamically
+  // When a search starts (typed on the shop page, no ?q= URL), flip the default
+  // sort to Best Match — unless the user explicitly picked a sort.
+  useEffect(() => {
+    if (debouncedSearchQuery?.trim() && !userPickedSort.current && sortBy === "newest") {
+      setSortBy("relevance");
+    }
+  }, [debouncedSearchQuery, sortBy]);
   const filterOptions = useMemo(() => {
     const categories = new Set();
     const brands = new Set();
@@ -607,16 +617,24 @@ const Shop = () => {
       prod.sellingPrice?.amount || prod.maxPrice?.amount || prod.price?.saleAmount || prod.price?.amount || 0;
 
     if (isSearchActive && sortBy === "relevance") {
-      result.sort((a, b) => b.score - a.score);
+      if (aiVectorResults && aiVectorResults.length > 0) {
+        // Preserve the backend's semantic similarity order verbatim
+        // (the navbar dropdown + shop must show the same ranking)
+        const order = new Map(aiVectorResults.map((p, i) => [String(p._id), i]));
+        result.sort(
+          (a, b) =>
+            (order.get(String(a.product._id)) ?? 999) -
+            (order.get(String(b.product._id)) ?? 999)
+        );
+      } else {
+        result.sort((a, b) => b.score - a.score);
+      }
     } else if (sortBy === "price-asc") {
       result.sort((a, b) => getPrice(a.product) - getPrice(b.product));
     } else if (sortBy === "price-desc") {
       result.sort((a, b) => getPrice(b.product) - getPrice(a.product));
     } else {
-      result.sort((a, b) => {
-        if (isSearchActive && b.score !== a.score) return b.score - a.score;
-        return new Date(b.product.createdAt) - new Date(a.product.createdAt);
-      });
+      result.sort((a, b) => new Date(b.product.createdAt) - new Date(a.product.createdAt));
     }
 
     return result.map((item) => item.product);

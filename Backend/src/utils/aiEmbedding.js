@@ -169,6 +169,30 @@ export async function generateTextEmbedding(text) {
 export async function generateImageEmbedding(imageUrlOrPath) {
   if (!imageUrlOrPath || typeof imageUrlOrPath !== "string") return [];
 
+  // Production (512MB Render): run CLIP in an isolated worker process so the
+  // model's ~200MB is reclaimed after every call instead of accumulating.
+  if (process.env.NODE_ENV === "production") {
+    try {
+      const os = await import("node:os");
+      const path = await import("node:path");
+      const fs = await import("node:fs");
+      const ext = (path.extname(new URL(imageUrlOrPath).pathname) || ".jpg").slice(1) || "jpg";
+      const tmpPath = path.join(os.tmpdir(), `scapegoat-query-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
+      try {
+        const resp = await fetch(imageUrlOrPath);
+        if (!resp.ok) return [];
+        const buf = Buffer.from(await resp.arrayBuffer());
+        fs.writeFileSync(tmpPath, buf);
+        const result = await runVisionWorker(tmpPath);
+        return result?.ok && Array.isArray(result.embedding) ? result.embedding : [];
+      } finally {
+        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
+      }
+    } catch (err) {
+      console.warn("[AI Search] Worker embed (URL) failed, falling back to in-process:", err.message);
+    }
+  }
+
   const extractor = await getVisionPipeline();
   if (!extractor) return [];
 
@@ -191,9 +215,6 @@ export async function generateImageEmbedding(imageUrlOrPath) {
 export async function generateImageEmbeddingFromBuffer(buffer, mimeType = "image/jpeg") {
   if (!buffer || !buffer.length) return [];
 
-  const extractor = await getVisionPipeline();
-  if (!extractor) return [];
-
   const fs = await import("node:fs");
   const os = await import("node:os");
   const path = await import("node:path");
@@ -202,6 +223,16 @@ export async function generateImageEmbeddingFromBuffer(buffer, mimeType = "image
 
   try {
     fs.writeFileSync(tmpPath, buffer);
+
+    // Production (512MB Render): isolated CLIP worker → process exits → the
+    // model memory is fully returned to the OS (avoids "memory limit" crashes).
+    if (process.env.NODE_ENV === "production") {
+      const result = await runVisionWorker(tmpPath);
+      return result?.ok && Array.isArray(result.embedding) ? result.embedding : [];
+    }
+
+    const extractor = await getVisionPipeline();
+    if (!extractor) return [];
     const output = await extractor(tmpPath);
     return Array.from(output.data);
   } catch (err) {
@@ -215,10 +246,55 @@ export async function generateImageEmbeddingFromBuffer(buffer, mimeType = "image
 }
 
 /**
- * Helper to combine product attributes into a rich text string for AI embedding generation.
- * @param {Object} product - Product document data (title, description, tags, categoryName, brandName)
- * @returns {string} Combined rich text string
+ * Raw CLIP embedding of an image FILE — used by the isolated vision worker
+ * (vision-worker.mjs) so production never keeps CLIP resident in the API
+ * process. Returns { ok, embedding } instead of throwing.
  */
+export async function embedImageFileForWorker(filePath) {
+  const pipeline = await getVisionPipeline();
+  if (!pipeline) return { ok: false, error: "vision pipeline unavailable" };
+  try {
+    // Pass the file PATH (string) — transformers.js handles local paths; a
+    // raw Buffer is rejected ("Unsupported input type: object").
+    const output = await pipeline(filePath);
+    // Single-image input → output.data IS the 512-dim embedding (no [0] index)
+    const emb = output?.data;
+    if (!emb || !emb.length) return { ok: false, error: "no embedding produced" };
+    return { ok: true, embedding: Array.from(emb) };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+}
+
+const VISION_WORKER_PATH = path.join(__dirname, "../services/vision-worker.mjs");
+
+/** Spawns the isolated CLIP worker; resolves with { ok, embedding } or { ok:false }. */
+async function runVisionWorker(filePath) {
+  const { spawn } = await import("node:child_process");
+  return new Promise((resolve) => {
+    let child;
+    try {
+      child = spawn(process.execPath, [VISION_WORKER_PATH, filePath], {
+        stdio: ["ignore", "pipe", "inherit"],
+        timeout: 120000,
+      });
+    } catch {
+      return resolve({ ok: false, error: "worker spawn failed" });
+    }
+    let out = "";
+    child.stdout.on("data", (d) => (out += d.toString()));
+    child.on("close", () => {
+      try {
+        const line = out.trim().split("\n").pop();
+        resolve(line ? JSON.parse(line) : { ok: false, error: "no worker output" });
+      } catch {
+        resolve({ ok: false, error: "unparseable worker output" });
+      }
+    });
+    child.on("error", () => resolve({ ok: false, error: "worker error" }));
+  });
+}
+
 export function buildProductTextForEmbedding(product) {
   const parts = [
     product.title || "",
