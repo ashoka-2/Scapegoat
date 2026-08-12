@@ -21,12 +21,14 @@ const customAxios = axios.create({
 // ── Render free-tier resilience ───────────────────────────────────────────────
 // The Render free instance sleeps after ~15 min idle; a visitor's first requests
 // hit 502 Bad Gateway (surfacing as "CORS blocked" — the 502 carries no CORS
-// headers) until the cold start (~30–60s) completes. These helpers retry
-// idempotent requests with backoff so production keeps working through the
-// spin-up. POSTs are never auto-retried (no duplicate side effects), and dev is
-// unaffected (the local backend never fails, so no retries ever fire).
+// headers) until the cold start completes. These helpers retry with backoff so
+// production keeps working through the spin-up. Retrying is SAFE whenever the
+// request was NEVER processed by the app (network failure or 502/503/504 from
+// the Render proxy) — no side effects can have occurred — so POSTs are retried
+// too in exactly those cases. A response that the app actually produced (4xx/
+// 5xx with a body, e.g. the visual-search 400) is never retried.
 const RETRYABLE_CODES = new Set([502, 503, 504]);
-const RETRY_DELAYS = [8000, 15000, 25000]; // ≈ 48s total, covers a cold start
+const RETRY_DELAYS = [8000, 15000, 25000, 30000]; // ≈ 78s total, covers a cold start
 
 export function attachRetryInterceptor(instance) {
     instance.interceptors.response.use(
@@ -35,8 +37,8 @@ export function attachRetryInterceptor(instance) {
             const config = error.config || {};
             const method = (config.method || "get").toLowerCase();
             const status = error.response ? error.response.status : 0; // 0 = network/CORS-level failure
-            const idempotent = ["get", "put", "delete", "head", "options"].includes(method);
-            const retryable = idempotent && (status === 0 || RETRYABLE_CODES.has(status));
+            const neverProcessed = status === 0 || RETRYABLE_CODES.has(status);
+            const retryable = neverProcessed; // any method — the request never reached the app
             if (!retryable || (config.__retryCount || 0) >= RETRY_DELAYS.length) {
                 return Promise.reject(error);
             }

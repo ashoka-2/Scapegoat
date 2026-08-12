@@ -11,6 +11,9 @@ import {
 } from "../State/cart.slice";
 import * as api from "../Services/cart.api";
 
+// Module-level shared in-flight cart fetch — see handleGetCart
+let inFlightCartFetch = null;
+
 export const useCart = () => {
   const dispatch = useDispatch();
   const updateTimersRef = useRef({});
@@ -37,21 +40,30 @@ export const useCart = () => {
   const totalItems = items.reduce((acc, i) => acc + (Number(i.quantity) || 0), 0);
   const subtotal = items.reduce((acc, i) => acc + calculateItemPrice(i) * (Number(i.quantity) || 0), 0);
 
-  // Fetch Cart
+  // Fetch Cart (deduped: many components mount useCart simultaneously —
+  // e.g. every ProductCard in the shop grid — and all would otherwise fire
+  // their own GET /api/cart because the store is still empty. A shared
+  // in-flight promise collapses all of them into ONE request.)
   const handleGetCart = async (force = false) => {
     const userId = user?._id || user?.id;
     if (!userId) return;
+    if (inFlightCartFetch) return inFlightCartFetch;
     dispatch(setLoading(true));
-    try {
-      const data = await api.fetchUserCartApi();
-      dispatch(setCart(data));
-      return data?.data || data?.cart;
-    } catch (e) {
-      console.error("[useCart] Failed to fetch cart:", e);
-      dispatch(setError(errMsg(e)));
-    } finally {
-      dispatch(setLoading(false));
-    }
+    inFlightCartFetch = api
+      .fetchUserCartApi()
+      .then((data) => {
+        dispatch(setCart(data));
+        return data?.data || data?.cart;
+      })
+      .catch((e) => {
+        console.error("[useCart] Failed to fetch cart:", e);
+        dispatch(setError(errMsg(e)));
+      })
+      .finally(() => {
+        dispatch(setLoading(false));
+        inFlightCartFetch = null;
+      });
+    return inFlightCartFetch;
   };
 
   const userId = user?._id || user?.id;

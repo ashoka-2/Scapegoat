@@ -117,6 +117,30 @@ export function warmUpEmbeddings() {
 }
 
 /**
+ * Frees the CLIP vision pipeline after a one-off visual search.
+ * On the 512MB Render free instance the model (~150MB of WASM/ONNX memory)
+ * cannot stay resident alongside the text pipeline — load → search → dispose
+ * keeps the spike transient and returns memory to the baseline (without it a
+ * search OOM-kills the instance, which then serves 502s without CORS headers
+ * that surface as "blocked by CORS" in the browser).
+ */
+export function disposeVisionPipeline() {
+  if (visionPipelineInstance) {
+    visionPipelineInstance = null;
+    // Force a full GC (requires node --expose-gc) so the WASM memory backing
+    // the model is released immediately instead of whenever the heap grows.
+    if (typeof global.gc === "function") {
+      try {
+        global.gc();
+      } catch {
+        /* best-effort */
+      }
+    }
+    console.log("[AI Search] Vision (CLIP) pipeline disposed after use");
+  }
+}
+
+/**
  * Generates a 384-dimensional vector embedding for a given text string.
  * @param {string} text - Product title, description, and tags combined.
  * @returns {Promise<number[]>} Array of floating point numbers (vector embedding).

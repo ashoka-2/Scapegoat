@@ -2,7 +2,13 @@ import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import orderModel from "../models/order.model.js";
-import { generateTextEmbedding, generateImageEmbedding, generateImageEmbeddingFromBuffer, buildProductTextForEmbedding } from "../utils/aiEmbedding.js";
+import {
+  generateTextEmbedding,
+  generateImageEmbedding,
+  generateImageEmbeddingFromBuffer,
+  buildProductTextForEmbedding,
+  disposeVisionPipeline,
+} from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
 
@@ -1352,9 +1358,10 @@ const productLookupStages = (opts = {}) => {
   if (opts.embedding) project.embedding = 1;
   if (opts.costPrice) project.costPrice = 1;
   if (opts.imageEmbedding) {
+    // images/variants are projected whole (1) — their subdocuments (incl.
+    // the select:false embedding vectors) come along automatically, and
+    // dotted subpaths would collide with the whole-field projection.
     project.imageEmbedding = 1;
-    project["images.embedding"] = 1;
-    project["variants.images.embedding"] = 1;
   }
 
   return [
@@ -1991,6 +1998,10 @@ export const aiImageSearchProducts = async (req, res) => {
       });
     }
 
+    // The query image is embedded → the CLIP model is no longer needed.
+    // Dispose it (prod memory safety) BEFORE the cosine comparisons run.
+    disposeVisionPipeline();
+
     // ── Aggregation pipeline ─────────────────────────────────────────────────
     // $match published only, then $project the image-embedding fields + the
     // minimal display fields — avoids materializing every full product doc.
@@ -2008,8 +2019,6 @@ export const aiImageSearchProducts = async (req, res) => {
           maxPrice: 1, sellingPrice: 1, price: 1, stock: 1, stockStatus: 1,
           soldCount: 1, viewCount: 1, rating: 1, reviewCount: 1, status: 1,
           createdAt: 1, imageEmbedding: 1,
-          "images.embedding": 1,
-          "variants.images.embedding": 1,
           category: { name: 1, slug: 1 },
           brand: { name: 1, slug: 1, image: 1 },
           seller: { fullname: 1, profilePic: 1 },
