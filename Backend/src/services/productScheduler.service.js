@@ -25,12 +25,17 @@ const EMBEDDING_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 const checkMissingEmbeddings = async () => {
   try {
     const done = [];
+    const DIM = 1024; // Voyage multimodal-3.5 output dimension
 
-    // 1. Regenerate missing text embeddings (Voyage works on every environment)
+    // 1. Regenerate missing OR stale-dim text embeddings (Voyage works on every environment)
     const missingText = await productModel
       .find({
         status: { $ne: "trash" },
-        $or: [{ embedding: { $size: 0 } }, { embedding: { $exists: false } }],
+        $or: [
+          { embedding: { $size: 0 } },
+          { embedding: { $exists: false } },
+          { $expr: { $ne: [{ $size: { $ifNull: ["$embedding", []] } }, DIM] } },
+        ],
       })
       .select("_id title shortDescription description category brand tags attributes")
       .limit(10)
@@ -47,13 +52,17 @@ const checkMissingEmbeddings = async () => {
       }
     }
 
-    // 2. Regenerate missing image embeddings (no vision gate — Voyage handles
-    //    images on every environment, including the 512MB Render instance)
+    // 2. Regenerate missing OR stale-dim image embeddings (no vision gate —
+    //    Voyage handles images on every environment, incl. the 512MB Render)
     const missingImages = await productModel
       .find({
         status: { $ne: "trash" },
         "images.0": { $exists: true },
-        $or: [{ imageEmbedding: { $size: 0 } }, { imageEmbedding: { $exists: false } }],
+        $or: [
+          { imageEmbedding: { $size: 0 } },
+          { imageEmbedding: { $exists: false } },
+          { $expr: { $ne: [{ $size: { $ifNull: ["$imageEmbedding", []] } }, DIM] } },
+        ],
       })
       .limit(5)
       .lean();
@@ -72,10 +81,18 @@ const checkMissingEmbeddings = async () => {
           console.warn(`[Scheduler] image embedding failed: ${e.message}`);
         }
       }
+      // Root imageEmbedding = primary cover vector (also heals stale 512-dim roots)
+      const primary = (p.images || []).find((img) => img?.isPrimary) || (p.images || [])[0];
+      if (primary && Array.isArray(primary.embedding) && primary.embedding.length === DIM) {
+        if (p.imageEmbedding?.length !== DIM) {
+          p.imageEmbedding = primary.embedding;
+          changed = true;
+        }
+      }
       if (changed) {
         await productModel.updateOne(
           { _id: p._id },
-          { $set: { images: p.images, pineconeSyncStatus: "pending" } }
+          { $set: { images: p.images, imageEmbedding: p.imageEmbedding, pineconeSyncStatus: "pending" } }
         );
         console.log(`[Scheduler] Backfilled image embeddings: ${p.title?.slice(0, 30)}`);
         done.push(p);

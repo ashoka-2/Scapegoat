@@ -58,15 +58,18 @@ for (let i = 0; i < products.length; i++) {
   console.log(`\n[${i + 1}/${products.length}] ${p.title?.slice(0, 40)}`);
 
   try {
-    // 1. Text embedding (ONE Voyage call)
-    const text = buildProductTextForEmbedding(p);
-    if (text) {
-      const [vec] = await generateTextEmbeddingsBatch([text]);
-      if (vec && vec.length === DIM) p.embedding = vec;
-      else console.warn("  text embedding failed");
+    // 1. Text embedding (ONE Voyage call) — skipped when already 1024-dim
+    const textOk = Array.isArray(p.embedding) && p.embedding.length === DIM;
+    if (!textOk) {
+      const text = buildProductTextForEmbedding(p);
+      if (text) {
+        const [vec] = await generateTextEmbeddingsBatch([text]);
+        if (vec && vec.length === DIM) p.embedding = vec;
+        else console.warn("  text embedding failed");
+      }
     }
 
-    // 2. Image embeddings — ALL main + variant images in ONE Voyage call
+    // 2. Image embeddings — ALL missing main + variant images in ONE Voyage call
     const pendingImgs = [];
     (p.images || []).forEach((img) => {
       if (!(Array.isArray(img?.embedding) && img.embedding.length === DIM)) pendingImgs.push(img);
