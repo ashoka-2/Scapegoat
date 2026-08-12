@@ -73,7 +73,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
     if (info.offset.x > 100) {
       handleAddToCart();
       if (dragContainerRef.current) {
-        controls.start({ x: dragContainerRef.current.clientWidth - 40 });
+        controls.start({ x: dragContainerRef.current.clientWidth - 36 });
       }
     } else {
       controls.start({ x: 0, transition: { type: "spring", stiffness: 400, damping: 25 } });
@@ -107,11 +107,14 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
     defaultImage;
 
   const formatPrice = (amt, currCode = "INR") => {
-    return new Intl.NumberFormat("en-IN", {
-      style: "currency",
-      currency: currCode,
-      maximumFractionDigits: 0,
-    }).format(amt || 0);
+    // Force the ₹ symbol (some browser ICU builds render "INR 1,799" instead)
+    const symbol = currCode === "INR" ? "₹" : `${currCode} `;
+    return (
+      symbol +
+      new Intl.NumberFormat("en-IN", {
+        maximumFractionDigits: 0,
+      }).format(amt || 0)
+    );
   };
 
   return (
@@ -171,20 +174,24 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             }`}
           />
 
-          {/* Price (sale price, or MRP when there is no sale) */}
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* Price (sale price, or MRP when there is no sale) — right-aligned */}
+          <div
+            className={`absolute inset-0 flex items-center pointer-events-none ${
+              isDragged ? "justify-center" : "justify-end pr-3"
+            }`}
+          >
             {isDragged ? (
               <span className="font-black text-[11px] text-accent-content tracking-[0.25em] uppercase animate-pulse">
                 Added to Bag
               </span>
             ) : (
-              <span className="font-black text-[13px] tracking-[0.2em] text-accent uppercase whitespace-nowrap">
+              <span className="font-black text-[13px] tracking-[0.15em] text-accent uppercase whitespace-nowrap">
                 {formatPrice(currentPrice, currency)}
               </span>
             )}
           </div>
 
-          {/* Draggable Circle */}
+          {/* Draggable Circle — slightly smaller */}
           <motion.div
             drag={isDragged ? false : "x"}
             initial={{ x: 0 }}
@@ -193,13 +200,13 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             dragMomentum={false}
             onDragEnd={handleDragEnd}
             animate={controls}
-            className="h-full aspect-square bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute left-0"
+            className="w-9 h-9 top-1/2 -translate-y-1/2 left-1 bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute"
           >
             <i
               className={
                 isDragged
-                  ? "ri-check-line text-xl font-black"
-                  : "ri-arrow-right-s-line text-xl font-bold pointer-events-none"
+                  ? "ri-check-line text-lg font-black"
+                  : "ri-arrow-right-s-line text-lg font-bold pointer-events-none"
               }
             ></i>
           </motion.div>

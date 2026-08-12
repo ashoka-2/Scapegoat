@@ -76,6 +76,10 @@ export default function VisualSearchModal({ isOpen, onClose }) {
     setConverting(true);
     try {
       const converted = await convertImageFile(file);
+      if (!converted) {
+        setError("Couldn't read this image format — try a JPG or PNG photo instead.");
+        return;
+      }
       const url = URL.createObjectURL(converted);
       urlRef.current = url;
       setImageFile(converted);
