@@ -59,7 +59,20 @@ const corsOptions = {
   },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
-  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With", "Accept"],
+  // X-Visitor-Id is sent by the frontend axios interceptor on EVERY request
+  // (guest activity tracking) — omitting it here makes every preflight fail,
+  // which the axios retry interceptor then re-fires with 8/15/25s backoffs
+  // (pages take tens of seconds to load). Reflect the client's requested
+  // headers instead of a fixed list so future custom headers keep working.
+  allowedHeaders: [
+    "Content-Type",
+    "Authorization",
+    "X-Requested-With",
+    "Accept",
+    "X-Visitor-Id",
+    "X-Visitor",
+  ],
+  maxAge: 86400, // cache preflight responses 24h → no OPTIONS round-trip on repeat calls
 };
 
 app.use(cors(corsOptions));
