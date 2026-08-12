@@ -2,13 +2,13 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from "react"
 import { createPortal } from "react-dom";
 import { useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
-import { useProduct } from "../Hooks/useProduct";
 import { useUserActivity } from "../Hooks/useUserActivity";
 import ProductCard from "../Components/ProductCard";
 import ProductGridSkeleton from "../Components/Skeletons/ProductGridSkeleton";
 import { useDebounce } from "../../../utils/timingUtils";
 import { useInfiniteScroll } from "../../../utils/useInfiniteScroll";
-import { aiSearchProductsApi } from "../Services/product.api";
+import { aiSearchProductsApi, getAllProductsApi, getProductFacetsApi } from "../Services/product.api";
+import { trackSearchApi } from "../Services/activity.api";
 import BannerCarousel from "../../Home/Components/BannerCarousel";
 
 // Transient session key for visual-search results (the query image itself is
@@ -225,6 +225,7 @@ const FilterSidebarContent = ({
   setIsMobileFilterOpen,
   sortBy,
   setSortBy,
+  userPickedSortRef,
   fmt,
   priceLow,
   priceHigh,
@@ -292,12 +293,13 @@ const FilterSidebarContent = ({
       <select
         value={sortBy}
         onChange={(e) => {
-          userPickedSort.current = true;
+          userPickedSortRef.current = true;
           setSortBy(e.target.value);
         }}
         className="w-full bg-surface border border-border-theme/50 rounded-xl px-3 py-2 text-xs font-bold text-foreground focus:outline-none focus:border-accent"
       >
         {debouncedSearchQuery && <option value="relevance">Best Match</option>}
+        {!debouncedSearchQuery && <option value="personalized">Personalized</option>}
         <option value="newest">Newest Arrivals</option>
         <option value="price-asc">Price: Low to High</option>
         <option value="price-desc">Price: High to Low</option>
@@ -403,11 +405,10 @@ const expandProductColorUnits = (products) => {
 const Shop = () => {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialQuery = searchParams.get("q") || "";
-  const initialSort = searchParams.get("sortBy") || (searchParams.get("q") ? "relevance" : "newest");
+  const initialSort = searchParams.get("sortBy") || (searchParams.get("q") ? "relevance" : "personalized");
   const initialFilter = searchParams.get("filter") || "";
 
-  const { handleFetchAllProducts } = useProduct();
-  const { products: allProducts, loading } = useSelector((state) => state.product);
+  const { loading } = useSelector((state) => state.product);
   const { recentlyViewed, forYouProducts, fetchRecentlyViewed, fetchForYou } = useUserActivity();
 
   const [rawSearchQuery, setRawSearchQuery] = useState(initialQuery);
@@ -476,19 +477,116 @@ const Shop = () => {
   const [sortBy, setSortBy] = useState(initialSort);
   const userPickedSort = useRef(false); // true once the user picks a sort manually
 
-  // Infinite Scroll Pagination State (20 items per batch)
-  const [visibleCount, setVisibleCount] = useState(20);
+  // ── Real server-side pagination (20 per page) ─────────────────────────────
+  const PAGE_SIZE = 20;
+  // Facet values come from the server (aggregation) so they always reflect the
+  // FULL catalog/category scope — independent of pagination.
+  const [filterOptions, setFilterOptions] = useState({
+    categories: [],
+    brands: [],
+    colors: [],
+    sizes: [],
+    minPrice: 0,
+    maxPrice: 50000,
+  });
+  const [shopProducts, setShopProducts] = useState([]);
+  const [shopTotal, setShopTotal] = useState(0);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMorePages, setHasMorePages] = useState(false);
+  const [fetchingMore, setFetchingMore] = useState(false);
+  const [shopLoading, setShopLoading] = useState(true);
+  const fetchSeqRef = useRef(0); // stale-response guard
+  const pageRef = useRef(1);     // page tracking without re-creating the callback
 
   const hasShopFetchedRef = useRef(false);
+
+  const buildShopParams = useCallback(
+    (page) => {
+      const params = { page, limit: PAGE_SIZE };
+      // Server-side sort mapping ("newest" = createdAt desc = server default)
+      if (sortBy === "price-asc") params.sort = "price_asc";
+      else if (sortBy === "price-desc") params.sort = "price_desc";
+      else if (sortBy === "oldest") params.sort = "oldest";
+
+      if (selectedCategories.length) params.categories = selectedCategories.join(",");
+      if (selectedBrands.length) params.brands = selectedBrands.join(",");
+      if (selectedColors.length) params.color = selectedColors.join(",");
+      if (selectedSizes.length) params.size = selectedSizes.join(",");
+      // Send the price range ONLY when the user actually narrowed it — the
+      // facets auto-sync the slider to the catalog bounds, which is not a filter.
+      const priceNarrowed = priceLow > filterOptions.minPrice || priceHigh < filterOptions.maxPrice;
+      if (priceNarrowed) {
+        if (priceLow > filterOptions.minPrice) params.minPrice = priceLow;
+        if (priceHigh < filterOptions.maxPrice) params.maxPrice = priceHigh;
+      }
+      // "Personalized" (the default sort) = the activity-ranked feed. Any
+      // explicit filter or sort takes over.
+      const noFilters =
+        !selectedCategories.length &&
+        !selectedBrands.length &&
+        !selectedColors.length &&
+        !selectedSizes.length &&
+        !priceNarrowed;
+      if (sortBy === "personalized" && noFilters) params.personalized = 1;
+      return params;
+    },
+    [sortBy, selectedCategories, selectedBrands, selectedColors, selectedSizes, priceLow, priceHigh, filterOptions]
+  );
+
+  // Fetch a page; reset=true starts a fresh list (filters/sort changed),
+  // reset=false appends the next page (infinite scroll).
+  const fetchShopPage = useCallback(
+    async (reset) => {
+      const isSearchActive = Boolean(debouncedSearchQuery && debouncedSearchQuery.trim());
+      const isActivityPool =
+        (initialFilter === "recently-viewed" && recentlyViewed.length > 0) ||
+        (initialFilter === "for-you" && forYouProducts.length > 0);
+      // Search results (AI) and activity pools are fetched by their own flows
+      if (isSearchActive || isActivityPool) return;
+
+      const nextPage = reset ? 1 : pageRef.current + 1;
+      const seq = ++fetchSeqRef.current;
+      if (reset) setShopLoading(true);
+      else setFetchingMore(true);
+      try {
+        const res = await getAllProductsApi(buildShopParams(nextPage));
+        if (seq !== fetchSeqRef.current) return; // stale response
+        const list = res?.data || [];
+        setShopProducts((prev) => (reset ? list : [...prev, ...list]));
+        setShopTotal(res?.total || list.length);
+        setCurrentPage(res?.page || nextPage);
+        pageRef.current = res?.page || nextPage;
+        setHasMorePages(Boolean(res?.data && res.page < res.pages));
+      } catch (err) {
+        if (seq === fetchSeqRef.current) {
+          console.warn("[Shop] paginated fetch error:", err?.message);
+          setHasMorePages(false);
+        }
+      } finally {
+        if (seq === fetchSeqRef.current) {
+          setFetchingMore(false);
+          setShopLoading(false);
+        }
+      }
+    },
+    [buildShopParams, debouncedSearchQuery, initialFilter, recentlyViewed.length, forYouProducts.length]
+  );
 
   useEffect(() => {
     if (!hasShopFetchedRef.current) {
       hasShopFetchedRef.current = true;
-      handleFetchAllProducts();
+      fetchShopPage(true);
       if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
       if (initialFilter === "for-you") fetchForYou(20);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFilter]);
+
+  // Refetch page 1 whenever search/filters/sort change
+  useEffect(() => {
+    fetchShopPage(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [debouncedSearchQuery, selectedCategories, selectedBrands, selectedColors, selectedSizes, priceLow, priceHigh, sortBy]);
 
   // Execute Backend Vector Search API using text embeddings
   useEffect(() => {
@@ -499,6 +597,11 @@ const Shop = () => {
 
     let isMounted = true;
     setIsAiLoading(true);
+
+    // Personalization signal: remember what this visitor searches for
+    if (debouncedSearchQuery.trim().length >= 3) {
+      trackSearchApi(debouncedSearchQuery.trim());
+    }
 
     aiSearchProductsApi(debouncedSearchQuery.trim())
       .then((res) => {
@@ -525,50 +628,41 @@ const Shop = () => {
       setSortBy("relevance");
     }
   }, [debouncedSearchQuery, sortBy]);
-  const filterOptions = useMemo(() => {
-    const categories = new Set();
-    const brands = new Set();
-    const colors = new Set();
-    const sizes = new Set();
-    let minPrice = Infinity;
-    let maxPrice = 0;
 
-    if (allProducts && allProducts.length > 0) {
-      allProducts.forEach((p) => {
-        const price =
-          p.sellingPrice?.amount || p.maxPrice?.amount || p.price?.saleAmount || p.price?.amount || 0;
-        if (price < minPrice) minPrice = price;
-        if (price > maxPrice) maxPrice = price;
-
-        if (p.category?.name) categories.add(p.category.name);
-        if (p.brand?.name) brands.add(p.brand.name);
-
-        // Category-scoped attribute facets: when one or more categories are
-        // selected, Color/Size options come only from products in those
-        // categories; with no category selected they come from all products.
-        const inSelectedCategories =
-          !selectedCategories.length || selectedCategories.includes(p.category?.name);
-        if (inSelectedCategories) {
-          collectProductAttrValues(p, "color").forEach((c) => colors.add(c));
-          collectProductAttrValues(p, "size").forEach((s) => sizes.add(s));
-        }
-      });
-    }
-
-    return {
-      categories: Array.from(categories).sort(),
-      brands: Array.from(brands).sort(),
-      colors: Array.from(colors).sort(),
-      sizes: Array.from(sizes).sort(),
-      minPrice: minPrice === Infinity ? 0 : Math.floor(minPrice),
-      maxPrice: maxPrice || 50000,
-    };
-  }, [allProducts, selectedCategories]);
-
+  // Facet fetch effect — runs whenever the category/brand scope changes
   useEffect(() => {
-    if (filterOptions.maxPrice > 0) {
-      setPriceHigh(filterOptions.maxPrice);
-    }
+    let isMounted = true;
+    (async () => {
+      try {
+        const params = {};
+        if (selectedCategories.length) params.categories = selectedCategories.join(",");
+        if (selectedBrands.length) params.brands = selectedBrands.join(",");
+        const res = await getProductFacetsApi(params);
+        if (isMounted && res?.data) {
+          const f = res.data;
+          setFilterOptions({
+            categories: f.categories || [],
+            brands: f.brands || [],
+            colors: f.colors || [],
+            sizes: f.sizes || [],
+            minPrice: f.minPrice || 0,
+            maxPrice: f.maxPrice || 50000,
+          });
+        }
+      } catch (err) {
+        console.warn("[Shop] facets fetch error:", err?.message);
+      }
+    })();
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedCategories, selectedBrands]);
+
+  // Sync the price-slider display to the catalog bounds — only while the user
+  // hasn't narrowed the price themselves (placeholder default is 50000). Runs
+  // AFTER the facets state lands so the fetch never sees a half-updated pair.
+  useEffect(() => {
+    setPriceHigh((prev) => (prev >= 50000 ? filterOptions.maxPrice : prev));
   }, [filterOptions.maxPrice]);
 
   const toggleItem = (setter, value) =>
@@ -576,9 +670,9 @@ const Shop = () => {
 
   // AI Semantic + Vector Embedding Filter & Sort algorithm
   const filteredProducts = useMemo(() => {
-    if (!allProducts) return [];
+    if (!shopProducts) return [];
 
-    let pool = allProducts;
+    let pool = shopProducts;
     if (initialFilter === "recently-viewed" && recentlyViewed.length > 0) {
       pool = recentlyViewed;
     } else if (initialFilter === "for-you" && forYouProducts.length > 0) {
@@ -639,7 +733,7 @@ const Shop = () => {
 
     return result.map((item) => item.product);
   }, [
-    allProducts,
+    shopProducts,
     recentlyViewed,
     forYouProducts,
     initialFilter,
@@ -654,23 +748,21 @@ const Shop = () => {
     sortBy,
   ]);
 
-  // Reset pagination count when search/filters change
-  useEffect(() => {
-    setVisibleCount(20);
-  }, [debouncedSearchQuery, selectedCategories, selectedBrands, selectedColors, selectedSizes, priceLow, priceHigh, sortBy]);
-
+  // Reset pagination count when search/filters change (handled by the refetch
+  // effect above — this hook keeps the sentinel/state consistent)
   const loadMoreProducts = useCallback(() => {
-    setVisibleCount((prev) => Math.min(prev + 20, filteredProducts.length));
-  }, [filteredProducts.length]);
+    if (fetchingMore || !hasMorePages) return;
+    fetchShopPage(false);
+  }, [fetchingMore, hasMorePages, fetchShopPage]);
 
-  const hasMore = visibleCount < filteredProducts.length;
-  const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || isAiLoading);
+  const hasMore = hasMorePages;
+  const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || isAiLoading || fetchingMore);
 
   const displayedProducts = useMemo(() => {
     // Visual mode: the backend already ranked by similarity — keep its order
     if (visualResults) return visualResults;
-    return filteredProducts.slice(0, visibleCount);
-  }, [filteredProducts, visibleCount, visualResults]);
+    return filteredProducts;
+  }, [filteredProducts, visualResults]);
 
   // Color-expanded display units for the grid (one card per color variant)
   const displayedUnits = useMemo(() => expandProductColorUnits(displayedProducts), [displayedProducts]);
@@ -701,6 +793,7 @@ const Shop = () => {
     setIsMobileFilterOpen,
     sortBy,
     setSortBy,
+    userPickedSortRef: userPickedSort,
     fmt,
     priceLow,
     priceHigh,
@@ -743,7 +836,7 @@ const Shop = () => {
             </div>
           )}
           <p className="text-xs font-bold uppercase tracking-widest text-foreground/50">
-            Showing <span className="text-foreground font-black">{displayedProducts.length}</span> of {filteredProducts.length} Drops
+            Showing <span className="text-foreground font-black">{displayedProducts.length}</span> of {shopTotal || filteredProducts.length} Drops
           </p>
           <button
             onClick={() => setIsMobileFilterOpen(true)}
@@ -760,8 +853,8 @@ const Shop = () => {
       </div>
 
       <div className="flex gap-8">
-        {/* Desktop Sidebar */}
-        <div className="hidden md:block w-64 flex-shrink-0 space-y-6">
+        {/* Desktop Sidebar — sticky while the grid scrolls */}
+        <div className="hidden md:block w-64 flex-shrink-0 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-1 space-y-6">
           <FilterSidebarContent {...sidebarProps} />
           <BannerCarousel page="shop" placement="sidebar" />
         </div>
@@ -798,11 +891,11 @@ const Shop = () => {
               </button>
             </div>
           )}
-          {loading && (!allProducts || allProducts.length === 0) ? (
+          {shopLoading && shopProducts.length === 0 ? (
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                 {displayedUnits.map((unit) => (
                   <ProductCard
                     key={unit.key}

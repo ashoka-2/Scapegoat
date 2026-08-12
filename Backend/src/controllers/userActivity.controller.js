@@ -11,6 +11,25 @@ const INTEREST_WEIGHTS = {
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Identity: logged-in user (req.user) OR anonymous visitor (X-Visitor-Id header)
+// ──────────────────────────────────────────────────────────────────────────────
+const resolveIdentity = (req) => {
+  if (req.user) return { type: "user", id: req.user._id };
+  const visitorId = (req.headers["x-visitor-id"] || req.query.visitorId || "")
+    .toString()
+    .trim()
+    .slice(0, 128);
+  if (visitorId) return { type: "visitor", id: visitorId };
+  return null;
+};
+
+// Returns a Mongoose QUERY (not a promise) so callers can chain .lean()
+const findActivity = (identity) => {
+  const query = identity.type === "user" ? { user: identity.id } : { visitorId: identity.id };
+  return UserActivity.findOne(query);
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 // Helper: Recalculate category & brand interest scores from view history
 // ──────────────────────────────────────────────────────────────────────────────
 const recalculateInterests = async (activity) => {
@@ -65,16 +84,21 @@ const recalculateInterests = async (activity) => {
 // ──────────────────────────────────────────────────────────────────────────────
 export const trackView = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const identity = resolveIdentity(req);
+    if (!identity) {
+      return res.status(400).json({ success: false, message: "Authentication or X-Visitor-Id header required" });
+    }
     const { productId } = req.body;
 
     if (!productId) {
       return res.status(400).json({ success: false, message: "productId is required" });
     }
 
-    let activity = await UserActivity.findOne({ user: userId });
+    let activity = await findActivity(identity);
     if (!activity) {
-      activity = new UserActivity({ user: userId, views: [] });
+      activity = identity.type === "user"
+        ? new UserActivity({ user: identity.id, views: [] })
+        : new UserActivity({ visitorId: identity.id, views: [] });
     }
 
     // Check if this product was already viewed
@@ -121,7 +145,10 @@ export const trackView = async (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────────
 export const trackDwell = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const identity = resolveIdentity(req);
+    if (!identity) {
+      return res.status(200).json({ success: true }); // No identity → nothing to track
+    }
     const { productId, dwellMs } = req.body;
 
     if (!productId || !dwellMs || dwellMs < 0) {
@@ -131,7 +158,7 @@ export const trackDwell = async (req, res) => {
     // Cap dwell time at 10 minutes per call to prevent abuse
     const cappedDwell = Math.min(Number(dwellMs), 600000);
 
-    let activity = await UserActivity.findOne({ user: userId });
+    let activity = await findActivity(identity);
     if (!activity) {
       return res.status(200).json({ success: true }); // No activity to update
     }
@@ -158,10 +185,13 @@ export const trackDwell = async (req, res) => {
 // ──────────────────────────────────────────────────────────────────────────────
 export const getRecentlyViewed = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const identity = resolveIdentity(req);
+    if (!identity) {
+      return res.status(200).json({ success: true, data: [] });
+    }
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
 
-    const activity = await UserActivity.findOne({ user: userId }).lean();
+    const activity = await findActivity(identity).lean();
     if (!activity || !activity.views || activity.views.length === 0) {
       return res.status(200).json({ success: true, data: [] });
     }
@@ -197,15 +227,138 @@ export const getRecentlyViewed = async (req, res) => {
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
+// Shared scorer: rank published products by this visitor's activity
+// (views + dwell + recency + search-term affinity). Excludes already-viewed.
+// Returns the ranked product array (up to `limit`).
+// ──────────────────────────────────────────────────────────────────────────────
+const SEARCH_STOP = new Set([
+  "the", "a", "an", "and", "or", "for", "of", "in", "on", "at", "to", "with",
+  "buy", "get", "show", "me", "want", "need", "looking", "best", "cheap",
+  "online", "price", "new", "latest", "top", "under", "from", "for", "my",
+  "this", "that", "please", "help", "products", "product", "only", "no", "not",
+]);
+
+const fuzzyIncludes = (text, term) => {
+  if (!text) return false;
+  const t = text.toLowerCase();
+  if (t.includes(term)) return true;
+  return text.toLowerCase().split(/\s+/).some((w) => w.length >= 4 && Math.abs(w.length - term.length) <= 1 && (w.includes(term) || term.includes(w)));
+};
+
+export const scoreForYouProducts = async (activity, limit) => {
+  const viewedIds = new Set(activity.views.map((v) => v.product.toString()));
+  const catInterests = activity.categoryInterests instanceof Map
+    ? Object.fromEntries(activity.categoryInterests)
+    : (activity.categoryInterests || {});
+  const brandInterests = activity.brandInterests instanceof Map
+    ? Object.fromEntries(activity.brandInterests)
+    : (activity.brandInterests || {});
+  const searchInterests = activity.searchInterests instanceof Map
+    ? Object.fromEntries(activity.searchInterests)
+    : (activity.searchInterests || {});
+  const topSearchTerms = Object.entries(searchInterests)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([term]) => term);
+
+  const topCats = Object.entries(catInterests)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id]) => id);
+  const topBrands = Object.entries(brandInterests)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([id]) => id);
+
+  const filter = { status: "published" };
+  const interestRestriction = [];
+  if (topCats.length > 0) interestRestriction.push({ category: { $in: topCats } });
+  if (topBrands.length > 0) interestRestriction.push({ brand: { $in: topBrands } });
+  // Restrict to interest categories/brands ONLY when there are no search terms —
+  // otherwise search affinity should get a chance to rank the whole catalog.
+  if (interestRestriction.length > 0 && topSearchTerms.length === 0) {
+    filter.$or = interestRestriction;
+  }
+
+  const scoreCandidate = (p) => {
+    let score = 0;
+    const catId = p.category?._id?.toString() || p.category?.toString();
+    const brandId = p.brand?._id?.toString() || p.brand?.toString();
+
+    // Category affinity score
+    if (catId && catInterests[catId]) score += catInterests[catId] * 3;
+    // Brand affinity score
+    if (brandId && brandInterests[brandId]) score += brandInterests[brandId] * 2;
+
+    // Search-term affinity: products matching what the user searches get a
+    // solid boost (the "which user searches more" signal)
+    if (topSearchTerms.length > 0) {
+      const haystack = `${p.title || ""} ${p.description || ""} ${p.category?.name || ""} ${p.brand?.name || ""} ${Array.isArray(p.tags) ? p.tags.join(" ") : ""} ${(p.attributes || []).map((a) => `${a.name} ${a.options?.join(" ")}`).join(" ")}`;
+      for (const term of topSearchTerms) {
+        if (fuzzyIncludes(haystack, term)) score += searchInterests[term] * 4;
+      }
+    }
+
+    // Freshness bonus (newer products get a small boost)
+    const daysSinceCreated = (Date.now() - new Date(p.createdAt).getTime()) / 86400000;
+    if (daysSinceCreated < 7) score += 5;
+    else if (daysSinceCreated < 30) score += 2;
+
+    return score;
+  };
+
+  const fetchCandidates = async (f) =>
+    productModel
+      .find(f)
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .populate("category", "name slug")
+      .populate("brand", "name slug image")
+      .populate("seller", "fullname profilePic")
+      .lean();
+
+  let candidates = await fetchCandidates(filter);
+
+  // Thin pool (e.g. the visitor viewed everything in their interest category):
+  // broaden to the whole catalog so recommendations never come back empty.
+  if (candidates.length < 5) {
+    candidates = await fetchCandidates({ status: "published" });
+  }
+
+  const scored = candidates
+    .filter((p) => !viewedIds.has(p._id.toString()))
+    .map((p) => ({ product: p, score: scoreCandidate(p) }));
+
+  scored.sort((a, b) => {
+    if (b.score !== a.score) return b.score - a.score;
+    return new Date(b.product.createdAt) - new Date(a.product.createdAt);
+  });
+
+  return scored.slice(0, limit).map((s) => s.product);
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
 // GET /api/activity/for-you — Instagram-style "For You" recommendations
-// Uses category + brand interest scores + recency to rank products
+// Uses category + brand interest scores + recency + search affinity to rank
 // ──────────────────────────────────────────────────────────────────────────────
 export const getForYouProducts = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const identity = resolveIdentity(req);
+    if (!identity) {
+      // No identity → newest products as fallback (matches the no-activity case)
+      const newest = await productModel
+        .find({ status: "published" })
+        .sort({ createdAt: -1 })
+        .limit(10)
+        .populate("category", "name slug")
+        .populate("brand", "name slug image")
+        .populate("seller", "fullname profilePic")
+        .lean();
+      return res.status(200).json({ success: true, data: newest });
+    }
     const limit = Math.min(parseInt(req.query.limit, 10) || 10, 30);
 
-    const activity = await UserActivity.findOne({ user: userId }).lean();
+    const activity = await findActivity(identity).lean();
 
     // If no activity, return newest products as fallback
     if (!activity || !activity.views || activity.views.length === 0) {
@@ -220,84 +373,71 @@ export const getForYouProducts = async (req, res) => {
       return res.status(200).json({ success: true, data: newest });
     }
 
-    // Collect viewed product IDs to exclude from recommendations
-    const viewedIds = new Set(activity.views.map((v) => v.product.toString()));
-
-    // Get top interested categories & brands
-    const catInterests = activity.categoryInterests instanceof Map
-      ? Object.fromEntries(activity.categoryInterests)
-      : (activity.categoryInterests || {});
-    const brandInterests = activity.brandInterests instanceof Map
-      ? Object.fromEntries(activity.brandInterests)
-      : (activity.brandInterests || {});
-
-    // Sort categories and brands by score
-    const topCats = Object.entries(catInterests)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([id]) => id);
-    const topBrands = Object.entries(brandInterests)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([id]) => id);
-
-    // Fetch candidate products from top categories/brands
-    const filter = {
-      status: "published",
-    };
-
-    if (topCats.length > 0 || topBrands.length > 0) {
-      filter.$or = [];
-      if (topCats.length > 0) filter.$or.push({ category: { $in: topCats } });
-      if (topBrands.length > 0) filter.$or.push({ brand: { $in: topBrands } });
-    }
-
-    const candidates = await productModel
-      .find(filter)
-      .sort({ createdAt: -1 })
-      .limit(100) // Fetch a larger pool to score from
-      .populate("category", "name slug")
-      .populate("brand", "name slug image")
-      .populate("seller", "fullname profilePic")
-      .lean();
-
-    // Score each candidate
-    const scored = candidates
-      .filter((p) => !viewedIds.has(p._id.toString())) // Exclude already viewed
-      .map((p) => {
-        let score = 0;
-        const catId = p.category?._id?.toString() || p.category?.toString();
-        const brandId = p.brand?._id?.toString() || p.brand?.toString();
-
-        // Category affinity score
-        if (catId && catInterests[catId]) {
-          score += catInterests[catId] * 3; // Heavy weight on category match
-        }
-
-        // Brand affinity score
-        if (brandId && brandInterests[brandId]) {
-          score += brandInterests[brandId] * 2;
-        }
-
-        // Freshness bonus (newer products get a small boost)
-        const daysSinceCreated = (Date.now() - new Date(p.createdAt).getTime()) / 86400000;
-        if (daysSinceCreated < 7) score += 5;
-        else if (daysSinceCreated < 30) score += 2;
-
-        return { product: p, score };
-      });
-
-    // Sort by score descending, then by createdAt
-    scored.sort((a, b) => {
-      if (b.score !== a.score) return b.score - a.score;
-      return new Date(b.product.createdAt) - new Date(a.product.createdAt);
-    });
-
-    const results = scored.slice(0, limit).map((s) => s.product);
-
+    const results = await scoreForYouProducts(activity, limit);
     return res.status(200).json({ success: true, data: results });
   } catch (error) {
     console.error("Error fetching for-you products:", error);
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+// ──────────────────────────────────────────────────────────────────────────────
+// POST /api/activity/search — Record what the visitor searches for
+// (the "which user searches more" signal for personalization)
+// ──────────────────────────────────────────────────────────────────────────────
+export const trackSearch = async (req, res) => {
+  try {
+    const identity = resolveIdentity(req);
+    if (!identity) {
+      return res.status(200).json({ success: true }); // nothing to track
+    }
+    const { query } = req.body;
+    if (!query || typeof query !== "string" || query.trim().length < 3) {
+      return res.status(400).json({ success: false, message: "query (min 3 chars) is required" });
+    }
+    const q = query.trim().slice(0, 120);
+
+    let activity = await findActivity(identity);
+    if (!activity) {
+      activity = identity.type === "user"
+        ? new UserActivity({ user: identity.id })
+        : new UserActivity({ visitorId: identity.id });
+    }
+
+    // Upsert the search (case-insensitive)
+    const lower = q.toLowerCase();
+    const idx = activity.searches.findIndex((s) => s.query.toLowerCase() === lower);
+    if (idx > -1) {
+      activity.searches[idx].count += 1;
+      activity.searches[idx].lastSearchedAt = new Date();
+      const [moved] = activity.searches.splice(idx, 1);
+      activity.searches.unshift(moved);
+    } else {
+      activity.searches.unshift({ query: q, count: 1, lastSearchedAt: new Date() });
+      if (activity.searches.length > 50) activity.searches = activity.searches.slice(0, 50);
+    }
+
+    // Rebuild searchInterests: term → weighted score (count + recency)
+    const interests = {};
+    const now = Date.now();
+    activity.searches.slice(0, 25).forEach((s) => {
+      const hours = (now - new Date(s.lastSearchedAt).getTime()) / 3600000;
+      const recencyBoost = hours < 24 ? 3 : hours < 168 ? 1 : 0;
+      const weight = s.count * 2 + recencyBoost;
+      s.query
+        .toLowerCase()
+        .split(/\s+/)
+        .filter((w) => w.length > 2 && !SEARCH_STOP.has(w))
+        .forEach((term) => {
+          interests[term] = (interests[term] || 0) + weight;
+        });
+    });
+    activity.searchInterests = interests;
+
+    await activity.save();
+    return res.status(200).json({ success: true });
+  } catch (error) {
+    console.error("Error tracking search:", error);
     return res.status(500).json({ success: false, message: error.message });
   }
 };

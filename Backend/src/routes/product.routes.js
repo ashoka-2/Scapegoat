@@ -11,6 +11,7 @@ import {
   getSimilarProducts,
   getYouMayAlsoLikeProducts,
   getAllProducts,
+  getProductFacets,
   aiSearchProducts,
   aiImageSearchProducts,
   suggestProductDescription,
@@ -31,6 +32,7 @@ const router = express.Router();
 
 // Get all published products (search, filter, sort, paginate)
 router.get("/", getAllProducts);
+router.get("/facets", getProductFacets);
 
 // Suggest catalog description based on title, category, and shortDescription
 router.post("/suggest-description", suggestProductDescription);

@@ -18,6 +18,12 @@ export async function getAllProductsApi(params = {}) {
   return response.data;
 }
 
+/** Fetch filter-sidebar facet values (brands, colors, sizes, price bounds) */
+export async function getProductFacetsApi(params = {}) {
+  const response = await productApiInstance.get("/facets", { params });
+  return response.data;
+}
+
 /**
  * Fetch a single product by ID or Slug
  */

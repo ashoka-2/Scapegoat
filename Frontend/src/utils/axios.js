@@ -63,6 +63,28 @@ if (!import.meta.env.DEV && API_BASE_URL) {
 // Authorization header on every request. Cookie auth still works too.
 export const AUTH_TOKEN_KEY = "scapegoat_token";
 
+// Anonymous visitors get a stable per-device id so personalization works for
+// guests too (the backend falls back to it when no auth token is present).
+export function attachVisitorHeader(instance) {
+    instance.interceptors.request.use((config) => {
+        try {
+            let id = localStorage.getItem("scapegoat_visitor_id");
+            if (!id) {
+                id =
+                    "v_" +
+                    Date.now().toString(36) +
+                    "_" +
+                    Math.random().toString(36).slice(2, 10) +
+                    Math.random().toString(36).slice(2, 8);
+                localStorage.setItem("scapegoat_visitor_id", id);
+            }
+            config.headers["X-Visitor-Id"] = id;
+        } catch { /* ignore */ }
+        return config;
+    });
+    return instance;
+}
+
 export function attachAuthHeader(instance) {
     instance.interceptors.request.use((config) => {
         const token = localStorage.getItem(AUTH_TOKEN_KEY);
@@ -79,6 +101,8 @@ attachRetryInterceptor(customAxios);
 attachRetryInterceptor(axios); // global axios instance used across the app
 attachAuthHeader(customAxios);
 attachAuthHeader(axios);
+attachVisitorHeader(customAxios);
+attachVisitorHeader(axios);
 
 // Configure global axios defaults
 axios.defaults.baseURL = API_BASE_URL;
@@ -90,10 +114,10 @@ axios.defaults.withCredentials = true;
  */
 export function createApiInstance(endpoint = "") {
     const normalizedEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-    return attachAuthHeader(attachRetryInterceptor(axios.create({
+    return attachVisitorHeader(attachAuthHeader(attachRetryInterceptor(axios.create({
         baseURL: `${API_BASE_URL}${normalizedEndpoint}`,
         withCredentials: true,
-    })));
+    }))));
 }
 
 export default customAxios;

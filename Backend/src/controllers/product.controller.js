@@ -2,6 +2,11 @@ import productModel from "../models/product.model.js";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import orderModel from "../models/order.model.js";
+import userModel from "../models/user.model.js";
+import UserActivity from "../models/userActivity.model.js";
+import jwt from "jsonwebtoken";
+import { config } from "../config/config.js";
+import { scoreForYouProducts } from "./userActivity.controller.js";
 import {
   generateTextEmbedding,
   generateImageEmbedding,
@@ -1630,8 +1635,35 @@ export const getYouMayAlsoLikeProducts = async (req, res) => {
 };
 
 /**
- * @desc    Get All Products (With Search, Filters, Sorting, and Pagination)
- * @route   GET /api/products
+ * @desc    Resolve the visitor identity for personalization: logged-in user
+ *          (cookie/Bearer token) or anonymous visitor (X-Visitor-Id header).
+ */
+const resolveVisitorIdentity = async (req) => {
+  const bearer =
+    req.headers.authorization && req.headers.authorization.startsWith("Bearer ")
+      ? req.headers.authorization.slice(7)
+      : null;
+  const token = req.cookies?.token || bearer;
+  if (token) {
+    try {
+      const decoded = jwt.verify(token, config.JWT_SECRET);
+      const user = await userModel.findById(decoded.id);
+      if (user && !user.isBanned) return { type: "user", id: user._id };
+    } catch {
+      /* invalid token → fall through to visitor id */
+    }
+  }
+  const visitorId = (req.headers["x-visitor-id"] || req.query.visitorId || "")
+    .toString()
+    .trim()
+    .slice(0, 128);
+  if (visitorId) return { type: "visitor", id: visitorId };
+  return null;
+};
+
+/**
+ * @desc    Get all published products (search, filter, sort, paginate)
+ * @route   GET /api/products/
  * @access  Public
  */
 export const getAllProducts = async (req, res) => {
@@ -1647,9 +1679,23 @@ export const getAllProducts = async (req, res) => {
       filter.$text = { $search: req.query.search };
     }
 
-    // Category filter
-    if (req.query.category) {
-      filter.category = req.query.category;
+    // Category filter (single ID via ?category= OR name-list via ?categories=)
+    const categoryNameList = req.query.categories
+      ? String(req.query.categories).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    const categoryIds = req.query.category
+      ? String(req.query.category).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (categoryNameList.length > 0) {
+      // Shop passes NAMES — resolve to ObjectIds
+      const cats = await categoryModel.find({ name: { $in: categoryNameList } }).select("_id").lean();
+      const ids = cats.map((c) => c._id);
+      if (ids.length === 1) filter.category = ids[0];
+      else if (ids.length > 1) filter.category = { $in: ids };
+    } else if (categoryIds.length === 1) {
+      filter.category = categoryIds[0];
+    } else if (categoryIds.length > 1) {
+      filter.category = { $in: categoryIds };
     }
 
     // Subcategory filter (matches products with this subcategory ID)
@@ -1657,9 +1703,23 @@ export const getAllProducts = async (req, res) => {
       filter.subcategories = req.query.subcategory;
     }
 
-    // Brand filter
-    if (req.query.brand) {
-      filter.brand = req.query.brand;
+    // Brand filter (single ID via ?brand= OR name-list via ?brands=)
+    const brandNameList = req.query.brands
+      ? String(req.query.brands).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    const brandIds = req.query.brand
+      ? String(req.query.brand).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (brandNameList.length > 0) {
+      // Shop passes NAMES — resolve to ObjectIds
+      const brs = await brandModel.find({ name: { $in: brandNameList } }).select("_id").lean();
+      const ids = brs.map((b) => b._id);
+      if (ids.length === 1) filter.brand = ids[0];
+      else if (ids.length > 1) filter.brand = { $in: ids };
+    } else if (brandIds.length === 1) {
+      filter.brand = brandIds[0];
+    } else if (brandIds.length > 1) {
+      filter.brand = { $in: brandIds };
     }
 
     // In Stock Only filter
@@ -1677,14 +1737,24 @@ export const getAllProducts = async (req, res) => {
       filter.averageRating = { $gte: Number(req.query.rating) };
     }
 
-    // Attribute options filter (e.g., ?color=Red or ?size=XL)
-    if (req.query.attributeName && req.query.attributeValue) {
-      filter.attributes = {
-        $elemMatch: {
-          name: new RegExp(`^${req.query.attributeName}$`, "i"),
-          options: { $in: [new RegExp(`^${req.query.attributeValue}$`, "i")] },
-        },
-      };
+    // Attribute options filter (e.g., ?color=Red,Blue or ?size=XL or
+    // ?attributeName=Color&attributeValue=Black,White)
+    const attrName = req.query.color ? "Color" : req.query.size ? "Size" : req.query.attributeName || null;
+    const attrValues = req.query.attributeValues
+      || req.query.attributeValue
+      || req.query.color
+      || req.query.size
+      || null;
+    if (attrName && attrValues) {
+      const values = String(attrValues).split(",").map((v) => v.trim()).filter(Boolean);
+      if (values.length > 0) {
+        filter.attributes = {
+          $elemMatch: {
+            name: new RegExp(`^${attrName}$`, "i"),
+            options: { $in: values.map((v) => new RegExp(`^${v}$`, "i")) },
+          },
+        };
+      }
     }
 
     // Price range filter
@@ -1700,6 +1770,45 @@ export const getAllProducts = async (req, res) => {
     if (req.query.sort === "price_desc") sort = { "maxPrice.amount": -1 };
     if (req.query.sort === "rating") sort = { averageRating: -1 };
     if (req.query.sort === "oldest") sort = { createdAt: 1 };
+
+    // ── Personalized feed ────────────────────────────────────────────────────
+    // When the visitor explicitly asks (personalized=1) with NO filters/search
+    // active, rank the catalog by their activity (views, dwell, recency,
+    // search affinity) — Instagram-style. Falls back to the normal listing
+    // when there is no activity or no identity.
+    if (req.query.personalized === "1") {
+      const identity = await resolveVisitorIdentity(req);
+      if (identity) {
+        const activity = await UserActivity.findOne(
+          identity.type === "user" ? { user: identity.id } : { visitorId: identity.id }
+        ).lean();
+        if (activity && activity.views && activity.views.length > 0) {
+          const ranked = await scoreForYouProducts(activity, 60);
+          const rankedIds = ranked.map((p) => p._id);
+          if (rankedIds.length > 0) {
+            const orderedPipeline = [
+              { $match: { _id: { $in: rankedIds } } },
+              { $addFields: { __rank: { $indexOfArray: [rankedIds, "$_id"] } } },
+              { $sort: { __rank: 1 } },
+              ...productLookupStages(),
+              { $skip: skip },
+              { $limit: limit },
+            ];
+            const ordered = await productModel.aggregate(orderedPipeline);
+            const total = rankedIds.length;
+            return res.status(200).json({
+              success: true,
+              count: ordered.length,
+              total,
+              page,
+              pages: Math.ceil(total / limit),
+              data: ordered,
+              personalized: true,
+            });
+          }
+        }
+      }
+    }
 
     // Single aggregation round-trip: data page + total count via $facet
     const pipeline = [
@@ -1732,6 +1841,87 @@ export const getAllProducts = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch products",
+    });
+  }
+};
+
+/**
+ * @desc    Facet values for the shop filter sidebar (brands, colors, sizes, price bounds)
+ *          Computed server-side via aggregation — always reflects the FULL
+ *          category scope, independent of pagination.
+ * @route   GET /api/products/facets?categories=Clothing&search=...
+ * @access  Public
+ */
+export const getProductFacets = async (req, res) => {
+  try {
+    const filter = { status: "published" };
+
+    // Category scope (names, same resolution as the listing)
+    const categoryNameList = req.query.categories
+      ? String(req.query.categories).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (categoryNameList.length > 0) {
+      const cats = await categoryModel.find({ name: { $in: categoryNameList } }).select("_id").lean();
+      const ids = cats.map((c) => c._id);
+      if (ids.length === 1) filter.category = ids[0];
+      else if (ids.length > 1) filter.category = { $in: ids };
+    }
+
+    // Brand scope (names)
+    const brandNameList = req.query.brands
+      ? String(req.query.brands).split(",").map((s) => s.trim()).filter(Boolean)
+      : [];
+    if (brandNameList.length > 0) {
+      const brs = await brandModel.find({ name: { $in: brandNameList } }).select("_id").lean();
+      const ids = brs.map((b) => b._id);
+      if (ids.length === 1) filter.brand = ids[0];
+      else if (ids.length > 1) filter.brand = { $in: ids };
+    }
+
+    const [result] = await productModel.aggregate([
+      { $match: filter },
+      { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "catDoc" } },
+      { $unwind: { path: "$catDoc", preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brDoc" } },
+      { $unwind: { path: "$brDoc", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$attributes", preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: "$attributes.options", preserveNullAndEmptyArrays: true } },
+      {
+        $group: {
+          _id: null,
+          categories: { $addToSet: "$catDoc.name" },
+          brands: { $addToSet: "$brDoc.name" },
+          colors: {
+            $addToSet: {
+              $cond: [{ $eq: [{ $toLower: "$attributes.name" }, "color"] }, "$attributes.options", null],
+            },
+          },
+          sizes: {
+            $addToSet: {
+              $cond: [{ $eq: [{ $toLower: "$attributes.name" }, "size"] }, "$attributes.options", null],
+            },
+          },
+          minPrice: { $min: "$maxPrice.amount" },
+          maxPrice: { $max: "$maxPrice.amount" },
+        },
+      },
+    ]);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        categories: (result?.categories || []).filter(Boolean).sort(),
+        brands: (result?.brands || []).filter(Boolean).sort(),
+        colors: (result?.colors || []).filter(Boolean).sort(),
+        sizes: (result?.sizes || []).filter(Boolean).sort(),
+        minPrice: Math.floor(result?.minPrice || 0),
+        maxPrice: Math.ceil(result?.maxPrice || 50000),
+      },
+    });
+  } catch (error) {
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to fetch facets",
     });
   }
 };

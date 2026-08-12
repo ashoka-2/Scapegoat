@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import ImagePicker from "./ImagePicker";
 import CameraCapture from "./CameraCapture";
 import ImagePreview from "./ImagePreview";
+import { convertImageFile } from "./imageConvert";
 import { aiVisualSearchProductsApi } from "../../Features/Products/Services/product.api";
 
 const VISUAL_SESSION_KEY = "scapegoatVisualResults";
@@ -63,14 +64,25 @@ export default function VisualSearchModal({ isOpen, onClose }) {
     setPreviewUrl("");
   };
 
-  const handleFile = (file) => {
+  const [converting, setConverting] = useState(false);
+
+  const handleFile = async (file) => {
     setError("");
     setNoMatch(false);
     clearImage();
-    const url = URL.createObjectURL(file);
-    urlRef.current = url;
-    setImageFile(file);
-    setPreviewUrl(url);
+    if (!file) return;
+    // Normalize any input type (phone HEIC, BMP, TIFF, huge PNG…) to a
+    // downscaled JPEG so the preview and the CLIP pipeline always work.
+    setConverting(true);
+    try {
+      const converted = await convertImageFile(file);
+      const url = URL.createObjectURL(converted);
+      urlRef.current = url;
+      setImageFile(converted);
+      setPreviewUrl(url);
+    } finally {
+      setConverting(false);
+    }
   };
 
   const handleSearch = async () => {
@@ -190,7 +202,16 @@ export default function VisualSearchModal({ isOpen, onClose }) {
           </div>
         ) : (
           <div className="space-y-3">
-            <ImagePreview src={previewUrl} onRemove={clearImage} />
+            {converting ? (
+              <div className="flex flex-col items-center justify-center gap-3 py-10 rounded-2xl border border-dashed border-border-theme/60 bg-background/40">
+                <span className="w-8 h-8 border-[3px] border-accent border-t-transparent rounded-full animate-spin" />
+                <p className="text-[11px] font-bold uppercase tracking-widest text-foreground/50">
+                  Converting image…
+                </p>
+              </div>
+            ) : (
+              <ImagePreview src={previewUrl} onRemove={clearImage} />
+            )}
             {error && (
               <p className="text-[11px] font-medium text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
                 {error}

@@ -45,20 +45,18 @@ export const useUserActivity = () => {
     (productId) => {
       if (!productId) return;
       addLocalView(productId);
-      if (userId) {
-        trackViewApi(productId);
-      }
+      trackViewApi(productId); // backend handles user OR visitor identity
     },
-    [userId]
+    []
   );
 
   // Track dwell time
   const trackDwell = useCallback(
     (productId, dwellMs) => {
-      if (!productId || !dwellMs || !userId) return;
-      trackDwellApi(productId, dwellMs);
+      if (!productId || !dwellMs) return;
+      trackDwellApi(productId, dwellMs); // backend handles user OR visitor identity
     },
-    [userId]
+    []
   );
 
   // Fetch recently viewed products with stable callback
@@ -66,19 +64,15 @@ export const useUserActivity = () => {
     async (limit = 10) => {
       setLoadingRecent(true);
       try {
-        if (userId) {
-          const data = await getRecentlyViewedApi(limit);
-          setRecentlyViewed(data.data || []);
-        } else {
-          setRecentlyViewed([]);
-        }
+        const data = await getRecentlyViewedApi(limit);
+        setRecentlyViewed(data.data || []);
       } catch {
         setRecentlyViewed([]);
       } finally {
         setLoadingRecent(false);
       }
     },
-    [userId]
+    []
   );
 
   // Fetch "For You" personalized products
@@ -86,19 +80,15 @@ export const useUserActivity = () => {
     async (limit = 10) => {
       setLoadingForYou(true);
       try {
-        if (userId) {
-          const data = await getForYouApi(limit);
-          setForYouProducts(data.data || []);
-        } else {
-          setForYouProducts([]);
-        }
+        const data = await getForYouApi(limit);
+        setForYouProducts(data.data || []);
       } catch {
         setForYouProducts([]);
       } finally {
         setLoadingForYou(false);
       }
     },
-    [userId]
+    []
   );
 
   // Fetch frequently bought together products (memoized by productId)

@@ -25,11 +25,18 @@ const viewEventSchema = new Schema(
 // an interest score per product.
 const userActivitySchema = new Schema(
   {
+    // Logged-in users key on `user`; anonymous visitors key on `visitorId`
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      sparse: true,
       unique: true,
+    },
+    visitorId: {
+      type: String,
+      sparse: true,
+      unique: true,
+      index: true,
     },
     // Ordered array: most recent view first. Capped at 100 entries.
     views: {
@@ -47,6 +54,23 @@ const userActivitySchema = new Schema(
     brandInterests: {
       type: Map,
       of: Number, // brandId → interest score
+      default: {},
+    },
+    // Search history: what the user keeps looking for (upserted by query)
+    searches: {
+      type: [
+        {
+          query: { type: String },
+          count: { type: Number, default: 1 },
+          lastSearchedAt: { type: Date, default: Date.now },
+        },
+      ],
+      default: [],
+    },
+    // Derived search interests: term → score (from queries the user repeats)
+    searchInterests: {
+      type: Map,
+      of: Number, // term → interest score
       default: {},
     },
   },

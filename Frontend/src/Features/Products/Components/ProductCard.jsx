@@ -125,13 +125,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
       className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex-shrink-0 cursor-pointer p-2.5"
     >
       {/* Image Container with Inset Padding */}
-      <div className="relative w-full aspect-[4/5] rounded-[1.6rem] overflow-hidden bg-background-alt">
-        {colorLabel && (
-          <span className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/55 backdrop-blur-sm text-[9px] font-bold uppercase tracking-wider text-white">
-            <span className="w-2 h-2 rounded-full bg-white/90" />
-            {colorLabel}
-          </span>
-        )}
+      <div className="relative w-full aspect-square rounded-[1.6rem] overflow-hidden bg-background-alt">
         <img
           src={image}
           alt={title}
@@ -139,22 +133,8 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
           loading="eager"
         />
 
-        {/* Top Badges & Wishlist Heart */}
-        <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-20">
-          <div
-            className={`px-2 py-0.5 rounded-full text-[7px] font-black uppercase tracking-[0.2em] backdrop-blur-md border ${
-              !isOutOfStock
-                ? "bg-green-500/10 text-green-500 border-green-500/20"
-                : "bg-red-500/10 text-red-500 border-red-500/20"
-            }`}
-          >
-            {!isOutOfStock
-              ? product?.stock !== undefined && product.stock > 0
-                ? `${product.stock} IN STOCK`
-                : "IN STOCK"
-              : "OUT OF STOCK"}
-          </div>
-
+        {/* Wishlist Heart only */}
+        <div className="absolute top-3 right-3 z-20">
           <button
             onClick={handleToggleWishlist}
             className={`w-7 h-7 rounded-full backdrop-blur-md flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all ${
@@ -178,11 +158,11 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
           </p>
         </div>
 
-        {/* Original Style Refined Slide to Cart */}
+        {/* Original Style Refined Slide to Cart — shows the price only */}
         <div
           ref={dragContainerRef}
           onClick={(e) => e.stopPropagation()}
-          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-9 touch-none"
+          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-11 touch-none"
           style={{ transition: "background-color 0.3s" }}
         >
           <div
@@ -191,57 +171,16 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             }`}
           />
 
-          {/* Text Background (Price Refresh) */}
+          {/* Price (sale price, or MRP when there is no sale) */}
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {isDragged ? (
-              <span className="font-bold text-[8px] text-accent-content tracking-[0.3em] uppercase animate-pulse">
+              <span className="font-black text-[11px] text-accent-content tracking-[0.25em] uppercase animate-pulse">
                 Added to Bag
               </span>
             ) : (
-              <div className="ml-10 flex items-center gap-2 overflow-hidden px-2 w-full justify-center">
-                {/* Desktop: Dynamic Reveal */}
-                <div className="hidden lg:flex items-center gap-2 transition-all duration-500">
-                  {!hasDiscount ? (
-                    <span className="font-bold text-[8px] text-foreground/40 tracking-[0.25em] uppercase whitespace-nowrap">
-                      Slide to Bag • {formatPrice(currentPrice, currency)}
-                    </span>
-                  ) : (
-                    <div className="relative h-4 overflow-hidden flex items-center justify-center min-w-[100px]">
-                      {/* Default State: Just Sale Price */}
-                      <span className="absolute inset-0 flex items-center justify-center font-bold text-[8px] tracking-[0.25em] transition-all duration-500 uppercase group-hover:translate-y-[-100%] group-hover:opacity-0 text-accent">
-                        Sale • {formatPrice(currentPrice, currency)}
-                      </span>
-                      {/* Hover State: Struck MRP + Sale Price */}
-                      <div className="absolute inset-0 flex items-center justify-center translate-y-[100%] group-hover:translate-y-0 opacity-0 group-hover:opacity-100 transition-all duration-500">
-                        <span className="text-foreground/30 line-through text-[7px] mr-1 uppercase">
-                          {formatPrice(maxAmount, currency)}
-                        </span>
-                        <span className="text-foreground/80 font-black text-[8px] tracking-widest uppercase">
-                          {formatPrice(currentPrice, currency)}
-                        </span>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Mobile/Tablet: Direct Price */}
-                <div className="lg:hidden flex items-center gap-2">
-                  {hasDiscount ? (
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-foreground/30 line-through text-[7px] font-bold uppercase">
-                        {formatPrice(maxAmount, currency)}
-                      </span>
-                      <span className="text-foreground/80 font-black text-[8px] tracking-[0.25em] uppercase">
-                        {formatPrice(currentPrice, currency)}
-                      </span>
-                    </div>
-                  ) : (
-                    <span className="font-bold text-[8px] text-foreground/40 tracking-[0.25em] uppercase">
-                      {formatPrice(currentPrice, currency)}
-                    </span>
-                  )}
-                </div>
-              </div>
+              <span className="font-black text-[13px] tracking-[0.2em] text-accent uppercase whitespace-nowrap">
+                {formatPrice(currentPrice, currency)}
+              </span>
             )}
           </div>
 
@@ -259,8 +198,8 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             <i
               className={
                 isDragged
-                  ? "ri-check-line text-lg font-black"
-                  : "ri-arrow-right-s-line text-lg font-bold pointer-events-none"
+                  ? "ri-check-line text-xl font-black"
+                  : "ri-arrow-right-s-line text-xl font-bold pointer-events-none"
               }
             ></i>
           </motion.div>

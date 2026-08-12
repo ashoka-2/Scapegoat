@@ -1,7 +1,15 @@
 import { createApiInstance } from "../../../utils/axios";
+import { getVisitorId } from "../../../utils/visitorId";
 
 const activityApi = createApiInstance("/api/activity");
 const productApi = createApiInstance("/api/products");
+
+// Anonymous visitors are identified by X-Visitor-Id so recommendations work
+// for guests too (the backend falls back to it when no auth token is present).
+activityApi.interceptors.request.use((config) => {
+  config.headers["X-Visitor-Id"] = getVisitorId();
+  return config;
+});
 
 /** Track a product view (backend + localStorage fallback) */
 export async function trackViewApi(productId) {
@@ -16,6 +24,15 @@ export async function trackViewApi(productId) {
 export async function trackDwellApi(productId, dwellMs) {
   try {
     await activityApi.post("/dwell", { productId, dwellMs });
+  } catch {
+    // Silently fail
+  }
+}
+
+/** Track a search the visitor performed (personalization signal) */
+export async function trackSearchApi(query) {
+  try {
+    await activityApi.post("/search", { query });
   } catch {
     // Silently fail
   }
