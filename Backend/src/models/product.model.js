@@ -318,17 +318,27 @@ const productSchema = new Schema(
     },
 
     // ── AI Vector Embeddings (Semantic & Visual Search) ──────────────────
-    // Stores 384-dimensional text vector embedding generated from title + description + tags
+    // Stores 1024-dimensional Voyage multimodal text vector (title + description
+    // + category + brand + tags + attributes). Same vector mirrored to Pinecone.
     embedding: {
       type: [Number],
       default: [],
       select: false,
     },
-    // Stores image vector embedding generated from product photos (for camera scan & Snap2Bill visual search)
+    // Stores the 1024-dimensional Voyage image vector of the primary cover photo
+    // (same vector mirrored to Pinecone).
     imageEmbedding: {
       type: [Number],
       default: [],
       select: false,
+    },
+    // Pinecone sync state for the retry/backfill mechanism: "synced" once the
+    // Voyage vectors are mirrored, "pending" when not attempted, "failed" when
+    // Pinecone rejected the upsert (the MongoDB embeddings are kept regardless).
+    pineconeSyncStatus: {
+      type: String,
+      enum: ["synced", "pending", "failed"],
+      default: "pending",
     },
   },
   {

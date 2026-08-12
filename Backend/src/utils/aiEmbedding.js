@@ -1,300 +1,233 @@
-import path from "node:path";
-import { fileURLToPath } from "node:url";
+// ── Voyage AI embedding client ────────────────────────────────────────────────
+// Replaces the old local Transformers.js stack (MiniLM text 384-dim + CLIP
+// image 512-dim + ONNX/WASM workers) with the Voyage multimodal API:
+//
+//   POST https://api.voyageai.com/v1/multimodalembeddings
+//   model: voyage-multimodal-3.5  →  1024-dim vectors for BOTH text and images
+//
+// The SAME vectors generated here are stored in MongoDB AND upserted into
+// Pinecone — one embedding, two stores (no model mixing).
+//
+// Environment:
+//   VOYAGE_API_KEY        (required — never hard-coded)
+//   VOYAGE_MODEL          (default "voyage-multimodal-3.5")
+//   VOYAGE_EMBEDDING_DIM  (default 1024 — validated against real API output)
+//
+// Failure semantics: every generator returns [] when the API is unavailable,
+// the key is missing, or the request fails — callers save the product to
+// MongoDB regardless and Pinecone sync is retried by the scheduler.
 
-// ── Transformers.js (local ONNX embeddings) ──────────────────────────────────
-// Models are downloaded from HuggingFace at runtime and cached. On Render's
-// free tier the filesystem is ephemeral and a download can be interrupted by a
-// restart/OOM kill, which corrupts the partial files — onnxruntime then fails
-// with "protobuf parsing failed" and falls back to slow WASM. We:
-//   1. cache inside the project (stable across restarts),
-//   2. auto-clear a corrupt model cache and retry the load once,
-//   3. pre-warm the text pipeline at boot so downloads happen during cold start,
-//   4. gate the heavy CLIP vision model (~350MB) behind AI_VISION_ENABLED —
-//      it is NOT viable on the 512MB Render free instance (OOM risk).
+const VOYAGE_MODEL = process.env.VOYAGE_MODEL || "voyage-multimodal-3.5";
+export const EMBEDDING_DIM = parseInt(process.env.VOYAGE_EMBEDDING_DIM || "1024", 10);
+const VOYAGE_URL = process.env.VOYAGE_API_URL || "https://api.voyageai.com/v1/multimodalembeddings";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const CACHE_DIR = path.join(__dirname, "..", "..", ".transformers-cache");
+export const voyageAvailable = () => Boolean(process.env.VOYAGE_API_KEY);
 
-// CLIP vision model: ON by default in local dev (ample RAM), OFF by default in
-// production (the ~350MB model is not viable on the 512MB Render free instance).
-// Explicit override: AI_VISION_ENABLED=true|false always wins.
-const VISION_ENABLED =
-  process.env.AI_VISION_ENABLED === "true" ||
-  (process.env.AI_VISION_ENABLED !== "false" && process.env.NODE_ENV !== "production");
-let visionWarned = false;
+const toDataUrl = (buffer, mimeType = "image/jpeg") =>
+  `data:${mimeType};base64,${buffer.toString("base64")}`;
 
-let textPipelineInstance = null;
-let visionPipelineInstance = null;
-let transformersEnvConfigured = false;
-
-/** Lazily imports Transformers.js and applies our env config once. */
-async function getPipelineFactory() {
-  const { env, pipeline } = await import("@xenova/transformers");
-  if (!transformersEnvConfigured) {
-    env.cacheDir = CACHE_DIR;
-    env.allowRemoteModels = true;
-    transformersEnvConfigured = true;
+/**
+ * Core Voyage multimodal call. `items` is an array of input objects:
+ *   { text: "..." }                    → text-only input
+ *   { imageUrl: "https://..." }        → image via URL
+ *   { imageDataUrl: "data:..." }       → image via base64 (privacy-first)
+ * Returns the array of 1024-dim vectors (one per input) or [] on any failure.
+ * Retries 429 (rate limit — free tier is 3 RPM without a payment method) with
+ * backoff, and batches as many inputs per request as the caller provides.
+ */
+async function embedMultimodal(items) {
+  if (!voyageAvailable()) {
+    console.warn("[Voyage] VOYAGE_API_KEY is not set — embeddings unavailable");
+    return [];
   }
-  return pipeline;
-}
+  if (!items?.length) return [];
 
-/** Loads a pipeline; on failure clears the (possibly corrupt) model cache and retries once. */
-async function loadPipelineWithRecovery(pipeline, task, modelId) {
-  try {
-    return await pipeline(task, modelId);
-  } catch (err) {
-    console.warn(`[AI Search] ${modelId} load failed (${err.message}) — clearing cache and retrying once`);
+  const inputs = items.map((item) => {
+    if (item.text) return { content: [{ type: "text", text: item.text }] };
+    if (item.imageDataUrl) return { content: [{ type: "image_base64", image_base64: item.imageDataUrl }] };
+    if (item.imageUrl) return { content: [{ type: "image_url", image_url: item.imageUrl }] };
+    return null;
+  }).filter(Boolean);
+
+  if (inputs.length === 0) return [];
+
+  for (let attempt = 1; attempt <= 4; attempt++) {
     try {
-      const fs = await import("node:fs");
-      const modelCachePath = path.join(CACHE_DIR, `models--Xenova--${modelId.split("/").pop()}`);
-      if (fs.existsSync(modelCachePath)) {
-        fs.rmSync(modelCachePath, { recursive: true, force: true });
+      const resp = await fetch(VOYAGE_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.VOYAGE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ inputs, model: VOYAGE_MODEL }),
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (resp.status === 429 && attempt < 4) {
+        const waitMs = attempt * 22000; // 22s, 44s, 66s — under the 3 RPM free tier
+        console.warn(`[Voyage] rate limited (429) — retrying in ${Math.round(waitMs / 1000)}s (${attempt}/3)`);
+        await new Promise((r) => setTimeout(r, waitMs));
+        continue;
       }
-    } catch {
-      /* cache cleanup is best-effort */
-    }
-    return pipeline(task, modelId);
-  }
-}
 
-/**
- * Initializes or reuses the local text feature-extraction pipeline.
- */
-async function getTextPipeline() {
-  if (textPipelineInstance) return textPipelineInstance;
-  try {
-    const pipeline = await getPipelineFactory();
-    // Load MiniLM model for fast, lightweight local text embeddings (384 dimensions)
-    textPipelineInstance = await loadPipelineWithRecovery(pipeline, "feature-extraction", "Xenova/all-MiniLM-L6-v2");
-    return textPipelineInstance;
-  } catch (error) {
-    console.warn(
-      "[AI Search] Text embeddings unavailable (no @xenova/transformers or model download failed):",
-      error.message
-    );
-    return null;
-  }
-}
-
-/**
- * Initializes or reuses the local vision feature-extraction pipeline (CLIP model).
- * Disabled by default in production — the ~350MB model is not viable on the
- * 512MB Render free instance. Enable explicitly with AI_VISION_ENABLED=true.
- */
-async function getVisionPipeline() {
-  if (!VISION_ENABLED) {
-    if (!visionWarned) {
-      visionWarned = true;
-      console.log("[AI Search] Vision (CLIP) embeddings disabled. Set AI_VISION_ENABLED=true to enable (not recommended on the free tier).");
-    }
-    return null;
-  }
-  if (visionPipelineInstance) return visionPipelineInstance;
-  try {
-    const pipeline = await getPipelineFactory();
-    // Load CLIP model for visual embeddings (image to product matching / Snap2Bill camera scan)
-    visionPipelineInstance = await loadPipelineWithRecovery(pipeline, "image-feature-extraction", "Xenova/clip-vit-base-patch32");
-    return visionPipelineInstance;
-  } catch (error) {
-    console.warn("[AI Search] Vision pipeline unavailable:", error.message);
-    return null;
-  }
-}
-
-/**
- * Pre-warms the text embedding pipeline in the background (fire-and-forget).
- * Call once at server boot so model downloads happen during the cold start
- * instead of lazily on the first product save / search.
- */
-export function warmUpEmbeddings() {
-  setTimeout(() => {
-    getTextPipeline()
-      .then((p) => {
-        if (p) console.log("[AI Search] Text embedding pipeline ready (MiniLM)");
-      })
-      .catch(() => {});
-  }, 1500);
-}
-
-/**
- * Frees the CLIP vision pipeline after a one-off visual search.
- * On the 512MB Render free instance the model (~150MB of WASM/ONNX memory)
- * cannot stay resident alongside the text pipeline — load → search → dispose
- * keeps the spike transient and returns memory to the baseline (without it a
- * search OOM-kills the instance, which then serves 502s without CORS headers
- * that surface as "blocked by CORS" in the browser).
- */
-export function disposeVisionPipeline() {
-  if (visionPipelineInstance) {
-    visionPipelineInstance = null;
-    // Force a full GC (requires node --expose-gc) so the WASM memory backing
-    // the model is released immediately instead of whenever the heap grows.
-    if (typeof global.gc === "function") {
-      try {
-        global.gc();
-      } catch {
-        /* best-effort */
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        console.warn(`[Voyage] API error ${resp.status}: ${body.slice(0, 200)}`);
+        return [];
       }
+
+      const data = await resp.json();
+      const vectors = (data.data || []).map((d) => d.embedding || []);
+
+      if (vectors.length > 0 && vectors[0].length !== EMBEDDING_DIM) {
+        console.warn(
+          `[Voyage] Model ${VOYAGE_MODEL} returned ${vectors[0].length}-dim vectors — ` +
+            `expected ${EMBEDDING_DIM}. Update VOYAGE_EMBEDDING_DIM / Pinecone index dims.`
+        );
+      }
+      return vectors;
+    } catch (err) {
+      console.warn("[Voyage] Embedding request failed:", err?.message || err);
+      return [];
     }
-    console.log("[AI Search] Vision (CLIP) pipeline disposed after use");
   }
+  return [];
 }
 
 /**
- * Generates a 384-dimensional vector embedding for a given text string.
- * @param {string} text - Product title, description, and tags combined.
- * @returns {Promise<number[]>} Array of floating point numbers (vector embedding).
+ * Generates a Voyage text embedding for a product/search text.
+ * @param {string} text
+ * @returns {Promise<number[]>} 1024-dim vector, or [] on failure.
  */
 export async function generateTextEmbedding(text) {
   if (!text || typeof text !== "string") return [];
-
-  const extractor = await getTextPipeline();
-  if (!extractor) return [];
-
-  try {
-    const output = await extractor(text.trim(), { pooling: "mean", normalize: true });
-    return Array.from(output.data);
-  } catch (err) {
-    console.error("[AI Search] Error generating text embedding:", err.message);
-    return [];
-  }
+  const [vec] = await embedMultimodal([{ text: text.trim().substring(0, 3000) }]);
+  return vec || [];
 }
 
 /**
- * Generates a visual vector embedding for an image URL or image buffer.
- * Used for photo-based product search and Snap2Bill camera scans.
- * @param {string} imageUrlOrPath - URL or local file path of the product image.
- * @returns {Promise<number[]>} Array of floating point numbers (image embedding vector).
+ * Generates a Voyage image embedding from an image URL (product images in
+ * ImageKit). Falls back to base64 if the URL cannot be fetched directly.
+ * @param {string} imageUrl
+ * @returns {Promise<number[]>} 1024-dim vector, or [] on failure.
  */
-export async function generateImageEmbedding(imageUrlOrPath) {
-  if (!imageUrlOrPath || typeof imageUrlOrPath !== "string") return [];
+export async function generateImageEmbedding(imageUrl) {
+  if (!imageUrl || typeof imageUrl !== "string") return [];
 
-  // Production (512MB Render): run CLIP in an isolated worker process so the
-  // model's ~200MB is reclaimed after every call instead of accumulating.
-  if (process.env.NODE_ENV === "production") {
-    try {
-      const os = await import("node:os");
-      const path = await import("node:path");
-      const fs = await import("node:fs");
-      const ext = (path.extname(new URL(imageUrlOrPath).pathname) || ".jpg").slice(1) || "jpg";
-      const tmpPath = path.join(os.tmpdir(), `scapegoat-query-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
-      try {
-        const resp = await fetch(imageUrlOrPath);
-        if (!resp.ok) return [];
-        const buf = Buffer.from(await resp.arrayBuffer());
-        fs.writeFileSync(tmpPath, buf);
-        const result = await runVisionWorker(tmpPath);
-        return result?.ok && Array.isArray(result.embedding) ? result.embedding : [];
-      } finally {
-        try { fs.unlinkSync(tmpPath); } catch { /* ignore */ }
-      }
-    } catch (err) {
-      console.warn("[AI Search] Worker embed (URL) failed, falling back to in-process:", err.message);
-    }
-  }
+  // 1. Try the URL directly (ImageKit CDN images are public + stable)
+  const [vec] = await embedMultimodal([{ imageUrl }]);
+  if (vec && vec.length > 0) return vec;
 
-  const extractor = await getVisionPipeline();
-  if (!extractor) return [];
-
+  // 2. Fallback: download + re-send as base64 (guards against redirect /
+  //    robots.txt / content-length restrictions on the URL)
   try {
-    const output = await extractor(imageUrlOrPath);
-    return Array.from(output.data);
+    const resp = await fetch(imageUrl, { signal: AbortSignal.timeout(30000) });
+    if (!resp.ok) return [];
+    const buf = Buffer.from(await resp.arrayBuffer());
+    if (buf.length === 0 || buf.length > 20 * 1024 * 1024) return [];
+    const mime = resp.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+    const [vec2] = await embedMultimodal([{ imageDataUrl: toDataUrl(buf, mime) }]);
+    return vec2 || [];
   } catch (err) {
-    console.error("[AI Search] Error generating image embedding:", err.message);
+    console.warn("[Voyage] Image URL embed failed:", err?.message || err);
     return [];
   }
 }
 
 /**
- * Generate a CLIP embedding from a raw image BUFFER (multer memory upload).
- * PRIVACY-FIRST: the buffer is written to a transient temp file (Node's fetch
- * cannot decode data: URLs for the vision processor), embedded, and the temp
- * file is deleted immediately — the query image is never stored in the
- * database or ImageKit.
+ * Generates a Voyage image embedding from a raw image BUFFER (multer memory
+ * upload / visual-search query image). PRIVACY-FIRST: the buffer is sent as a
+ * base64 data URL directly to Voyage — nothing is written to disk, stored in
+ * MongoDB, or uploaded to ImageKit.
+ * @param {Buffer} buffer
+ * @param {string} mimeType
+ * @returns {Promise<number[]>} 1024-dim vector, or [] on failure.
  */
 export async function generateImageEmbeddingFromBuffer(buffer, mimeType = "image/jpeg") {
   if (!buffer || !buffer.length) return [];
-
-  const fs = await import("node:fs");
-  const os = await import("node:os");
-  const path = await import("node:path");
-  const ext = (mimeType.split("/")[1] || "jpeg").replace("jpeg", "jpg");
-  const tmpPath = path.join(os.tmpdir(), `scapegoat-query-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`);
-
-  try {
-    fs.writeFileSync(tmpPath, buffer);
-
-    // Production (512MB Render): isolated CLIP worker → process exits → the
-    // model memory is fully returned to the OS (avoids "memory limit" crashes).
-    if (process.env.NODE_ENV === "production") {
-      const result = await runVisionWorker(tmpPath);
-      return result?.ok && Array.isArray(result.embedding) ? result.embedding : [];
-    }
-
-    const extractor = await getVisionPipeline();
-    if (!extractor) return [];
-    const output = await extractor(tmpPath);
-    return Array.from(output.data);
-  } catch (err) {
-    console.error("[AI Search] Error embedding image buffer:", err.message);
-    return [];
-  } finally {
-    try {
-      fs.unlinkSync(tmpPath);
-    } catch { /* ignore cleanup errors */ }
-  }
+  const [vec] = await embedMultimodal([{ imageDataUrl: toDataUrl(buffer, mimeType) }]);
+  return vec || [];
 }
 
 /**
- * Raw CLIP embedding of an image FILE — used by the isolated vision worker
- * (vision-worker.mjs) so production never keeps CLIP resident in the API
- * process. Returns { ok, embedding } instead of throwing.
+ * Batch image embeddings from raw buffers — sends ALL images in ONE Voyage
+ * request (1 RPM cost instead of N). Returns one vector per input ([] entries
+ * on failure). Used by product creation/update, the scheduler, and migration.
+ * @param {Array<{buffer: Buffer, mimeType?: string}>} images
+ * @returns {Promise<number[][]>}
  */
-export async function embedImageFileForWorker(filePath) {
-  const pipeline = await getVisionPipeline();
-  if (!pipeline) return { ok: false, error: "vision pipeline unavailable" };
-  try {
-    // Pass the file PATH (string) — transformers.js handles local paths; a
-    // raw Buffer is rejected ("Unsupported input type: object").
-    const output = await pipeline(filePath);
-    // Single-image input → output.data IS the 512-dim embedding (no [0] index)
-    const emb = output?.data;
-    if (!emb || !emb.length) return { ok: false, error: "no embedding produced" };
-    return { ok: true, embedding: Array.from(emb) };
-  } catch (err) {
-    return { ok: false, error: err.message };
+export async function generateImageEmbeddingsFromBuffers(images) {
+  if (!Array.isArray(images) || images.length === 0) return [];
+  const vectors = await embedMultimodal(
+    images.map(({ buffer, mimeType = "image/jpeg" }) => ({
+      imageDataUrl: toDataUrl(buffer, mimeType),
+    }))
+  );
+  return vectors;
+}
+
+/**
+ * Batch image embeddings from URLs — downloads each image, then sends ALL of
+ * them as base64 in ONE Voyage request. Falls back per-image: a failed
+ * download yields a [] entry (the caller keeps the image without an embedding).
+ * @param {string[]} urls
+ * @returns {Promise<number[][]>} one vector per URL ([] on failure)
+ */
+export async function generateImageEmbeddingsFromUrls(urls) {
+  if (!Array.isArray(urls) || urls.length === 0) return [];
+
+  const results = [];
+  const pending = []; // { url, index }
+  for (let i = 0; i < urls.length; i++) {
+    results.push([]);
+    if (urls[i] && typeof urls[i] === "string") pending.push({ url: urls[i], index: i });
   }
-}
+  if (pending.length === 0) return results;
 
-const VISION_WORKER_PATH = path.join(__dirname, "../services/vision-worker.mjs");
-
-/** Spawns the isolated CLIP worker; resolves with { ok, embedding } or { ok:false }. */
-async function runVisionWorker(filePath) {
-  const { spawn } = await import("node:child_process");
-  return new Promise((resolve) => {
-    let child;
-    try {
-      child = spawn(process.execPath, [VISION_WORKER_PATH, filePath], {
-        stdio: ["ignore", "pipe", "inherit"],
-        timeout: 120000,
-      });
-    } catch {
-      return resolve({ ok: false, error: "worker spawn failed" });
-    }
-    let out = "";
-    child.stdout.on("data", (d) => (out += d.toString()));
-    child.on("close", () => {
+  // Download in parallel (bounded), then ONE Voyage call for everything
+  const downloaded = await Promise.all(
+    pending.map(async ({ url, index }) => {
       try {
-        const line = out.trim().split("\n").pop();
-        resolve(line ? JSON.parse(line) : { ok: false, error: "no worker output" });
+        const resp = await fetch(url, { signal: AbortSignal.timeout(30000) });
+        if (!resp.ok) return null;
+        const buf = Buffer.from(await resp.arrayBuffer());
+        if (buf.length === 0 || buf.length > 20 * 1024 * 1024) return null;
+        const mime = resp.headers.get("content-type")?.split(";")[0] || "image/jpeg";
+        return { buffer: buf, mimeType: mime, index };
       } catch {
-        resolve({ ok: false, error: "unparseable worker output" });
+        return null;
       }
+    })
+  );
+
+  const valid = downloaded.filter(Boolean);
+  if (valid.length > 0) {
+    const vectors = await embedMultimodal(
+      valid.map(({ buffer, mimeType }) => ({ imageDataUrl: toDataUrl(buffer, mimeType) }))
+    );
+    valid.forEach(({ index }, vi) => {
+      results[index] = vectors[vi] || [];
     });
-    child.on("error", () => resolve({ ok: false, error: "worker error" }));
-  });
+  }
+  return results;
 }
 
+/**
+ * Batch text embeddings — used by the migration/backfill (resumable).
+ * @param {string[]} texts
+ * @returns {Promise<number[][]>} one 1024-dim vector per text ([] entries on failure).
+ */
+export async function generateTextEmbeddingsBatch(texts) {
+  if (!Array.isArray(texts) || texts.length === 0) return [];
+  const vectors = await embedMultimodal(texts.map((t) => ({ text: String(t || "").substring(0, 3000) })));
+  return vectors;
+}
+
+/**
+ * Builds the searchable text for a product (title + description + category +
+ * brand + tags + attributes + variants). Same text used by create/update,
+ * migration, and the scheduler health-check.
+ */
 export function buildProductTextForEmbedding(product) {
   const parts = [
     product.title || "",

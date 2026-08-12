@@ -1,18 +1,27 @@
 import { Pinecone } from "@pinecone-database/pinecone";
 
 // ── Pinecone vector-store service ────────────────────────────────────────────
-// Text (MiniLM, 384-dim) and image (CLIP, 512-dim) embeddings live in TWO
-// Pinecone serverless indexes (dimensions differ, so one index per space):
-//   - PINECONE_TEXT_INDEX  (default "scapegoat-text",  384d, cosine)
-//   - PINECONE_IMAGE_INDEX (default "scapegoat-image", 512d, cosine)
-// Everything degrades gracefully: without PINECONE_API_KEY the service reports
-// "not ready" and the AI searches fall back to the MongoDB brute-force path.
+// Voyage (multimodal-3.5, 1024-dim) text + image embeddings live in TWO
+// Pinecone serverless indexes (kept separate for search symmetry):
+//   - PINECONE_TEXT_INDEX  (default "scapegoat-voyage-text",  1024d, cosine)
+//   - PINECONE_IMAGE_INDEX (default "scapegoat-voyage-image", 1024d, cosine)
+// The old 384d MiniLM / 512d CLIP indexes are NOT touched — Voyage vectors
+// must never mix with other models' vectors.
+//
+// Query contract: queryTextVectors/queryImageVectors return
+//   { ok: true,  matches: [...] }  → Pinecone answered (even with 0 matches —
+//                                    callers must NOT fall back on empty)
+//   { ok: false, matches: [] }     → Pinecone unavailable/error/quota — the
+//                                    caller falls back to MongoDB Vector Search
+// Upsert failures return false — the MongoDB embedding is kept and the
+// scheduler retries the Pinecone sync.
 
-const TEXT_DIM = 384;
-const IMAGE_DIM = 512;
+export const EMBEDDING_DIM = parseInt(process.env.VOYAGE_EMBEDDING_DIM || "1024", 10);
+const TEXT_DIM = EMBEDDING_DIM;
+const IMAGE_DIM = EMBEDDING_DIM;
 
-const TEXT_INDEX = process.env.PINECONE_TEXT_INDEX || "scapegoat-text";
-const IMAGE_INDEX = process.env.PINECONE_IMAGE_INDEX || "scapegoat-image";
+const TEXT_INDEX = process.env.PINECONE_TEXT_INDEX || "scapegoat-voyage-text";
+const IMAGE_INDEX = process.env.PINECONE_IMAGE_INDEX || "scapegoat-voyage-image";
 const CLOUD = process.env.PINECONE_CLOUD || "aws";
 const REGION = process.env.PINECONE_REGION || "us-east-1";
 
@@ -124,40 +133,46 @@ export async function upsertImageVectors(entries) {
 // ── Queries ──────────────────────────────────────────────────────────────────
 
 export async function queryTextVectors(vector, topK = 60) {
-  if (!pineconeReady() || !vector?.length) return [];
+  if (!pineconeReady() || !vector?.length) return { ok: false, matches: [] };
   try {
     const res = await client.index(TEXT_INDEX).query({
       vector,
       topK,
       includeMetadata: true,
     });
-    return (res.matches || []).map((m) => ({
-      id: m.id,
-      score: m.score,
-      metadata: m.metadata || {},
-    }));
+    return {
+      ok: true,
+      matches: (res.matches || []).map((m) => ({
+        id: m.id,
+        score: m.score,
+        metadata: m.metadata || {},
+      })),
+    };
   } catch (err) {
     console.warn("[Pinecone] text query failed:", err.message);
-    return [];
+    return { ok: false, matches: [] };
   }
 }
 
 export async function queryImageVectors(vector, topK = 60) {
-  if (!pineconeReady() || !vector?.length) return [];
+  if (!pineconeReady() || !vector?.length) return { ok: false, matches: [] };
   try {
     const res = await client.index(IMAGE_INDEX).query({
       vector,
       topK,
       includeMetadata: true,
     });
-    return (res.matches || []).map((m) => ({
-      id: m.id,
-      score: m.score,
-      metadata: m.metadata || {},
-    }));
+    return {
+      ok: true,
+      matches: (res.matches || []).map((m) => ({
+        id: m.id,
+        score: m.score,
+        metadata: m.metadata || {},
+      })),
+    };
   } catch (err) {
     console.warn("[Pinecone] image query failed:", err.message);
-    return [];
+    return { ok: false, matches: [] };
   }
 }
 
@@ -166,10 +181,11 @@ export async function queryImageVectors(vector, topK = 60) {
 /**
  * Upserts ALL of a product's vectors (1 text + every main/variant image) from
  * the in-memory Mongoose doc into Pinecone. Call after embeddings are
- * generated (create/update/backfill). Fire-and-forget friendly.
+ * generated (create/update/backfill). Resolves true when every non-empty
+ * upsert succeeded (an empty side — e.g. no images — counts as success).
  */
 export async function syncProductToPinecone(product) {
-  if (!pineconeReady() || !product?._id) return;
+  if (!pineconeReady() || !product?._id) return false;
 
   const productId = String(product._id);
   const textEntries = [];
@@ -222,7 +238,11 @@ export async function syncProductToPinecone(product) {
     });
   });
 
-  await Promise.all([upsertTextVectors(textEntries), upsertImageVectors(imgEntries)]);
+  const results = await Promise.all([
+    textEntries.length > 0 ? upsertTextVectors(textEntries) : true,
+    imgEntries.length > 0 ? upsertImageVectors(imgEntries) : true,
+  ]);
+  return results.every(Boolean);
 }
 
 /** Removes every vector belonging to a product (trash/delete). */

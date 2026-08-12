@@ -13,15 +13,20 @@ import { ensurePineconeIndexes, syncProductToPinecone } from "./pinecone.service
 const PUBLISH_CHECK_INTERVAL_MS = 60 * 1000;
 
 // ── Embedding health check ────────────────────────────────────────────────────
-// Every 5 minutes, products that somehow ended up WITHOUT embeddings (e.g. a
-// background generation job was killed on the free tier) get their text vector
-// regenerated, and — when vision is enabled — their image vectors too. This is
-// the safety net so search never silently misses a product.
+// Every 5 minutes:
+//   1. Products WITHOUT Voyage embeddings (background job was killed, Voyage
+//      was down at creation, etc.) get their text + image vectors generated.
+//   2. Products WITH Voyage embeddings but pineconeSyncStatus !== "synced"
+//      (Pinecone was down/quota at upsert time) get re-synced to Pinecone.
+// MongoDB embeddings are never deleted on sync failure — the retry loop just
+// keeps trying until Pinecone accepts them.
 const EMBEDDING_CHECK_INTERVAL_MS = 5 * 60 * 1000;
 
 const checkMissingEmbeddings = async () => {
   try {
-    // Text embeddings regenerate on any environment (MiniLM runs everywhere)
+    const done = [];
+
+    // 1. Regenerate missing text embeddings (Voyage works on every environment)
     const missingText = await productModel
       .find({
         status: { $ne: "trash" },
@@ -36,47 +41,68 @@ const checkMissingEmbeddings = async () => {
       if (!text) continue;
       const vec = await generateTextEmbedding(text);
       if (vec && vec.length > 0) {
-        await productModel.updateOne({ _id: p._id }, { $set: { embedding: vec } });
+        await productModel.updateOne({ _id: p._id }, { $set: { embedding: vec, pineconeSyncStatus: "pending" } });
         console.log(`[Scheduler] Backfilled text embedding: ${p.title?.slice(0, 30)}`);
-        // Mirror into Pinecone when available
-        ensurePineconeIndexes().then((ok) => {
-          if (ok) syncProductToPinecone(p).catch(() => {});
-        });
+        done.push(p);
       }
     }
 
-    // Image embeddings only when the vision pipeline is enabled (prod gates it)
-    if (process.env.AI_VISION_ENABLED === "true") {
-      const missingImages = await productModel
+    // 2. Regenerate missing image embeddings (no vision gate — Voyage handles
+    //    images on every environment, including the 512MB Render instance)
+    const missingImages = await productModel
+      .find({
+        status: { $ne: "trash" },
+        "images.0": { $exists: true },
+        $or: [{ imageEmbedding: { $size: 0 } }, { imageEmbedding: { $exists: false } }],
+      })
+      .limit(5)
+      .lean();
+
+    for (const p of missingImages) {
+      let changed = false;
+      for (const img of p.images || []) {
+        if (!img?.url || (Array.isArray(img.embedding) && img.embedding.length > 0)) continue;
+        try {
+          const vec = await generateImageEmbedding(img.url);
+          if (vec && vec.length > 0) {
+            img.embedding = vec;
+            changed = true;
+          }
+        } catch (e) {
+          console.warn(`[Scheduler] image embedding failed: ${e.message}`);
+        }
+      }
+      if (changed) {
+        await productModel.updateOne(
+          { _id: p._id },
+          { $set: { images: p.images, pineconeSyncStatus: "pending" } }
+        );
+        console.log(`[Scheduler] Backfilled image embeddings: ${p.title?.slice(0, 30)}`);
+        done.push(p);
+      }
+    }
+
+    // 3. Retry Pinecone sync for products whose vectors exist but never made it
+    //    to Pinecone (status pending/failed) — the MongoDB embeddings stay put.
+    if (process.env.PINECONE_API_KEY && (await ensurePineconeIndexes())) {
+      const unsynced = await productModel
         .find({
           status: { $ne: "trash" },
-          "images.0": { $exists: true },
-          $or: [{ imageEmbedding: { $size: 0 } }, { imageEmbedding: { $exists: false } }],
+          pineconeSyncStatus: { $in: ["pending", "failed"] },
+          $or: [{ embedding: { $ne: [] } }, { imageEmbedding: { $ne: [] } }],
         })
         .limit(5)
         .lean();
 
-      for (const p of missingImages) {
-        let changed = false;
-        for (const img of p.images || []) {
-          if (!img?.url || (Array.isArray(img.embedding) && img.embedding.length > 0)) continue;
-          try {
-            const vec = await generateImageEmbedding(img.url);
-            if (vec && vec.length > 0) {
-              img.embedding = vec;
-              changed = true;
-            }
-          } catch (e) {
-            console.warn(`[Scheduler] image embedding failed: ${e.message}`);
-          }
-        }
-        if (changed) {
-          await productModel.updateOne({ _id: p._id }, { $set: { images: p.images } });
-          console.log(`[Scheduler] Backfilled image embeddings: ${p.title?.slice(0, 30)}`);
-          ensurePineconeIndexes().then((ok) => {
-            if (ok) syncProductToPinecone(p).catch(() => {});
-          });
-        }
+      for (const p of unsynced) {
+        const synced = await syncProductToPinecone(p);
+        await productModel.updateOne(
+          { _id: p._id },
+          { $set: { pineconeSyncStatus: synced ? "synced" : "failed" } }
+        );
+        console.log(
+          `[Scheduler] Pinecone resync ${synced ? "OK" : "FAILED"}: ${p.title?.slice(0, 30)}`
+        );
       }
     }
   } catch (err) {

@@ -1,4 +1,5 @@
 import productModel from "../models/product.model.js";
+import { Types as MongoTypes } from "mongoose";
 import categoryModel from "../models/category.model.js";
 import brandModel from "../models/brand.model.js";
 import orderModel from "../models/order.model.js";
@@ -11,8 +12,8 @@ import {
   generateTextEmbedding,
   generateImageEmbedding,
   generateImageEmbeddingFromBuffer,
+  generateImageEmbeddingsFromUrls,
   buildProductTextForEmbedding,
-  disposeVisionPipeline,
 } from "../utils/aiEmbedding.js";
 import { uploadFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
@@ -24,6 +25,11 @@ import {
   syncProductToPinecone,
   deleteProductVectors,
 } from "../services/pinecone.service.js";
+import {
+  ensureVectorSearchIndexes,
+  vectorSearchText,
+  vectorSearchImages,
+} from "../services/mongoVectorSearch.service.js";
 
 /**
  * Helper to check if current user is owner of the product or an admin
@@ -76,52 +82,43 @@ const processProductTextEmbedding = async (targetProduct) => {
  */
 const processProductImageEmbeddings = async (targetProduct) => {
   try {
-    // 1. Process Main Product Images (up to 7 images)
-    if (targetProduct.images && Array.isArray(targetProduct.images) && targetProduct.images.length > 0) {
-      for (let i = 0; i < targetProduct.images.length; i++) {
-        const imgObj = targetProduct.images[i];
-        const imgUrl = typeof imgObj === "string" ? imgObj : imgObj?.url;
-        if (imgUrl) {
-          try {
-            const imgVec = await generateImageEmbedding(imgUrl);
-            if (imgVec && imgVec.length > 0) {
-              if (typeof imgObj === "object") {
-                imgObj.embedding = imgVec;
-              }
-              // Set root-level imageEmbedding as primary cover photo shortcut
-              if (i === 0 || imgObj?.isPrimary) {
-                targetProduct.imageEmbedding = imgVec;
-              }
-            }
-          } catch (err) {
-            console.warn(`[AI Visual Search] Main image ${i} embedding warning:`, err.message);
-          }
+    // Collect every image that still needs an embedding (main + variants) and
+    // generate them ALL in ONE Voyage request (the free tier is 3 RPM — N
+    // sequential calls would exhaust it instantly).
+    const jobs = []; // { imgObj, role }
+    const urlOf = (imgObj) => (typeof imgObj === "string" ? imgObj : imgObj?.url);
+
+    if (Array.isArray(targetProduct.images)) {
+      targetProduct.images.forEach((imgObj) => {
+        if (urlOf(imgObj) && !(typeof imgObj === "object" && Array.isArray(imgObj.embedding) && imgObj.embedding.length > 0)) {
+          jobs.push({ imgObj, role: "main" });
         }
-      }
+      });
+    }
+    if (Array.isArray(targetProduct.variants)) {
+      targetProduct.variants.forEach((variant) => {
+        (variant.images || []).forEach((imgObj) => {
+          if (urlOf(imgObj) && !(typeof imgObj === "object" && Array.isArray(imgObj.embedding) && imgObj.embedding.length > 0)) {
+            jobs.push({ imgObj, role: "variant" });
+          }
+        });
+      });
     }
 
-    // 2. Process Variant Images (up to 7 images per variant)
-    if (targetProduct.variants && Array.isArray(targetProduct.variants) && targetProduct.variants.length > 0) {
-      for (let vIdx = 0; vIdx < targetProduct.variants.length; vIdx++) {
-        const variant = targetProduct.variants[vIdx];
-        if (variant && variant.images && Array.isArray(variant.images) && variant.images.length > 0) {
-          for (let imgIdx = 0; imgIdx < variant.images.length; imgIdx++) {
-            const vImgObj = variant.images[imgIdx];
-            const vImgUrl = typeof vImgObj === "string" ? vImgObj : vImgObj?.url;
-            if (vImgUrl) {
-              try {
-                const vImgVec = await generateImageEmbedding(vImgUrl);
-                if (vImgVec && vImgVec.length > 0 && typeof vImgObj === "object") {
-                  vImgObj.embedding = vImgVec;
-                }
-              } catch (err) {
-                console.warn(`[AI Visual Search] Variant ${vIdx} image ${imgIdx} embedding warning:`, err.message);
-              }
-            }
-          }
+    if (jobs.length === 0) return;
+
+    const vectors = await generateImageEmbeddingsFromUrls(jobs.map((j) => urlOf(j.imgObj)));
+    jobs.forEach((job, i) => {
+      const vec = vectors[i];
+      if (vec && vec.length > 0 && typeof job.imgObj === "object") {
+        job.imgObj.embedding = vec;
+        // Root-level imageEmbedding = primary cover photo shortcut
+        const isPrimary = job.role === "main" && (job.imgObj.isPrimary || targetProduct.images?.[0] === job.imgObj);
+        if (isPrimary) {
+          targetProduct.imageEmbedding = vec;
         }
       }
-    }
+    });
   } catch (err) {
     console.warn("[AI Visual Search] Error processing product image embeddings:", err.message);
   }
@@ -136,12 +133,40 @@ const generateAllProductEmbeddings = async (targetProduct) => {
     processProductImageEmbeddings(targetProduct),
   ]);
 
-  // Mirror the freshly generated vectors into Pinecone (fire-and-forget —
-  // the search reads from Pinecone when it is ready, Mongo otherwise).
-  if (process.env.PINECONE_API_KEY) {
-    ensurePineconeIndexes().then((ok) => {
-      if (ok) setImmediate(() => syncProductToPinecone(targetProduct));
-    });
+  // MongoDB is the source of truth — the caller saves this doc (with the new
+  // Voyage vectors). Pinecone sync is attempted AFTER the vectors are on the
+  // doc; any failure is recorded on pineconeSyncStatus so the scheduler can
+  // retry. A Pinecone outage NEVER loses the MongoDB embedding.
+  const hasVectors =
+    (Array.isArray(targetProduct.embedding) && targetProduct.embedding.length > 0) ||
+    (Array.isArray(targetProduct.imageEmbedding) && targetProduct.imageEmbedding.length > 0) ||
+    (Array.isArray(targetProduct.images) &&
+      targetProduct.images.some((i) => Array.isArray(i?.embedding) && i.embedding.length > 0));
+
+  if (!hasVectors) {
+    targetProduct.pineconeSyncStatus = "pending";
+    return;
+  }
+
+  if (!process.env.PINECONE_API_KEY) {
+    targetProduct.pineconeSyncStatus = "pending";
+    return;
+  }
+
+  try {
+    const ok = await ensurePineconeIndexes();
+    if (ok) {
+      const synced = await syncProductToPinecone(targetProduct);
+      targetProduct.pineconeSyncStatus = synced ? "synced" : "failed";
+      if (!synced) {
+        console.warn(`[Pinecone] sync returned false for: ${targetProduct.title}`);
+      }
+    } else {
+      targetProduct.pineconeSyncStatus = "pending";
+    }
+  } catch (err) {
+    targetProduct.pineconeSyncStatus = "failed";
+    console.warn(`[Pinecone] sync failed for ${targetProduct.title}:`, err.message);
   }
 };
 
@@ -1314,7 +1339,16 @@ export const getProductsBySeller = async (req, res) => {
     const limit = parseInt(req.query.limit, 10) || 12;
     const skip = (page - 1) * limit;
 
-    const filter = { seller: sellerId };
+    // req.params values are strings — aggregation $match does NOT cast them to
+    // ObjectId (find() does, aggregate() does not), so convert explicitly.
+    let sellerObjectId;
+    try {
+      sellerObjectId = new MongoTypes.ObjectId(sellerId);
+    } catch {
+      return res.status(400).json({ success: false, message: "Invalid seller id" });
+    }
+
+    const filter = { seller: sellerObjectId };
 
     // If caller is the seller themselves or an admin, allow filtering by status (draft/trash)
     const isSelf = req.user && (req.user._id.toString() === sellerId || req.user.role === "admin");
@@ -1951,33 +1985,39 @@ export const aiSearchProducts = async (req, res) => {
     // Parse "no X" / "only X" intents ("spiderman sneakers only no cloth products")
     const { exclusions, requirements } = parseQueryIntents(queryLower);
 
-    // Generate local 384-dimensional vector embedding for prompt
+    // Generate Voyage query embedding (1024-dim)
     const queryEmbedding = await generateTextEmbedding(queryText);
 
-    // ── Candidate retrieval: Pinecone ANN first, Mongo scan fallback ─────────
+    // ── Candidate retrieval: Pinecone PRIMARY → MongoDB Vector Search fallback ─
     let candidates = [];
-    let pineconeScores = null; // productId → cosine score from Pinecone
+    let vectorScores = null; // productId → similarity score (Pinecone or MongoVS)
 
-    if (pineconeReady()) {
-      const matches = await queryTextVectors(queryEmbedding, 60);
-      const ids = matches
+    const pineconeRes = pineconeReady()
+      ? await queryTextVectors(queryEmbedding, 60)
+      : { ok: false, matches: [] };
+
+    if (pineconeRes.ok) {
+      // Pinecone ANSWERED — even zero matches is a legitimate result (no fallback)
+      const ids = pineconeRes.matches
         .map((m) => m.id.replace(/^p:/, ""))
         .filter((id) => /^[a-f0-9]{24}$/i.test(id));
       if (ids.length > 0) {
-        pineconeScores = new Map(matches.map((m) => [m.id.replace(/^p:/, ""), m.score]));
+        vectorScores = new Map(pineconeRes.matches.map((m) => [m.id.replace(/^p:/, ""), m.score]));
         candidates = await productModel.aggregate(
-          buildProductAggregation({ status: "published", _id: { $in: ids } }, { embedding: true })
+          buildProductAggregation(
+            { status: "published", _id: { $in: ids.map((id) => new MongoTypes.ObjectId(id)) } },
+            { embedding: true }
+          )
         );
       }
-    }
-
-    if (candidates.length === 0) {
-      // Fallback: full Mongo scan (category ranking is handled by the scoring
-      // signals — a hard category pre-filter would wrongly empty results for
-      // product-word queries like "linen" when a "Linen" category exists)
-      candidates = await productModel.aggregate(
-        buildProductAggregation({ status: "published" }, { embedding: true })
-      );
+    } else if (queryEmbedding && queryEmbedding.length > 0) {
+      // Pinecone unavailable/error/quota → MongoDB Atlas Vector Search fallback.
+      // The score comes from the $vectorSearch metadata (no JS cosine).
+      const vs = await vectorSearchText(queryEmbedding, 40);
+      if (vs.length > 0) {
+        vectorScores = new Map(vs.map((r) => [String(r.product._id), r.score]));
+        candidates = vs.map((r) => r.product);
+      }
     }
 
     let results = [];
@@ -2034,17 +2074,12 @@ export const aiSearchProducts = async (req, res) => {
         }
       }
 
-      // Signal 1: AI Vector Cosine Similarity (0-1 range) — semantic meaning.
-      // Weighted up so semantic matches dominate over lexical noise.
-      // When Pinecone served the candidates, its score IS the cosine — reuse it.
+      // Signal 1: Vector similarity (0-1) — semantic meaning, weighted up so
+      // semantic matches dominate. The score comes from Pinecone or the
+      // MongoDB $vectorSearch fallback — never recomputed in JS.
       let vectorScore = 0;
-      if (pineconeScores && pineconeScores.has(String(product._id))) {
-        vectorScore = pineconeScores.get(String(product._id)) || 0;
-      } else if (
-        queryEmbedding && queryEmbedding.length > 0 &&
-        product.embedding && product.embedding.length === queryEmbedding.length
-      ) {
-        vectorScore = cosineSimilarity(queryEmbedding, product.embedding);
+      if (vectorScores && vectorScores.has(String(product._id))) {
+        vectorScore = vectorScores.get(String(product._id)) || 0;
       }
       score += vectorScore * 1.25;
       const reasons = [];
@@ -2196,20 +2231,20 @@ export const aiImageSearchProducts = async (req, res) => {
       });
     }
 
-    // The query image is embedded → the CLIP model is no longer needed.
-    // Dispose it (prod memory safety) BEFORE the cosine comparisons run.
-    disposeVisionPipeline();
-
-    // ── Candidate retrieval: Pinecone image ANN first, Mongo scan fallback ──
+    // ── Candidate retrieval: Pinecone image ANN PRIMARY, MongoVS fallback ─────
     let candidates = [];
-    let pineconeScores = null; // productId → best image cosine from Pinecone
+    let vectorScores = null; // productId → best image score (Pinecone or MongoVS)
 
-    if (pineconeReady()) {
-      const matches = await queryImageVectors(imageEmbedding, 60);
-      if (matches.length > 0) {
+    const pineconeRes = pineconeReady()
+      ? await queryImageVectors(imageEmbedding, 60)
+      : { ok: false, matches: [] };
+
+    if (pineconeRes.ok) {
+      // Pinecone ANSWERED — even zero matches is a legitimate result (no fallback)
+      if (pineconeRes.matches.length > 0) {
         // Group the matched IMAGES by product, keeping each product's best score
         const byProduct = new Map();
-        matches.forEach((m) => {
+        pineconeRes.matches.forEach((m) => {
           const pid = m.metadata?.productId;
           if (!pid) return;
           const cur = byProduct.get(pid);
@@ -2217,66 +2252,36 @@ export const aiImageSearchProducts = async (req, res) => {
         });
         const ids = [...byProduct.keys()].filter((id) => /^[a-f0-9]{24}$/i.test(id));
         if (ids.length > 0) {
-          pineconeScores = byProduct;
+          vectorScores = byProduct;
           candidates = await productModel.aggregate(
-            buildProductAggregation({ status: "published", _id: { $in: ids } }, { imageEmbedding: true })
+            buildProductAggregation(
+              { status: "published", _id: { $in: ids.map((id) => new MongoTypes.ObjectId(id)) } },
+              { imageEmbedding: true }
+            )
           );
         }
       }
-    }
-
-    if (candidates.length === 0) {
-      // Fallback: full Mongo scan (brute-force cosine over every image vector)
-      candidates = await productModel.aggregate(
-        buildProductAggregation({ status: "published" }, { imageEmbedding: true })
-      );
+    } else if (imageEmbedding && imageEmbedding.length > 0) {
+      // Pinecone unavailable/error/quota → MongoDB Atlas Vector Search fallback
+      // (root + nested image vectors merged; scores from $vectorSearch meta).
+      const vs = await vectorSearchImages(imageEmbedding, 40);
+      if (vs.length > 0) {
+        vectorScores = new Map(vs.map((r) => [String(r.product._id), r.score]));
+        candidates = vs.map((r) => r.product);
+      }
     }
 
     let results = [];
 
     if (imageEmbedding && imageEmbedding.length > 0) {
-      if (pineconeScores) {
-        // Scores came straight from Pinecone — no local cosine needed
+      if (vectorScores) {
+        // Scores came straight from Pinecone or MongoVS — no local cosine
         results = candidates.map((product) => ({
           product,
-          score: pineconeScores.get(String(product._id)) || 0,
+          score: vectorScores.get(String(product._id)) || 0,
         }));
       } else {
-        results = candidates.map((product) => {
-          let maxScore = 0;
-
-          // 1. Compare against Root imageEmbedding (primary photo)
-          if (product.imageEmbedding && product.imageEmbedding.length === imageEmbedding.length) {
-            const s = cosineSimilarity(imageEmbedding, product.imageEmbedding);
-            if (s > maxScore) maxScore = s;
-          }
-
-          // 2. Compare against every Main Product Image embedding
-          if (product.images && product.images.length > 0) {
-            product.images.forEach((img) => {
-              if (img.embedding && img.embedding.length === imageEmbedding.length) {
-                const s = cosineSimilarity(imageEmbedding, img.embedding);
-                if (s > maxScore) maxScore = s;
-              }
-            });
-          }
-
-          // 3. Compare against every Variant Image embedding
-          if (product.variants && product.variants.length > 0) {
-            product.variants.forEach((variant) => {
-              if (variant.images && variant.images.length > 0) {
-                variant.images.forEach((vImg) => {
-                  if (vImg.embedding && vImg.embedding.length === imageEmbedding.length) {
-                    const s = cosineSimilarity(imageEmbedding, vImg.embedding);
-                    if (s > maxScore) maxScore = s;
-                  }
-                });
-              }
-            });
-          }
-
-          return { product, score: maxScore };
-        });
+        results = candidates.map((product) => ({ product, score: 0 }));
       }
 
       results.sort((a, b) => b.score - a.score);
