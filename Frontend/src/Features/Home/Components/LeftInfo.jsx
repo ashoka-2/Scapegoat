@@ -25,10 +25,10 @@ const LeftInfo = ({
         {subtitle}
       </p>
 
-      <button className="bg-white dark:bg-accent text-[#131313] dark:text-accent-content rounded-full px-8 py-4 w-fit font-bold flex items-center gap-3 hover:scale-105 transition-all shadow-xl group text-sm md:text-base border border-transparent hover:border-white cursor-pointer">
+      <button className="bg-white dark:bg-accent text-[#131313] dark:text-accent-content rounded-full px-4 sm:px-8 py-2.5 sm:py-4 w-fit font-bold flex items-center gap-2 sm:gap-3 hover:scale-105 transition-all shadow-xl group text-xs sm:text-sm md:text-base border border-transparent hover:border-white cursor-pointer">
         {buttonText}
-        <span className="bg-accent dark:bg-background text-accent-content dark:text-accent rounded-full p-1 group-hover:translate-x-1 transition-transform flex items-center justify-center w-8 h-8">
-          <i className="ri-arrow-right-line text-sm md:text-base"></i>
+        <span className="bg-accent dark:bg-background text-accent-content dark:text-accent rounded-full p-1 group-hover:translate-x-1 transition-transform flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8">
+          <i className="ri-arrow-right-line text-xs sm:text-base"></i>
         </span>
       </button>
 

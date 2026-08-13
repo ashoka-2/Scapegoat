@@ -5,7 +5,7 @@ import RightInfo from "./RightInfo";
 const BigText = ({ text }) => {
   return (
     <span
-      className="font-black text-[5.5rem] sm:text-[7rem] lg:text-[8rem] leading-[0.75] tracking-tighter uppercase text-foreground dark:text-accent drop-shadow-lg"
+      className="font-black text-[4rem] sm:text-[7rem] lg:text-[8rem] leading-[0.75] tracking-tighter uppercase text-foreground dark:text-accent drop-shadow-lg"
       style={{ fontFamily: "Impact, sans-serif" }}
     >
       {text}
@@ -15,7 +15,7 @@ const BigText = ({ text }) => {
 
 const SmallText = ({ text }) => {
   return (
-    <span className="font-serif italic text-3xl sm:text-4xl lg:text-[3rem] text-foreground mb-[0px] sm:mb-[0px] lg:mb-[-1px] drop-shadow-md lg:whitespace-nowrap z-10 relative">
+    <span className="font-serif italic text-xl sm:text-4xl lg:text-[3rem] text-foreground mb-2 sm:mb-0 lg:mb-[-1px] drop-shadow-md lg:whitespace-nowrap z-10 relative">
       {text}
     </span>
   );
