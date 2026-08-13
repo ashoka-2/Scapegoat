@@ -884,7 +884,7 @@ const Shop = () => {
 
       <div className="flex gap-8">
         {/* Desktop Sidebar — sticky while the grid scrolls */}
-        <div className="hidden md:block w-64 flex-shrink-0 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto pr-1 space-y-6">
+        <div className="hidden md:block w-64 flex-shrink-0 sticky top-24 self-start max-h-[calc(100vh-7rem)] overflow-y-auto scrollbar-hide pr-1 space-y-6">
           <FilterSidebarContent {...sidebarProps} />
           <BannerCarousel page="shop" placement="sidebar" />
         </div>
