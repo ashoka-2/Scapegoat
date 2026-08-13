@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSelector } from "react-redux";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useAuth } from "../Features/auth/Hooks/useAuth";
 import { useCart } from "../Features/Cart/Hooks/useCart";
 import { aiSearchProductsApi } from "../Features/Products/Services/product.api";
@@ -13,6 +13,7 @@ const appName = "ScapeGoat";
 
 const Navbar = ({ toggleTheme, isDarkMode }) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
@@ -112,6 +113,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
     const q = queryStr.trim();
     if (!q) return;
     setIsSearchOpen(false);
+    if (mobileSearchOpen) closeMobileSearch();
     navigate(`/shop?q=${encodeURIComponent(q)}`);
   };
 
@@ -122,14 +124,25 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
     }
   };
 
-  // Smooth entrance for the mobile search popup (back.out bounce)
+  // Dynamic-Island entrance: pill springs out (elastic) + results drop in
   useLayoutEffect(() => {
     if (mobileSearchOpen && mobileSearchRef.current) {
-      gsap.fromTo(
-        mobileSearchRef.current.querySelector(".mobile-search-sheet"),
-        { y: -28, opacity: 0 },
-        { y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.5)" }
-      );
+      const island = mobileSearchRef.current.querySelector(".mobile-search-island");
+      const results = mobileSearchRef.current.querySelector(".mobile-search-results");
+      if (island) {
+        gsap.fromTo(
+          island,
+          { scale: 0.4, y: -24, opacity: 0 },
+          { scale: 1, y: 0, opacity: 1, duration: 0.55, ease: "elastic.out(1, 0.62)" }
+        );
+      }
+      if (results) {
+        gsap.fromTo(
+          results,
+          { y: -12, opacity: 0 },
+          { y: 0, opacity: 1, duration: 0.3, delay: 0.3, ease: "power2.out" }
+        );
+      }
       gsap.fromTo(
         mobileSearchRef.current.querySelector(".mobile-search-backdrop"),
         { opacity: 0 },
@@ -137,6 +150,26 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
       );
     }
   }, [mobileSearchOpen]);
+
+  // Dynamic-Island exit: pill collapses back (mirror of the entrance)
+  const closeMobileSearch = () => {
+    if (mobileSearchRef.current) {
+      gsap.to(mobileSearchRef.current.querySelector(".mobile-search-island"), {
+        scale: 0.4,
+        y: -24,
+        opacity: 0,
+        duration: 0.3,
+        ease: "power2.in",
+        onComplete: () => setMobileSearchOpen(false),
+      });
+      gsap.to(mobileSearchRef.current.querySelector(".mobile-search-backdrop"), {
+        opacity: 0,
+        duration: 0.25,
+      });
+    } else {
+      setMobileSearchOpen(false);
+    }
+  };
 
   useGSAP(() => {
     if (profileDropdownRef.current) {
@@ -226,13 +259,15 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   }, [lastScrollY, mobileMenuOpen]);
 
   const menuLinks = [
-    { id: "01", name: "Shop All", path: "/shop", desc: "Latest products" },
-    { id: "02", name: "Categories", path: "/shop", desc: "Sort by categories" },
-    { id: "03", name: "About Us", path: "/about", desc: "Identity" },
-    { id: "04", name: "Contact Us", path: "/contact", desc: "Contact Us" },
+    { id: "01", name: "Home", path: "/", desc: "Start here" },
+    { id: "02", name: "Shop All", path: "/shop", desc: "Latest products" },
+    { id: "03", name: "Categories", path: "/shop", desc: "Sort by categories" },
+    { id: "04", name: "About Us", path: "/about", desc: "Identity" },
+    { id: "05", name: "Contact Us", path: "/contact", desc: "Contact Us" },
   ];
 
   const navLinks = [
+    { name: "Home", path: "/" },
     { name: "Shop", path: "/shop" },
     { name: "About", path: "/about" },
     { name: "Contact", path: "/contact" },
@@ -245,8 +280,8 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
           isVisible ? "translate-y-0" : "-translate-y-full"
         } ${isScrolled ? "bg-background/80 backdrop-blur-2xl border-b border-border-theme/50 shadow-2xl py-2.5" : "bg-transparent"}`}
       >
-        {/* Left Links & Mobile Hamburger */}
-        <div className="flex items-center gap-6">
+        {/* Left: Hamburger (mobile) + Brand Logo */}
+        <div className="flex items-center gap-3">
           <button
             className="md:hidden z-[2001] w-10 h-10 rounded-full border border-border-theme/50 bg-background/50 backdrop-blur-md flex items-center justify-center group active:scale-90 transition-all shadow-xl cursor-pointer"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -264,42 +299,34 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
               ></span>
             </div>
           </button>
-
-          {/* Search Icon (below lg the searchbar becomes this icon → popup) */}
-          <button
-            type="button"
-            onClick={() => {
-              setMobileSearchOpen(true);
-              setSearchQuery("");
-              setSearchResults([]);
-              setIsSearchOpen(false);
-            }}
-            className="lg:hidden z-[2001] w-10 h-10 rounded-full border border-border-theme/50 bg-background/50 backdrop-blur-md flex items-center justify-center active:scale-90 transition-all shadow-xl cursor-pointer"
-            aria-label="Search"
+          <Link
+            to="/"
+            className="text-xl md:text-2xl font-[800] tracking-[0.1em] uppercase text-foreground hover:text-accent transition-all duration-500 hover:scale-105 active:scale-95 shrink-0"
           >
-            <i className="ri-search-line text-lg" />
-          </button>
+            {appName}
+          </Link>
+        </div>
 
-          <div className="hidden md:flex gap-4 lg:gap-8">
-            {navLinks.map((link, index) => (
+        {/* Middle: Nav Links (desktop) — centered, active link highlighted */}
+        <div className="hidden md:flex items-center gap-4 lg:gap-8 flex-1 justify-center ml-6 lg:ml-10">
+          {navLinks.map((link, index) => {
+            const active = location.pathname === link.path;
+            return (
               <Link
                 key={index}
                 to={link.path}
-                className="hover:text-accent transition-all hover:translate-y-[-2px] font-black tracking-[0.2em] uppercase text-[10px]"
+                className={`relative font-black tracking-[0.2em] uppercase text-[10px] transition-all duration-300 hover:text-accent hover:translate-y-[-2px] ${
+                  active ? "text-accent" : "text-foreground"
+                }`}
               >
                 {link.name}
+                {active && (
+                  <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-accent shadow-[0_0_8px_rgba(250,106,101,0.8)]" />
+                )}
               </Link>
-            ))}
-          </div>
+            );
+          })}
         </div>
-
-        {/* Brand Logo */}
-        <Link
-          to="/"
-          className="text-xl md:text-2xl font-[800] tracking-[0.1em] uppercase text-foreground hover:text-accent transition-all duration-500 hover:scale-105 active:scale-95"
-        >
-          {appName}
-        </Link>
 
         {/* Navbar Middle/Right: AI Live Searchbar & Cart Controls */}
         <div className="flex items-center gap-3">
@@ -428,6 +455,21 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
               </div>
             )}
           </div>
+
+          {/* Search Icon (below lg — expands into the Dynamic-Island search; sits left of the cart) */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSearchOpen(true);
+              setSearchQuery("");
+              setSearchResults([]);
+              setIsSearchOpen(false);
+            }}
+            className="lg:hidden z-[2001] w-10 h-10 rounded-full border border-border-theme/50 bg-background/50 backdrop-blur-md flex items-center justify-center active:scale-90 transition-all shadow-xl cursor-pointer"
+            aria-label="Search"
+          >
+            <i className="ri-search-line text-lg" />
+          </button>
 
           <button
             onClick={toggleTheme}
@@ -600,47 +642,45 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         </div>
       </nav>
 
-      {/* ── Mobile/Tablet Search Popup (smooth top sheet: input + camera + live results) ── */}
+      {/* ── Dynamic-Island Search (below lg): pill expands from the icon ── */}
       {mobileSearchOpen && (
         <div ref={mobileSearchRef} className="fixed inset-0 z-[2000] lg:hidden">
           <div
             className="mobile-search-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
-            onClick={() => setMobileSearchOpen(false)}
+            onClick={closeMobileSearch}
           />
-          <div className="mobile-search-sheet absolute top-0 left-0 right-0 bg-background border-b border-border-theme/40 rounded-b-[2rem] shadow-2xl px-4 pt-5 pb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="flex-1 flex items-center gap-2 bg-surface-variant/40 border border-border-theme/40 rounded-2xl px-3.5 py-2.5 focus-within:border-accent/60 transition">
-                <i className="ri-search-line text-accent" />
-                <input
-                  autoFocus
-                  value={searchQuery}
-                  onChange={(e) => {
-                    setSearchQuery(e.target.value);
-                    setIsSearchOpen(true);
-                  }}
-                  onKeyDown={handleKeyDownSearch}
-                  placeholder="Search products, brands..."
-                  className="flex-1 bg-transparent outline-none text-sm font-semibold placeholder:text-foreground/40 min-w-0"
-                />
-                {isSearching && (
-                  <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
-                )}
-              </div>
+          <div className="absolute top-3.5 left-1/2 -translate-x-1/2 w-[min(94%,420px)] z-10">
+            <div className="mobile-search-island bg-background/95 backdrop-blur-2xl border border-border-theme/50 rounded-full shadow-2xl px-3 py-2 flex items-center gap-2">
+              <i className="ri-search-line text-accent shrink-0" />
+              <input
+                autoFocus
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setIsSearchOpen(true);
+                }}
+                onKeyDown={handleKeyDownSearch}
+                placeholder="Search products, brands..."
+                className="flex-1 bg-transparent outline-none text-sm font-semibold placeholder:text-foreground/40 min-w-0"
+              />
+              {isSearching && (
+                <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+              )}
               <button
                 type="button"
                 onClick={() => {
                   setVisualSearchOpen(true);
-                  setMobileSearchOpen(false);
+                  closeMobileSearch();
                 }}
-                className="w-11 h-11 shrink-0 rounded-full bg-accent/10 border border-accent/25 text-accent flex items-center justify-center active:scale-90 transition-all cursor-pointer"
+                className="w-9 h-9 shrink-0 rounded-full bg-accent/10 border border-accent/25 text-accent flex items-center justify-center active:scale-90 transition-all cursor-pointer"
                 aria-label="Search by image"
               >
-                <i className="ri-camera-line text-xl" />
+                <i className="ri-camera-line text-lg" />
               </button>
               <button
                 type="button"
-                onClick={() => setMobileSearchOpen(false)}
-                className="w-9 h-9 shrink-0 rounded-full hover:bg-surface-variant/40 flex items-center justify-center cursor-pointer"
+                onClick={closeMobileSearch}
+                className="w-8 h-8 shrink-0 rounded-full hover:bg-surface-variant/40 flex items-center justify-center cursor-pointer"
                 aria-label="Close search"
               >
                 <i className="ri-close-line text-lg" />
@@ -648,56 +688,54 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             </div>
 
             {searchQuery.trim().length > 0 && (
-              <>
-                <div className="mt-3 max-h-[55vh] overflow-y-auto scrollbar-thin space-y-1.5">
-                  {searchResults.length > 0 ? (
-                    searchResults.slice(0, 6).map((prod) => (
-                      <div
-                        key={prod._id}
-                        onClick={() => {
-                          setMobileSearchOpen(false);
-                          setSearchQuery("");
-                          navigate(`/product/${prod.slug || prod._id}`);
-                        }}
-                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-variant/40 transition cursor-pointer"
-                      >
-                        <img
-                          src={prod.images?.[0]?.url || prod.images?.[0] || ""}
-                          alt={prod.title}
-                          className="w-11 h-11 object-cover rounded-lg border border-border-theme shrink-0"
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-bold text-foreground truncate">
-                            {prod.title}
-                          </p>
-                          <p className="text-[10px] font-mono text-foreground/60">
-                            ₹
-                            {Number(
-                              prod.sellingPrice?.amount || prod.maxPrice?.amount || 0
-                            ).toLocaleString("en-IN")}{" "}
-                            • {prod.category?.name || "General"}
-                          </p>
-                        </div>
+              <div className="mobile-search-results mt-2 bg-background/95 backdrop-blur-2xl border border-border-theme/50 rounded-2xl shadow-2xl p-2 max-h-[55vh] overflow-y-auto scrollbar-thin space-y-1.5">
+                {searchResults.length > 0 ? (
+                  searchResults.slice(0, 6).map((prod) => (
+                    <div
+                      key={prod._id}
+                      onClick={() => {
+                        closeMobileSearch();
+                        setSearchQuery("");
+                        navigate(`/product/${prod.slug || prod._id}`);
+                      }}
+                      className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-variant/40 transition cursor-pointer"
+                    >
+                      <img
+                        src={prod.images?.[0]?.url || prod.images?.[0] || ""}
+                        alt={prod.title}
+                        className="w-11 h-11 object-cover rounded-lg border border-border-theme shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">
+                          {prod.title}
+                        </p>
+                        <p className="text-[10px] font-mono text-foreground/60">
+                          ₹
+                          {Number(
+                            prod.sellingPrice?.amount || prod.maxPrice?.amount || 0
+                          ).toLocaleString("en-IN")}{" "}
+                          • {prod.category?.name || "General"}
+                        </p>
                       </div>
-                    ))
-                  ) : (
-                    !isSearching && (
-                      <p className="text-xs text-foreground/50 p-2 text-center">
-                        Press Enter to search the catalog
-                      </p>
-                    )
-                  )}
-                </div>
+                    </div>
+                  ))
+                ) : (
+                  !isSearching && (
+                    <p className="text-xs text-foreground/50 p-2 text-center">
+                      Press Enter to search the catalog
+                    </p>
+                  )
+                )}
 
                 <button
                   type="button"
                   onClick={() => handleExecuteSearch(searchQuery)}
-                  className="mt-3 w-full py-2.5 bg-accent/10 border border-accent/25 text-accent font-bold text-xs rounded-xl hover:bg-accent hover:text-accent-content transition flex items-center justify-center gap-1 cursor-pointer"
+                  className="mt-1 w-full py-2.5 bg-accent/10 border border-accent/25 text-accent font-bold text-xs rounded-xl hover:bg-accent hover:text-accent-content transition flex items-center justify-center gap-1 cursor-pointer"
                 >
                   <span>View all results in Shop</span>
                   <i className="ri-arrow-right-line" />
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>
@@ -706,7 +744,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
       {/* Full Screen Immersive Menu */}
       <div
         ref={menuRef}
-        className="fixed inset-0 bg-background z-[1500] hidden flex-col justify-center px-8 sm:px-24 overflow-hidden"
+        className="fixed inset-0 bg-background z-[1500] hidden flex-col justify-center px-8 sm:px-24 overflow-y-auto py-6"
         style={{ clipPath: "circle(0% at 100% 0%)" }}
       >
         <div className="absolute top-4 left-6 right-6 md:right-12 flex items-center justify-between z-50">
@@ -757,7 +795,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 h-full items-center gap-12 relative z-10 w-full mt-10 md:mt-0">
-          <div className="flex flex-col gap-6 sm:gap-10">
+          <div className="flex flex-col gap-4 sm:gap-10">
             <div className="md:hidden lg:flex items-center gap-4 mb-4 sm:mb-8 opacity-60">
               <span className="w-8 h-[1px] bg-accent"></span>
               <p className="text-[10px] font-black tracking-[0.6em] uppercase text-gray-500">
@@ -777,7 +815,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                     {link.id}
                   </span>
                   <div className="overflow-hidden flex-1 flex justify-between items-center group-hover:pl-2 sm:group-hover:pl-0 transition-all duration-500">
-                    <h2 className="text-4xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
+                    <h2 className="text-2xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
                       {link.name.toUpperCase()}
                     </h2>
                     <i className="ri-arrow-right-up-line text-2xl text-border-theme/40 sm:hidden group-hover:text-accent group-hover:rotate-45 transition-all duration-500"></i>
@@ -796,16 +834,41 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             >
               <div className="flex items-center gap-4 sm:gap-6 w-full border-b border-border-theme/10 sm:border-transparent pb-3 sm:pb-0">
                 <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">
-                  05
+                  06
                 </span>
                 <div className="overflow-hidden flex-1 flex justify-between items-center group-hover:pl-2 sm:group-hover:pl-0 transition-all duration-500">
-                  <h2 className="text-4xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
-                    SEARCH BY IMAGE
+                  <h2 className="text-2xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
+                      SEARCH BY IMAGE
                   </h2>
                   <i className="ri-camera-lens-line text-2xl text-border-theme/40 sm:hidden group-hover:text-accent transition-all duration-500"></i>
                 </div>
               </div>
             </button>
+
+            {/* Seller Panel (visible only for sellers/admins) */}
+            {(user?.role === "seller" || user?.role === "admin") && (
+              <button
+                type="button"
+                ref={(el) => (menuItemsRef.current[6] = el)}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  navigate("/seller/dashboard");
+                }}
+                className="group relative flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 cursor-pointer opacity-0"
+              >
+                <div className="flex items-center gap-4 sm:gap-6 w-full border-b border-border-theme/10 sm:border-transparent pb-3 sm:pb-0">
+                  <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">
+                    07
+                  </span>
+                  <div className="overflow-hidden flex-1 flex justify-between items-center group-hover:pl-2 sm:group-hover:pl-0 transition-all duration-500">
+                    <h2 className="text-2xl sm:text-8xl font-black tracking-tighter group-hover:text-accent transition-all duration-500 group-hover:italic md:group-hover:translate-x-4">
+                      SELLER PANEL
+                    </h2>
+                    <i className="ri-store-2-line text-2xl text-border-theme/40 sm:hidden group-hover:text-accent transition-all duration-500"></i>
+                  </div>
+                </div>
+              </button>
+            )}
           </div>
         </div>
       </div>

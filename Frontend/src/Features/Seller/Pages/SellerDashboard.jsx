@@ -21,7 +21,7 @@ const SellerDashboard = () => {
   const { user } = useSelector((state) => state.auth);
   const { sellerProducts, loading: loadingProducts, handleFetchSellerProducts } = useProduct();
   const { fetchDashboardData } = useSeller();
-  const { allCarts, allWishlists, allOrders } = useSelector((state) => state.seller);
+  const { allCarts, allWishlists, allOrders, loading } = useSelector((state) => state.seller);
 
   useEffect(() => {
     if (user?._id || user?.id) {
@@ -55,13 +55,24 @@ const SellerDashboard = () => {
       </div>
 
       {/* Metrics Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-        {GridCard("Products", totalProducts, "📦")}
-        {GridCard("Orders", totalOrders, "📑")}
-        {GridCard("Active Carts", activeCarts, "🛒")}
-        {GridCard("Wishlists", totalWishlists, "❤️")}
-        {GridCard("Revenue", `₹${totalRevenue.toLocaleString()}`, "💰")}
-      </div>
+      {loading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 animate-pulse">
+          {Array.from({ length: 5 }).map((_, idx) => (
+            <div key={idx} className="bg-surface border border-border-theme p-4 rounded-2xl space-y-2.5">
+              <div className="h-3 w-20 rounded-md bg-foreground/10" />
+              <div className="h-6 w-12 rounded-md bg-foreground/15" />
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          {GridCard("Products", totalProducts, "📦")}
+          {GridCard("Orders", totalOrders, "📑")}
+          {GridCard("Active Carts", activeCarts, "🛒")}
+          {GridCard("Wishlists", totalWishlists, "❤️")}
+          {GridCard("Revenue", `₹${totalRevenue.toLocaleString()}`, "💰")}
+        </div>
+      )}
 
       {/* Seller Products Table / List */}
       <div className="bg-background border border-border-theme rounded-2xl p-6 space-y-4 shadow-sm">
@@ -71,8 +82,27 @@ const SellerDashboard = () => {
         </div>
 
         {loadingProducts ? (
-          <div className="py-12 text-center text-xs text-foreground/60 font-semibold animate-pulse">
-            Loading products catalog...
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-pulse">
+            {Array.from({ length: 3 }).map((_, idx) => (
+              <div
+                key={idx}
+                className="bg-surface border border-border-theme p-4 rounded-xl space-y-3"
+              >
+                <div className="flex space-x-3">
+                  <div className="w-16 h-16 rounded-lg bg-foreground/10 shrink-0" />
+                  <div className="flex-1 space-y-2 py-1">
+                    <div className="h-3.5 w-3/4 rounded-md bg-foreground/15" />
+                    <div className="h-2.5 w-1/2 rounded-md bg-accent/15" />
+                  </div>
+                </div>
+                <div className="h-2 w-full rounded-md bg-foreground/10" />
+                <div className="h-2 w-2/3 rounded-md bg-foreground/10" />
+                <div className="flex items-center justify-between pt-1">
+                  <div className="h-6 w-20 rounded-lg bg-foreground/10" />
+                  <div className="h-6 w-16 rounded-lg bg-accent/15" />
+                </div>
+              </div>
+            ))}
           </div>
         ) : sellerProducts.length === 0 ? (
           <div className="py-12 text-center space-y-3">
