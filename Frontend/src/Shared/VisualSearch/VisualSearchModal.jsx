@@ -171,7 +171,7 @@ export default function VisualSearchModal({ isOpen, onClose }) {
                       label="Open Camera"
                       iconClass="ri-camera-line text-sm"
                       primary
-                      textColor="text-white"
+                      textColor="text-black dark:text-white"
                     />
                     <ImagePicker
                       onFile={handleFile}
@@ -194,7 +194,7 @@ export default function VisualSearchModal({ isOpen, onClose }) {
                         capture="environment"
                         label="Use Camera"
                         iconClass="ri-camera-line text-sm"
-                        textColor="text-white"
+                        textColor="text-black dark:text-white"
                         borderClass="border-border-theme dark:border-white"
                       />
                     )}
