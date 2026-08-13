@@ -9,8 +9,8 @@ const ProductCardSkeleton = () => {
     <div className="relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] min-w-0 mx-auto shadow-sm p-2.5 animate-pulse select-none flex-shrink-0">
       {/* Image Skeleton with aspect-square */}
       <div className="relative w-full aspect-square rounded-[1.6rem] bg-foreground/10 overflow-hidden">
-        <div className="absolute top-3 left-3 right-3 flex justify-between items-center z-10">
-          <div className="w-16 h-4 rounded-full bg-foreground/15" />
+        {/* Wishlist heart placeholder (matches the real card — no badges/pills anymore) */}
+        <div className="absolute top-3 right-3 z-10">
           <div className="w-7 h-7 rounded-full bg-foreground/15" />
         </div>
       </div>
