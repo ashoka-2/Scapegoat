@@ -130,7 +130,7 @@ const SellerNavbar = () => {
               animate={{ x: 0 }}
               exit={{ x: "100%" }}
               transition={{ type: "spring", stiffness: 300, damping: 32 }}
-              className="fixed top-0 right-0 z-[1201] bg-background w-[85%] max-w-sm h-full p-5 overflow-y-auto shadow-2xl border-l border-border-theme lg:hidden"
+              className="fixed top-0 right-0 z-[1201] bg-background w-[85%] max-w-sm h-full p-5 overflow-y-auto scrollbar-hide shadow-2xl border-l border-border-theme lg:hidden"
             >
               {/* Drawer Header */}
               <div className="flex items-center justify-between mb-5">

@@ -688,7 +688,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             </div>
 
             {searchQuery.trim().length > 0 && (
-              <div className="mobile-search-results mt-2 bg-background/95 backdrop-blur-2xl border border-border-theme/50 rounded-2xl shadow-2xl p-2 max-h-[55vh] overflow-y-auto scrollbar-thin space-y-1.5">
+              <div className="mobile-search-results mt-2 bg-background/95 backdrop-blur-2xl border border-border-theme/50 rounded-2xl shadow-2xl p-2 max-h-[55vh] overflow-y-auto scrollbar-hide space-y-1.5">
                 {searchResults.length > 0 ? (
                   searchResults.slice(0, 6).map((prod) => (
                     <div
@@ -744,7 +744,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
       {/* Full Screen Immersive Menu */}
       <div
         ref={menuRef}
-        className="fixed inset-0 bg-background z-[1500] hidden flex-col justify-center px-8 sm:px-24 overflow-y-auto py-6"
+        className="fixed inset-0 bg-background z-[1500] hidden flex-col justify-center px-8 sm:px-24 overflow-y-auto scrollbar-hide py-6"
         style={{ clipPath: "circle(0% at 100% 0%)" }}
       >
         <div className="absolute top-4 left-6 right-6 md:right-12 flex items-center justify-between z-50">
