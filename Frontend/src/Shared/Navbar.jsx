@@ -787,11 +787,12 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             ))}
             <button
               type="button"
+              ref={(el) => (menuItemsRef.current[4] = el)}
               onClick={() => {
                 setMobileMenuOpen(false);
                 setVisualSearchOpen(true);
               }}
-              className="group relative flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 cursor-pointer"
+              className="group relative flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-6 cursor-pointer opacity-0"
             >
               <div className="flex items-center gap-4 sm:gap-6 w-full border-b border-border-theme/10 sm:border-transparent pb-3 sm:pb-0">
                 <span className="text-[10px] sm:text-xs font-bold text-accent font-mono tracking-widest">

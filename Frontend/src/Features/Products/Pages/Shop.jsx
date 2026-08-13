@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSelector } from "react-redux";
 import { useSearchParams } from "react-router-dom";
 import { useUserActivity } from "../Hooks/useUserActivity";
@@ -888,16 +889,32 @@ const Shop = () => {
           <BannerCarousel page="shop" placement="sidebar" />
         </div>
 
-        {/* Mobile Filter Drawer */}
-        {isMobileFilterOpen &&
-          createPortal(
-            <div className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-md flex justify-end md:hidden">
-              <div className="bg-background w-[85%] max-w-sm h-full p-6 overflow-y-auto shadow-2xl border-l border-border-theme">
-                <FilterSidebarContent {...sidebarProps} />
-              </div>
-            </div>,
-            document.body
-          )}
+        {/* Mobile Filter Drawer — slides in like the cart drawer */}
+        {createPortal(
+          <AnimatePresence>
+            {isMobileFilterOpen && (
+              <>
+                <motion.div
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  onClick={() => setIsMobileFilterOpen(false)}
+                  className="fixed inset-0 z-[1200] bg-black/60 backdrop-blur-md md:hidden"
+                />
+                <motion.div
+                  initial={{ x: "100%" }}
+                  animate={{ x: 0 }}
+                  exit={{ x: "100%" }}
+                  transition={{ type: "spring", stiffness: 300, damping: 32 }}
+                  className="fixed top-0 right-0 z-[1201] bg-background w-[85%] max-w-sm h-full p-6 overflow-y-auto shadow-2xl border-l border-border-theme md:hidden"
+                >
+                  <FilterSidebarContent {...sidebarProps} />
+                </motion.div>
+              </>
+            )}
+          </AnimatePresence>,
+          document.body
+        )}
 
         {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">
@@ -924,7 +941,7 @@ const Shop = () => {
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
-              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,154px))] gap-4">
+              <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,176px))] gap-4">
                 {displayedUnits.map((unit) => (
                   <ProductCard
                     key={unit.key}

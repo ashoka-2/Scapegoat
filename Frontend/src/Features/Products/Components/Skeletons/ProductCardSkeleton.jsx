@@ -22,7 +22,7 @@ const ProductCardSkeleton = () => {
           <div className="h-2.5 w-1/2 rounded-md bg-accent/20" />
         </div>
 
-        <div className="w-full h-9 rounded-full bg-foreground/10 border border-border-theme/40 flex items-center justify-center">
+        <div className="w-full h-10 sm:h-11 rounded-full bg-foreground/10 border border-border-theme/40 flex items-center justify-center">
           <div className="w-24 h-2 rounded-full bg-foreground/15" />
         </div>
       </div>

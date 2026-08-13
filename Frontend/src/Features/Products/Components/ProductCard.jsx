@@ -165,7 +165,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
         <div
           ref={dragContainerRef}
           onClick={(e) => e.stopPropagation()}
-          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-11 touch-none"
+          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-10 sm:h-11 touch-none"
           style={{ transition: "background-color 0.3s" }}
         >
           <div
@@ -200,13 +200,13 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             dragMomentum={false}
             onDragEnd={handleDragEnd}
             animate={controls}
-            className="w-9 h-9 top-1/2 -translate-y-1/2 left-1 bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute"
+            className="w-8 h-8 sm:w-9 sm:h-9 top-1/2 -translate-y-1/2 left-1 bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute"
           >
             <i
               className={
                 isDragged
-                  ? "ri-check-line text-lg font-black"
-                  : "ri-arrow-right-s-line text-lg font-bold pointer-events-none"
+                  ? "ri-check-line text-base sm:text-lg font-black"
+                  : "ri-arrow-right-s-line text-base sm:text-lg font-bold pointer-events-none"
               }
             ></i>
           </motion.div>
