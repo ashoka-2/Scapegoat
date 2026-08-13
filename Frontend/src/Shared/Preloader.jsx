@@ -95,12 +95,12 @@ const Preloader = ({ isReady = false, onComplete }) => {
             <div className="relative z-20 flex flex-col items-center">
                 
                 {/* Logo with individual char spans */}
-                <div className="flex gap-2 mb-8 overflow-hidden">
+                <div className="flex gap-1 sm:gap-2 mb-6 sm:mb-8 overflow-hidden">
                     {logo.split("").map((char, i) => (
                         <span 
                             key={i} 
                             ref={el => logoCharsRef.current[i] = el}
-                            className="text-6xl md:text-9xl font-black tracking-widest text-white uppercase inline-block select-none"
+                            className="text-[1.7rem] min-[420px]:text-3xl sm:text-6xl md:text-9xl font-black tracking-widest text-white uppercase inline-block select-none"
                             style={{ textShadow: "0 0 30px rgba(255,255,255,0.1)" }}
                         >
                             {char}
@@ -120,7 +120,7 @@ const Preloader = ({ isReady = false, onComplete }) => {
                         <span className="text-4xl md:text-5xl font-mono font-black text-white italic">{percentage}</span>
                         <span className="text-xs font-bold text-accent tracking-[0.5em] uppercase">%</span>
                     </div>
-                    <p className="text-[9px] font-black tracking-[0.8em] uppercase text-white/30 ml-2">
+                    <p className="text-[8px] sm:text-[9px] font-black tracking-[0.4em] sm:tracking-[0.8em] uppercase text-white/30 ml-2 whitespace-nowrap">
                         {isReady ? "Identity Verified" : "Syncing Binary Aesthetic"}
                     </p>
                 </div>
