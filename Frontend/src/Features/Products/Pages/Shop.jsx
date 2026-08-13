@@ -466,13 +466,17 @@ const Shop = () => {
   const [aiVectorResults, setAiVectorResults] = useState(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  // Filter states
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [selectedBrands, setSelectedBrands] = useState([]);
-  const [selectedColors, setSelectedColors] = useState([]);
-  const [selectedSizes, setSelectedSizes] = useState([]);
-  const [priceLow, setPriceLow] = useState(0);
-  const [priceHigh, setPriceHigh] = useState(50000);
+  // Filter states — initialized from the URL so a shared link restores the view
+  const initialCategories = (searchParams.get("categories") || "").split(",").filter(Boolean);
+  const initialBrands = (searchParams.get("brands") || "").split(",").filter(Boolean);
+  const initialColors = (searchParams.get("color") || "").split(",").filter(Boolean);
+  const initialSizes = (searchParams.get("size") || "").split(",").filter(Boolean);
+  const [selectedCategories, setSelectedCategories] = useState(initialCategories);
+  const [selectedBrands, setSelectedBrands] = useState(initialBrands);
+  const [selectedColors, setSelectedColors] = useState(initialColors);
+  const [selectedSizes, setSelectedSizes] = useState(initialSizes);
+  const [priceLow, setPriceLow] = useState(parseInt(searchParams.get("minPrice") || "0", 10));
+  const [priceHigh, setPriceHigh] = useState(parseInt(searchParams.get("maxPrice") || "50000", 10));
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
   const [sortBy, setSortBy] = useState(initialSort);
   const userPickedSort = useRef(false); // true once the user picks a sort manually
@@ -489,6 +493,31 @@ const Shop = () => {
     minPrice: 0,
     maxPrice: 50000,
   });
+
+  // ── URL ↔ filter sync ──────────────────────────────────────────────────────
+  // Active filters/search/sort are mirrored into the URL (replace:true) — so
+  // removing a filter also removes its param, and a shared link restores the
+  // exact view. Param names match the backend (categories/brands/color/size/
+  // minPrice/maxPrice/q/sortBy).
+  useEffect(() => {
+    const params = new URLSearchParams();
+    const q = rawSearchQuery.trim();
+    if (q) params.set("q", q);
+    if (sortBy && sortBy !== "personalized") params.set("sortBy", sortBy);
+    if (selectedCategories.length) params.set("categories", selectedCategories.join(","));
+    if (selectedBrands.length) params.set("brands", selectedBrands.join(","));
+    if (selectedColors.length) params.set("color", selectedColors.join(","));
+    if (selectedSizes.length) params.set("size", selectedSizes.join(","));
+    const priceNarrowed =
+      priceLow > filterOptions.minPrice || priceHigh < filterOptions.maxPrice;
+    if (priceNarrowed) {
+      if (priceLow > filterOptions.minPrice) params.set("minPrice", String(priceLow));
+      if (priceHigh < filterOptions.maxPrice) params.set("maxPrice", String(priceHigh));
+    }
+    if (visualResults) params.set("visual", "1");
+    setSearchParams(params, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rawSearchQuery, sortBy, selectedCategories, selectedBrands, selectedColors, selectedSizes, priceLow, priceHigh, visualResults, filterOptions]);
   const [shopProducts, setShopProducts] = useState([]);
   const [shopTotal, setShopTotal] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
@@ -895,7 +924,7 @@ const Shop = () => {
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(120px,154px))] gap-4">
                 {displayedUnits.map((unit) => (
                   <ProductCard
                     key={unit.key}

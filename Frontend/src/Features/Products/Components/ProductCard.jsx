@@ -125,7 +125,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
           `/product/${product?._id || product?.slug}${colorParam ? `?color=${encodeURIComponent(colorParam)}` : ""}`
         )
       }
-      className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex-shrink-0 cursor-pointer p-2.5"
+      className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] min-w-0 mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex-shrink-0 cursor-pointer p-2.5"
     >
       {/* Image Container with Inset Padding */}
       <div className="relative w-full aspect-square rounded-[1.6rem] overflow-hidden bg-background-alt">
@@ -185,7 +185,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
                 Added to Bag
               </span>
             ) : (
-              <span className="font-black text-[13px] tracking-[0.15em] text-accent uppercase whitespace-nowrap">
+              <span className="font-black text-[10.5px] min-[380px]:text-[11.5px] sm:text-[12px] lg:text-[13px] tracking-[0.15em] text-accent uppercase whitespace-nowrap">
                 {formatPrice(currentPrice, currency)}
               </span>
             )}

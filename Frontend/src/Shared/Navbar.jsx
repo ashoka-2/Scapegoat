@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { useSelector } from "react-redux";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../Features/auth/Hooks/useAuth";
@@ -15,6 +15,8 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
+  const mobileSearchRef = useRef();
   const [visualSearchOpen, setVisualSearchOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
@@ -119,6 +121,22 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
       handleExecuteSearch();
     }
   };
+
+  // Smooth entrance for the mobile search popup (back.out bounce)
+  useLayoutEffect(() => {
+    if (mobileSearchOpen && mobileSearchRef.current) {
+      gsap.fromTo(
+        mobileSearchRef.current.querySelector(".mobile-search-sheet"),
+        { y: -28, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.4, ease: "back.out(1.5)" }
+      );
+      gsap.fromTo(
+        mobileSearchRef.current.querySelector(".mobile-search-backdrop"),
+        { opacity: 0 },
+        { opacity: 1, duration: 0.3 }
+      );
+    }
+  }, [mobileSearchOpen]);
 
   useGSAP(() => {
     if (profileDropdownRef.current) {
@@ -247,7 +265,22 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             </div>
           </button>
 
-          <div className="hidden lg:flex gap-8">
+          {/* Search Icon (below lg the searchbar becomes this icon → popup) */}
+          <button
+            type="button"
+            onClick={() => {
+              setMobileSearchOpen(true);
+              setSearchQuery("");
+              setSearchResults([]);
+              setIsSearchOpen(false);
+            }}
+            className="lg:hidden z-[2001] w-10 h-10 rounded-full border border-border-theme/50 bg-background/50 backdrop-blur-md flex items-center justify-center active:scale-90 transition-all shadow-xl cursor-pointer"
+            aria-label="Search"
+          >
+            <i className="ri-search-line text-lg" />
+          </button>
+
+          <div className="hidden md:flex gap-4 lg:gap-8">
             {navLinks.map((link, index) => (
               <Link
                 key={index}
@@ -273,7 +306,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
           {/* Embedded Navbar Search Bar */}
           <div
             ref={searchContainerRef}
-            className="relative hidden sm:block w-48 md:w-64"
+            className="relative hidden lg:block w-48 lg:w-64"
           >
             <div className="flex items-center bg-surface border border-border-theme rounded-full px-3 py-1.5 focus-within:border-accent transition">
               <i className="ri-search-line text-xs text-foreground/40 mr-2" />
@@ -566,6 +599,109 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
           </button>
         </div>
       </nav>
+
+      {/* ── Mobile/Tablet Search Popup (smooth top sheet: input + camera + live results) ── */}
+      {mobileSearchOpen && (
+        <div ref={mobileSearchRef} className="fixed inset-0 z-[2000] lg:hidden">
+          <div
+            className="mobile-search-backdrop absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setMobileSearchOpen(false)}
+          />
+          <div className="mobile-search-sheet absolute top-0 left-0 right-0 bg-background border-b border-border-theme/40 rounded-b-[2rem] shadow-2xl px-4 pt-5 pb-4">
+            <div className="flex items-center gap-2.5">
+              <div className="flex-1 flex items-center gap-2 bg-surface-variant/40 border border-border-theme/40 rounded-2xl px-3.5 py-2.5 focus-within:border-accent/60 transition">
+                <i className="ri-search-line text-accent" />
+                <input
+                  autoFocus
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setIsSearchOpen(true);
+                  }}
+                  onKeyDown={handleKeyDownSearch}
+                  placeholder="Search products, brands..."
+                  className="flex-1 bg-transparent outline-none text-sm font-semibold placeholder:text-foreground/40 min-w-0"
+                />
+                {isSearching && (
+                  <div className="w-3.5 h-3.5 border-2 border-accent border-t-transparent rounded-full animate-spin shrink-0" />
+                )}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setVisualSearchOpen(true);
+                  setMobileSearchOpen(false);
+                }}
+                className="w-11 h-11 shrink-0 rounded-full bg-accent/10 border border-accent/25 text-accent flex items-center justify-center active:scale-90 transition-all cursor-pointer"
+                aria-label="Search by image"
+              >
+                <i className="ri-camera-line text-xl" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setMobileSearchOpen(false)}
+                className="w-9 h-9 shrink-0 rounded-full hover:bg-surface-variant/40 flex items-center justify-center cursor-pointer"
+                aria-label="Close search"
+              >
+                <i className="ri-close-line text-lg" />
+              </button>
+            </div>
+
+            {searchQuery.trim().length > 0 && (
+              <>
+                <div className="mt-3 max-h-[55vh] overflow-y-auto scrollbar-thin space-y-1.5">
+                  {searchResults.length > 0 ? (
+                    searchResults.slice(0, 6).map((prod) => (
+                      <div
+                        key={prod._id}
+                        onClick={() => {
+                          setMobileSearchOpen(false);
+                          setSearchQuery("");
+                          navigate(`/product/${prod.slug || prod._id}`);
+                        }}
+                        className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-surface-variant/40 transition cursor-pointer"
+                      >
+                        <img
+                          src={prod.images?.[0]?.url || prod.images?.[0] || ""}
+                          alt={prod.title}
+                          className="w-11 h-11 object-cover rounded-lg border border-border-theme shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">
+                            {prod.title}
+                          </p>
+                          <p className="text-[10px] font-mono text-foreground/60">
+                            ₹
+                            {Number(
+                              prod.sellingPrice?.amount || prod.maxPrice?.amount || 0
+                            ).toLocaleString("en-IN")}{" "}
+                            • {prod.category?.name || "General"}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    !isSearching && (
+                      <p className="text-xs text-foreground/50 p-2 text-center">
+                        Press Enter to search the catalog
+                      </p>
+                    )
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleExecuteSearch(searchQuery)}
+                  className="mt-3 w-full py-2.5 bg-accent/10 border border-accent/25 text-accent font-bold text-xs rounded-xl hover:bg-accent hover:text-accent-content transition flex items-center justify-center gap-1 cursor-pointer"
+                >
+                  <span>View all results in Shop</span>
+                  <i className="ri-arrow-right-line" />
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Full Screen Immersive Menu */}
       <div
