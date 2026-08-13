@@ -825,7 +825,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
             ))}
             <button
               type="button"
-              ref={(el) => (menuItemsRef.current[4] = el)}
+              ref={(el) => (menuItemsRef.current[5] = el)}
               onClick={() => {
                 setMobileMenuOpen(false);
                 setVisualSearchOpen(true);
