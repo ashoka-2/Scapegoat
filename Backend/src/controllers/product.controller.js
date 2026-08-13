@@ -1941,13 +1941,16 @@ export const getProductFacets = async (req, res) => {
       },
     ]);
 
+    const dedupeUpper = (arr) =>
+      [...new Map((arr || []).filter(Boolean).map((v) => [String(v).toUpperCase(), String(v).toUpperCase()])).values()].sort();
+
     return res.status(200).json({
       success: true,
       data: {
         categories: (result?.categories || []).filter(Boolean).sort(),
         brands: (result?.brands || []).filter(Boolean).sort(),
-        colors: (result?.colors || []).filter(Boolean).sort(),
-        sizes: (result?.sizes || []).filter(Boolean).sort(),
+        colors: dedupeUpper(result?.colors),
+        sizes: dedupeUpper(result?.sizes),
         minPrice: Math.floor(result?.minPrice || 0),
         maxPrice: Math.ceil(result?.maxPrice || 50000),
       },
