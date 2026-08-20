@@ -51,6 +51,11 @@ const AdminNavbar = ({ onLogout, isCollapsed = false, setIsCollapsed }) => {
       badgeCount: stats?.inbox?.unread || 0,
     },
     {
+      name: "Push Alerts Hub",
+      path: "/admin/notifications",
+      icon: "ri-notification-3-line",
+    },
+    {
       name: "Site Settings",
       path: "/admin/settings",
       icon: "ri-settings-4-line",

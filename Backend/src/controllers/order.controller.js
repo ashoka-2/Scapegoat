@@ -4,6 +4,7 @@ import cartModel from "../models/cart.model.js";
 import sellerCustomerModel from "../models/sellerCustomer.model.js";
 import WebhookEvent from "../models/webhookEvent.model.js";
 import { broadcastUpdate, emitToSeller, emitToUser } from "../services/socket.service.js";
+import { sendPushToUser } from "../services/notification.service.js";
 import { config } from "../config/config.js";
 import Razorpay from "razorpay";
 import crypto from "crypto";
@@ -370,15 +371,30 @@ export const verifyRazorpayPayment = async (req, res) => {
             await cartModel.findOneAndUpdate({ user: req.user._id }, { $set: { items: [] } });
         }
 
+        // Notify sellers in real-time & save permanent customer connection
         const sellerIds = [...new Set(order.orderItems.map((item) => item.seller.toString()))];
         for (const sellerId of sellerIds) {
             emitToSeller(sellerId, "new_order", { orderId: order._id, totalPrice: order.totalPrice });
+            sendPushToUser(sellerId, {
+                title: "💰 New Sale Alert!",
+                body: `You received a new order worth ₹${order.totalPrice.toLocaleString()}!`,
+                url: "/seller/orders",
+            }).catch(() => {});
+
             await sellerCustomerModel.findOneAndUpdate(
                 { seller: sellerId, customer: req.user._id },
                 { lastInteractionType: "order", lastInteractionAt: new Date() },
                 { upsert: true, new: true }
             ).catch(() => {});
         }
+
+        // Push notification to Buyer
+        sendPushToUser(req.user._id, {
+            title: "🎉 Order Confirmed!",
+            body: `Your order #${order.orderId || order._id.toString().slice(-6).toUpperCase()} for ₹${order.totalPrice.toLocaleString()} has been placed.`,
+            url: `/orders/${order._id}`,
+        }).catch(() => {});
+
         broadcastUpdate("order_created", { orderId: order._id });
 
         const populatedOrder = await orderModel.findById(order._id).populate("user", "fullname email contact");
@@ -526,6 +542,14 @@ export const updateOrderStatus = async (req, res) => {
         await order.save();
         emitToUser(order.user.toString(), "order_status_updated", { orderId: order._id, status, order });
         broadcastUpdate("order_status_updated", { orderId: order._id, status });
+
+        // Send push notification to buyer
+        const statusEmoji = status === "Delivered" ? "🎉" : status === "Shipped" ? "🚚" : status === "Cancelled" ? "❌" : "📦";
+        sendPushToUser(order.user, {
+            title: `${statusEmoji} Order ${status}!`,
+            body: `Your order #${order.orderId || order._id.toString().slice(-6).toUpperCase()} is now ${status}.`,
+            url: `/orders/${order._id}`,
+        }).catch(() => {});
 
         return res.status(200).json({ success: true, message: "Order status updated.", order });
     } catch (error) {

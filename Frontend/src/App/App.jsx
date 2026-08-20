@@ -7,6 +7,7 @@ import { routes } from "./App.routes.jsx";
 import PageLoader from "../Shared/PageLoader.jsx";
 import Preloader from "../Shared/Preloader.jsx";
 import { ToastContainer } from "../Components/Toast.jsx";
+import NotificationBanner from "../Components/NotificationBanner.jsx";
 import { NavbarSkeleton } from "../Components/Skeletons/index.js";
 import {
   getPageSkeleton,
@@ -69,6 +70,7 @@ const App = () => {
   return (
     <>
       <ToastContainer />
+      <NotificationBanner />
 
       {/* 1. Show Cinematic Preloader ONLY on first session visit */}
       {!hasSeenPreloader && (

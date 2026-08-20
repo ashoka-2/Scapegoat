@@ -47,6 +47,7 @@ import AdminInboxPage from "../Features/Admin/Pages/AdminInboxPage.jsx";
 import AdminSettingsPage from "../Features/Admin/Pages/AdminSettingsPage.jsx";
 import AdminBannersPage from "../Features/Admin/Pages/AdminBannersPage.jsx";
 import AdminBannerEditorPage from "../Features/Admin/Pages/AdminBannerEditorPage.jsx";
+import AdminNotificationPage from "../Features/Admin/Pages/AdminNotificationPage.jsx";
 
 // Home & Info Pages
 import About from "../Features/Home/Pages/About.jsx";
@@ -171,6 +172,10 @@ export const routes = createBrowserRouter([
       {
         path: "banners/edit/:id",
         element: <AdminBannerEditorPage />,
+      },
+      {
+        path: "notifications",
+        element: <AdminNotificationPage />,
       },
     ],
   },
