@@ -85,12 +85,12 @@ const ProductCarousel = ({ title, subtitle, badge, products, onViewAll }) => {
       {/* Horizontal Carousel (Max 10 Items) */}
       <div
         ref={scrollRef}
-        className="flex gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 pt-1 px-1 scroll-smooth"
+        className="flex gap-3 sm:gap-4 overflow-x-auto snap-x snap-mandatory scrollbar-hide pb-4 pt-1 px-1 scroll-smooth"
       >
         {displayProducts.map((product, idx) => (
           <div
             key={product._id || idx}
-            className="snap-start flex-shrink-0 w-[220px] sm:w-[240px]"
+            className="snap-start flex-shrink-0 w-[150px] min-[380px]:w-[165px] min-[480px]:w-[180px] sm:w-[210px] md:w-[230px]"
           >
             <ProductCard product={product} />
           </div>

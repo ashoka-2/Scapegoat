@@ -18,9 +18,9 @@ const ProductCarouselSkeleton = ({ count = 5 }) => {
       </div>
 
       {/* Horizontal Cards Row */}
-      <div className="flex gap-4 overflow-x-auto scrollbar-hide pb-4 pt-1 px-1">
+      <div className="flex gap-3 sm:gap-4 overflow-x-auto scrollbar-hide pb-4 pt-1 px-1">
         {Array.from({ length: count }).map((_, idx) => (
-          <div key={idx} className="flex-shrink-0 w-[220px] sm:w-[240px]">
+          <div key={idx} className="flex-shrink-0 w-[150px] min-[380px]:w-[165px] min-[480px]:w-[180px] sm:w-[210px] md:w-[230px]">
             <ProductCardSkeleton />
           </div>
         ))}

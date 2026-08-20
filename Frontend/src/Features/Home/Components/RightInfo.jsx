@@ -102,34 +102,34 @@ const ProductCardItem = ({ product }) => {
   return (
     <div
       onClick={() => navigate(`/product/${product?._id || product?.slug}`)}
-      className={`bg-surface dark:bg-[#1C1C1E] text-foreground p-3 rounded-[2.5rem] w-[240px] shadow-md lg:shadow-2xl relative border border-white/10 dark:border-white/10 transition-colors flex-shrink-0 snap-center cursor-pointer group`}
+      className={`bg-surface dark:bg-[#1C1C1E] text-foreground p-2.5 sm:p-3 rounded-[2rem] sm:rounded-[2.5rem] w-[185px] min-[380px]:w-[200px] sm:w-[240px] shadow-md lg:shadow-2xl relative border border-white/10 dark:border-white/10 transition-colors flex-shrink-0 snap-center cursor-pointer group`}
     >
-      <div className="w-full h-auto rounded-[1.7rem] overflow-hidden mb-4 bg-background relative">
+      <div className="w-full h-auto rounded-[1.4rem] sm:rounded-[1.7rem] overflow-hidden mb-3 sm:mb-4 bg-background relative">
         <img
           src={displayImage}
           alt={product?.title || "Product"}
-          className="w-full h-[180px] object-cover object-top transition-transform duration-700 group-hover:scale-105"
+          className="w-full h-[145px] sm:h-[180px] object-cover object-top transition-transform duration-700 group-hover:scale-105"
           loading="lazy"
         />
-        <div className="absolute top-3 left-3 bg-white/90 dark:bg-accent text-[#131313] dark:text-accent-content text-[10px] font-black px-2 py-1 rounded-lg shadow-sm">
+        <div className="absolute top-2.5 left-2.5 sm:top-3 sm:left-3 bg-white/90 dark:bg-accent text-[#131313] dark:text-accent-content text-[9px] sm:text-[10px] font-black px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-lg shadow-sm">
           {badgeText}
         </div>
       </div>
       <div
-        className="px-2 pb-2 text-center"
+        className="px-1 sm:px-2 pb-1 sm:pb-2 text-center"
         onClick={(e) => e.stopPropagation()}
       >
-        <h4 className="font-bold text-sm mb-0.5 tracking-tight truncate text-foreground">
+        <h4 className="font-bold text-xs sm:text-sm mb-0.5 tracking-tight truncate text-foreground">
           {product?.title || "Product"}
         </h4>
-        <p className="text-[10px] text-foreground/60 font-serif italic mb-4 truncate">
+        <p className="text-[9px] sm:text-[10px] text-foreground/60 font-serif italic mb-3 sm:mb-4 truncate">
           {displaySubtitle}
         </p>
 
         {/* Draggable Slide-to-Cart Button */}
         <div
           ref={dragContainerRef}
-          className="relative border border-accent/30 rounded-full flex items-center w-full shadow-sm overflow-hidden h-10 touch-none"
+          className="relative border border-accent/30 rounded-full flex items-center w-full shadow-sm overflow-hidden h-9 sm:h-10 touch-none"
           style={{
             backgroundColor: isDragged ? "var(--color-accent)" : "transparent",
             transition: "background-color 0.3s",
@@ -137,11 +137,11 @@ const ProductCardItem = ({ product }) => {
         >
           <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
             {isDragged ? (
-              <span className="font-black text-xs text-accent-content tracking-widest uppercase animate-pulse">
+              <span className="font-black text-[11px] sm:text-xs text-accent-content tracking-widest uppercase animate-pulse">
                 Added
               </span>
             ) : (
-              <span className="font-black text-xs text-accent/70 dark:text-accent/60 tracking-widest pointer-events-none ml-6">
+              <span className="font-black text-[10px] sm:text-xs text-accent/70 dark:text-accent/60 tracking-wider pointer-events-none ml-4 sm:ml-6">
                 SLIDE • {displayPrice}
               </span>
             )}
@@ -159,8 +159,8 @@ const ProductCardItem = ({ product }) => {
             <i
               className={
                 isDragged
-                  ? "ri-check-line text-lg font-black"
-                  : "ri-arrow-right-s-line text-lg pointer-events-none"
+                  ? "ri-check-line text-base sm:text-lg font-black"
+                  : "ri-arrow-right-s-line text-base sm:text-lg pointer-events-none"
               }
             ></i>
           </motion.div>
