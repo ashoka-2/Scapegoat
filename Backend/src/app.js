@@ -2,6 +2,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import morgan from "morgan";
 import cors from "cors";
+import helmet from "helmet";
 import passport from "passport";
 import "./config/passport.js";
 
@@ -76,9 +77,19 @@ const corsOptions = {
   maxAge: 86400, // cache preflight responses 24h → no OPTIONS round-trip on repeat calls
 };
 
+// 1. Security Headers (Configured safely for separated Frontend/Backend domains)
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" },
+    contentSecurityPolicy: false,
+  })
+);
+
+// 2. CORS Handling
 app.use(cors(corsOptions));
 
-// 2. Logging & Body Parsers (Increased to 50mb for rich product description images)
+// 3. Logging & Body Parsers
 app.use(morgan("dev"));
 app.use(express.json({ limit: "2mb" }));
 app.use(express.urlencoded({ extended: true, limit: "2mb" }));
