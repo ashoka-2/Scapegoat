@@ -8,6 +8,7 @@ import { createAnimation, TRANSITION_CONFIG } from "../utils/themeTransition.js"
 
 import CartDrawer from "../Features/Cart/Components/CartDrawer.jsx";
 import PopupBanner from "../Components/PopupBanner.jsx";
+import MobileBottomNav from "../Shared/MobileBottomNav.jsx";
 
 import socket from "../utils/socket.js";
 import { useDispatch } from "react-redux";
@@ -142,6 +143,7 @@ const MainLayout = () => {
       <CartDrawer />
       <PopupBanner />
       <ScrollToTopButton />
+      <MobileBottomNav />
     </div>
   );
 };
