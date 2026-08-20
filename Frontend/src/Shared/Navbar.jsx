@@ -748,10 +748,11 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         style={{ clipPath: "circle(0% at 100% 0%)" }}
       >
         <div className="absolute top-4 left-6 right-6 md:right-12 flex items-center justify-between z-50">
-          <div className="md:hidden flex items-center gap-4">
+          <div className="md:hidden flex items-center gap-3">
             <button
               onClick={toggleTheme}
-              className="hover:text-accent transition-all hover:rotate-90 p-2 text-foreground flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30"
+              className="hover:text-accent transition-all hover:rotate-90 p-2 text-foreground flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30 cursor-pointer"
+              aria-label="Toggle Theme"
             >
               {isDarkMode ? (
                 <i className="ri-sun-fill text-xl"></i>
@@ -759,6 +760,22 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
                 <i className="ri-moon-fill text-xl"></i>
               )}
             </button>
+
+            {/* Wishlist Icon Button in Mobile Drawer */}
+            <Link
+              to="/wishlist"
+              onClick={() => setMobileMenuOpen(false)}
+              className="relative p-2 text-foreground hover:text-accent flex items-center justify-center w-10 h-10 rounded-full hover:bg-surface-variant/30 transition-all cursor-pointer"
+              aria-label="My Wishlist"
+            >
+              <i className="ri-heart-3-line text-xl"></i>
+              {wishlistCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-4 px-1 rounded-full bg-accent text-accent-content text-[9px] font-black flex items-center justify-center shadow-md leading-none">
+                  {wishlistCount > 99 ? "99+" : wishlistCount}
+                </span>
+              )}
+            </Link>
+
             {user ? (
               <Link
                 to="/profile"
