@@ -36,6 +36,56 @@ export const useOrders = () => {
     }
   };
 
+  const handleRazorpayCheckout = async ({ shippingAddress, user }) => {
+    dispatch(setLoading(true));
+    try {
+      const paymentOrder = await api.createRazorpayOrderApi({ shippingAddress });
+      if (!window.Razorpay) throw new Error("Razorpay Checkout could not be loaded. Please try again.");
+
+      const order = await new Promise((resolve, reject) => {
+        const razorpay = new window.Razorpay({
+          key: paymentOrder.keyId,
+          amount: paymentOrder.amount,
+          currency: paymentOrder.currency,
+          name: "ScapeGoat",
+          description: "Order payment",
+          order_id: paymentOrder.razorpayOrderId,
+          prefill: {
+            name: user?.fullname || user?.name || "",
+            email: user?.email || "",
+            contact: user?.contact || "",
+          },
+          theme: { color: "#111111" },
+          handler: async (response) => {
+            try {
+              const verified = await api.verifyRazorpayPaymentApi({
+                internalOrderId: paymentOrder.internalOrderId,
+                ...response,
+              });
+              resolve(verified.order);
+            } catch (error) {
+              reject(error);
+            }
+          },
+          modal: { ondismiss: () => reject(new Error("Payment cancelled.")) },
+        });
+        razorpay.on("payment.failed", (response) => reject(new Error(response.error?.description || "Payment failed.")));
+        razorpay.open();
+      });
+
+      dispatch(addOrder(order));
+      dispatch(clearCart());
+      dispatch(addToast({ message: "Payment successful! Your order is confirmed. 🎉", type: "success" }));
+      return { order };
+    } catch (e) {
+      const msg = e?.response?.data?.message || e?.message || "Payment could not be completed.";
+      if (msg !== "Payment cancelled.") dispatch(addToast({ message: msg, type: "error" }));
+      throw e;
+    } finally {
+      dispatch(setLoading(false));
+    }
+  };
+
   const handleFetchMyOrders = async () => {
     dispatch(setLoading(true));
     try {
@@ -126,6 +176,7 @@ export const useOrders = () => {
 
   return {
     handleCreateOrder,
+    handleRazorpayCheckout,
     handleFetchMyOrders,
     handleFetchSellerOrders,
     handleFetchOrderById,

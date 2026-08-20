@@ -31,6 +31,10 @@ if(!process.env.IMAGEKIT_PUBLIC_KEY || !process.env.IMAGEKIT_PRIVATE_KEY || !pro
     throw new Error("ImageKit configuration (PUBLIC_KEY, PRIVATE_KEY, or URL_ENDPOINT) is missing in environment variables");
 }
 
+if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_KEY_SECRET) {
+    console.warn("⚠ Razorpay keys are missing. Online payments will not work.");
+}
+
 
 export const config = {
     MONGO_URI: process.env.MONGO_URI,
@@ -45,6 +49,8 @@ export const config = {
     IMAGEKIT_PUBLIC_KEY: process.env.IMAGEKIT_PUBLIC_KEY,
     IMAGEKIT_PRIVATE_KEY: process.env.IMAGEKIT_PRIVATE_KEY,
     IMAGEKIT_URL_ENDPOINT: process.env.IMAGEKIT_URL_ENDPOINT,
+    RAZORPAY_KEY_ID: process.env.RAZORPAY_KEY_ID,
+    RAZORPAY_KEY_SECRET: process.env.RAZORPAY_KEY_SECRET,
     NODE_ENV: process.env.NODE_ENV || "development",
     FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
     BACKEND_URL: process.env.BACKEND_URL || "http://localhost:3000",

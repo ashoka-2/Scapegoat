@@ -38,7 +38,7 @@ const Checkout = () => {
   const navigate = useNavigate();
   const { cart, items, totalItems, subtotal, loading: cartLoading, handleGetCart } = useCart();
   const { user } = useSelector((state) => state.auth);
-  const { handleCreateOrder } = useOrders();
+  const { handleCreateOrder, handleRazorpayCheckout } = useOrders();
 
   const userId = user?._id || user?.id;
 
@@ -92,16 +92,15 @@ const Checkout = () => {
 
     setPlacing(true);
     try {
-      const res = await handleCreateOrder({
-        shippingAddress: address,
-        paymentMethod,
-      });
+      const res = paymentMethod === "Razorpay"
+        ? await handleRazorpayCheckout({ shippingAddress: address, user })
+        : await handleCreateOrder({ shippingAddress: address, paymentMethod });
       if (res?.order?._id) {
         navigate(`/orders/${res.order._id}`);
       } else {
         navigate("/my-orders");
       }
-    } catch (_) {
+    } catch {
     } finally {
       setPlacing(false);
     }

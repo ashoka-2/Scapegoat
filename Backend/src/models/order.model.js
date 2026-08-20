@@ -48,6 +48,12 @@ const orderSchema = new mongoose.Schema(
             status: { type: String },
             update_time: { type: String },
             email_address: { type: String },
+            razorpayOrderId: { type: String, index: true, sparse: true },
+            razorpayPaymentId: { type: String, unique: true, sparse: true },
+            razorpaySignature: { type: String },
+            currency: { type: String, default: "INR" },
+            amount: { type: Number },
+            cartCheckout: { type: Boolean, default: false },
         },
         itemsPrice: {
             type: Number,
@@ -87,7 +93,7 @@ const orderSchema = new mongoose.Schema(
         },
         status: {
             type: String,
-            enum: ["Processing", "Shipped", "Delivered", "Cancelled"],
+            enum: ["Payment Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
             default: "Processing",
         }
     },
@@ -96,8 +102,10 @@ const orderSchema = new mongoose.Schema(
 
 orderSchema.pre("save", async function () {
     if (!this.orderId) {
-        const count = await mongoose.model("Order").countDocuments();
-        this.orderId = count + 1001;
+        const Order = mongoose.model("Order");
+        // Find the highest existing orderId and increment by 1 (survives deletions & gaps)
+        const lastOrder = await Order.findOne({}, { orderId: 1 }).sort({ orderId: -1 }).lean();
+        this.orderId = lastOrder && lastOrder.orderId ? lastOrder.orderId + 1 : 1001;
     }
 });
 

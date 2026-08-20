@@ -2,6 +2,8 @@ import express from "express";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import {
     createOrder,
+    createRazorpayOrder,
+    verifyRazorpayPayment,
     getMyOrders,
     getOrderById,
     getSellerOrders,
@@ -13,6 +15,8 @@ const router = express.Router();
 
 // Private customer endpoints
 router.post("/", verifyToken, createOrder);
+router.post("/razorpay/create-order", verifyToken, createRazorpayOrder);
+router.post("/razorpay/verify", verifyToken, verifyRazorpayPayment);
 router.get("/my-orders", verifyToken, getMyOrders);
 router.put("/:id/cancel", verifyToken, cancelMyOrder);
 
@@ -25,4 +29,3 @@ router.put("/:id/status", verifyToken, requireRole("seller", "admin"), updateOrd
 router.get("/:id", verifyToken, getOrderById);
 
 export default router;
-
