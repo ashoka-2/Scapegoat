@@ -931,7 +931,7 @@ export const getAllOrdersAdmin = async (req, res) => {
         .find(query)
         .populate("user", "fullname email contact")
         .populate("orderItems.product", "title images price")
-        .populate("orderItems.seller", "fullname email")
+        .populate("orderItems.seller", "fullname email contact role")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))

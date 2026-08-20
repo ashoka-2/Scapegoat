@@ -20,6 +20,7 @@ import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
 import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
 import SellerOrders from "../Features/Seller/Pages/SellerOrders.jsx";
+import SellerOrderDetailPage from "../Features/Seller/Pages/SellerOrderDetailPage.jsx";
 import SellerUsersPage from "../Features/Seller/Pages/SellerUsersPage.jsx";
 import SellerUserDetailPage from "../Features/Seller/Pages/SellerUserDetailPage.jsx";
 import SellerWishlistsPage from "../Features/Seller/Pages/SellerWishlistsPage.jsx";
@@ -307,6 +308,10 @@ export const routes = createBrowserRouter([
       {
         path: "orders",
         element: <SellerOrders />,
+      },
+      {
+        path: "orders/:id",
+        element: <SellerOrderDetailPage />,
       },
       {
         path: "users",

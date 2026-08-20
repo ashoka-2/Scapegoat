@@ -108,6 +108,7 @@ const AdminOrdersPage = () => {
                   <th className="py-3.5 px-4">Order ID</th>
                   <th className="py-3.5 px-4">Customer</th>
                   <th className="py-3.5 px-4">Purchased Items</th>
+                  <th className="py-3.5 px-4">Seller & Payout</th>
                   <th className="py-3.5 px-4">Payment</th>
                   <th className="py-3.5 px-4">Total Amount</th>
                   <th className="py-3.5 px-4">Status</th>
@@ -117,8 +118,33 @@ const AdminOrdersPage = () => {
               <tbody className="divide-y divide-border-theme/40 text-xs font-semibold">
                 {filteredOrders?.length > 0 ? (
                   filteredOrders.map((ord) => {
-                    const itemsCount = ord.items?.length || ord.orderItems?.length || 0;
-                    const firstItemTitle = ord.items?.[0]?.product?.title || ord.orderItems?.[0]?.name || "Product";
+                    const orderItemsList = ord.orderItems || ord.items || [];
+                    const itemsCount = orderItemsList.length;
+                    const firstItemTitle = orderItemsList[0]?.product?.title || orderItemsList[0]?.name || "Product";
+                    
+                    // Identify distinct sellers and total seller payout amount
+                    const sellerMap = {};
+                    let totalSellerPayout = 0;
+                    orderItemsList.forEach((item) => {
+                      const sObj = item.seller || item.product?.seller;
+                      const sName =
+                        typeof sObj === "object"
+                          ? sObj.storeName || sObj.fullname || "Seller"
+                          : "Seller";
+                      sellerMap[sName] = true;
+                      totalSellerPayout += (item.price || item.unitPrice || 0) * (item.quantity || 1);
+                    });
+                    const distinctSellers = Object.keys(sellerMap);
+                    const sellerSummary =
+                      distinctSellers.length === 1
+                        ? distinctSellers[0]
+                        : distinctSellers.length > 1
+                        ? `${distinctSellers[0]} +${distinctSellers.length - 1} more`
+                        : "Marketplace";
+
+                    const isDelivered = ord.status === "Delivered";
+                    const isCancelled = ord.status === "Cancelled";
+
                     return (
                       <tr key={ord._id} className="hover:bg-background/40 transition">
                         <td className="py-3.5 px-4 font-mono font-bold text-accent">
@@ -132,8 +158,29 @@ const AdminOrdersPage = () => {
 
                         <td className="py-3.5 px-4">
                           <span className="font-bold text-foreground">{itemsCount} items</span>
-                          <p className="text-[10px] text-foreground/50 truncate max-w-[180px]">
+                          <p className="text-[10px] text-foreground/50 truncate max-w-[170px]">
                             {firstItemTitle} {itemsCount > 1 ? `+ ${itemsCount - 1} more` : ""}
+                          </p>
+                        </td>
+
+                        {/* Seller & Payout Column */}
+                        <td className="py-3.5 px-4">
+                          <p className="font-bold text-foreground truncate max-w-[140px]">
+                            {sellerSummary}
+                          </p>
+                          <p
+                            className={`text-[10px] font-bold font-mono ${
+                              isDelivered
+                                ? "text-emerald-500"
+                                : isCancelled
+                                ? "text-red-500/70"
+                                : "text-amber-500"
+                            }`}
+                          >
+                            ₹{totalSellerPayout.toLocaleString()}{" "}
+                            <span className="text-[9px] font-normal">
+                              ({isDelivered ? "Payable" : isCancelled ? "Cancelled" : "On Hold"})
+                            </span>
                           </p>
                         </td>
 
@@ -168,7 +215,7 @@ const AdminOrdersPage = () => {
                             onClick={() => setSelectedReceiptOrder(ord)}
                             className="px-3 py-1.5 rounded-xl bg-background hover:bg-accent hover:text-accent-content border border-border-theme text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ml-auto"
                           >
-                            <i className="ri-receipt-line" /> View Receipt
+                            <i className="ri-receipt-line" /> Audit & Receipt
                           </button>
                         </td>
                       </tr>
@@ -176,7 +223,7 @@ const AdminOrdersPage = () => {
                   })
                 ) : (
                   <tr>
-                    <td colSpan={7} className="py-12 text-center text-foreground/40 italic">
+                    <td colSpan={8} className="py-12 text-center text-foreground/40 italic">
                       No orders found.
                     </td>
                   </tr>

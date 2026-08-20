@@ -411,15 +411,21 @@ export const getOrderById = async (req, res) => {
     try {
         const order = await orderModel.findById(req.params.id)
             .populate("user", "fullname email contact")
-            .populate("orderItems.product", "title slug images price seller");
+            .populate("orderItems.product", "title slug images price seller")
+            .populate("orderItems.seller", "fullname email contact");
 
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found." });
         }
 
         // Allow buyer, seller, or admin
-        const isBuyer = order.user._id.toString() === req.user._id.toString();
-        const isSeller = order.orderItems.some((item) => item.seller?.toString() === req.user._id.toString());
+        const currentUserId = req.user._id.toString();
+        const isBuyer = (order.user?._id || order.user)?.toString() === currentUserId;
+        const isSeller = order.orderItems.some((item) => {
+            const itemSellerId = (item.seller?._id || item.seller)?.toString();
+            const productSellerId = (item.product?.seller?._id || item.product?.seller)?.toString();
+            return itemSellerId === currentUserId || productSellerId === currentUserId;
+        });
         const isAdmin = req.user.role === "admin";
 
         if (!isBuyer && !isSeller && !isAdmin) {
@@ -442,6 +448,8 @@ export const getSellerOrders = async (req, res) => {
         const sellerId = req.user._id;
         const orders = await orderModel.find({ "orderItems.seller": sellerId })
             .populate("user", "fullname email contact")
+            .populate("orderItems.product", "title slug images price")
+            .populate("orderItems.seller", "fullname email contact")
             .sort({ createdAt: -1 });
 
         return res.status(200).json({ success: true, orders });
@@ -554,4 +562,3 @@ export const cancelMyOrder = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
-
