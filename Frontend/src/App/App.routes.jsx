@@ -42,6 +42,7 @@ import AdminUnitsPage from "../Features/Admin/Pages/AdminUnitsPage.jsx";
 import AdminProductsPage from "../Features/Admin/Pages/AdminProductsPage.jsx";
 import AdminProductDetailPage from "../Features/Admin/Pages/AdminProductDetailPage.jsx";
 import AdminOrdersPage from "../Features/Admin/Pages/AdminOrdersPage.jsx";
+import AdminOrderDetailPage from "../Features/Admin/Pages/AdminOrderDetailPage.jsx";
 import AdminInboxPage from "../Features/Admin/Pages/AdminInboxPage.jsx";
 import AdminSettingsPage from "../Features/Admin/Pages/AdminSettingsPage.jsx";
 import AdminBannersPage from "../Features/Admin/Pages/AdminBannersPage.jsx";
@@ -134,6 +135,10 @@ export const routes = createBrowserRouter([
       {
         path: "orders",
         element: <AdminOrdersPage />,
+      },
+      {
+        path: "orders/:id",
+        element: <AdminOrderDetailPage />,
       },
       {
         path: "categories",

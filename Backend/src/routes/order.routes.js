@@ -8,6 +8,7 @@ import {
     getOrderById,
     getSellerOrders,
     updateOrderStatus,
+    updateSellerPayout,
     cancelMyOrder,
 } from "../controllers/order.controller.js";
 
@@ -20,10 +21,11 @@ router.post("/razorpay/verify", verifyToken, verifyRazorpayPayment);
 router.get("/my-orders", verifyToken, getMyOrders);
 router.put("/:id/cancel", verifyToken, cancelMyOrder);
 
-// Private seller endpoints
+// Private seller & admin endpoints
 router.get("/all", verifyToken, requireRole("seller", "admin"), getSellerOrders);
 router.get("/seller-orders", verifyToken, requireRole("seller", "admin"), getSellerOrders);
 router.put("/:id/status", verifyToken, requireRole("seller", "admin"), updateOrderStatus);
+router.put("/:id/payout/:sellerId", verifyToken, requireRole("admin"), updateSellerPayout);
 
 // Single order detail
 router.get("/:id", verifyToken, getOrderById);

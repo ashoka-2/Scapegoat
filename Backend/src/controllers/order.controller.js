@@ -410,12 +410,41 @@ export const getMyOrders = async (req, res) => {
 export const getOrderById = async (req, res) => {
     try {
         const order = await orderModel.findById(req.params.id)
-            .populate("user", "fullname email contact")
-            .populate("orderItems.product", "title slug images price seller")
-            .populate("orderItems.seller", "fullname email contact");
+            .populate("user", "fullname email contact profilePic")
+            .populate({
+                path: "orderItems.product",
+                select: "title slug images price seller",
+                populate: { path: "seller", select: "fullname email contact role storeName" }
+            })
+            .populate("orderItems.seller", "fullname email contact role storeName")
+            .populate("sellerPayouts.seller", "fullname email contact role storeName");
 
         if (!order) {
             return res.status(404).json({ success: false, message: "Order not found." });
+        }
+
+        // Deep fallback: If any orderItems.seller is missing populated fields, resolve from userModel
+        if (Array.isArray(order.orderItems)) {
+            for (let i = 0; i < order.orderItems.length; i++) {
+                const item = order.orderItems[i];
+                const sellerRaw = item.seller;
+                const isUnpopulated = !sellerRaw || !sellerRaw.email;
+
+                if (isUnpopulated) {
+                    const sellerIdToLookup =
+                        (sellerRaw?._id || sellerRaw) ||
+                        (item.product?.seller?._id || item.product?.seller);
+
+                    if (sellerIdToLookup && mongoose.Types.ObjectId.isValid(sellerIdToLookup)) {
+                        const sellerDoc = await userModel.findById(sellerIdToLookup)
+                            .select("fullname email contact role storeName")
+                            .lean();
+                        if (sellerDoc) {
+                            order.orderItems[i].seller = sellerDoc;
+                        }
+                    }
+                }
+            }
         }
 
         // Allow buyer, seller, or admin
@@ -562,3 +591,56 @@ export const cancelMyOrder = async (req, res) => {
         return res.status(500).json({ success: false, message: error.message });
     }
 };
+
+/**
+ * @desc    Update seller payout settlement status (Admin only)
+ * @route   PUT /api/orders/:id/payout/:sellerId
+ * @access  Private/Admin
+ */
+export const updateSellerPayout = async (req, res) => {
+    try {
+        const { id, sellerId } = req.params;
+        const { isSettled, transactionRef, notes } = req.body;
+
+        const order = await orderModel.findById(id);
+        if (!order) {
+            return res.status(404).json({ success: false, message: "Order not found." });
+        }
+
+        if (!order.sellerPayouts) order.sellerPayouts = [];
+
+        const existingIdx = order.sellerPayouts.findIndex(
+            (p) => p.seller?.toString() === sellerId.toString()
+        );
+
+        if (existingIdx >= 0) {
+            order.sellerPayouts[existingIdx].isSettled = isSettled;
+            order.sellerPayouts[existingIdx].settledAt = isSettled ? new Date() : null;
+            if (transactionRef !== undefined) order.sellerPayouts[existingIdx].transactionRef = transactionRef;
+            if (notes !== undefined) order.sellerPayouts[existingIdx].notes = notes;
+        } else {
+            const sellerAmount = order.orderItems
+                .filter((item) => (item.seller?._id || item.seller)?.toString() === sellerId.toString())
+                .reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+
+            order.sellerPayouts.push({
+                seller: sellerId,
+                amount: sellerAmount,
+                isSettled,
+                settledAt: isSettled ? new Date() : null,
+                transactionRef: transactionRef || "",
+                notes: notes || "",
+            });
+        }
+
+        await order.save();
+        return res.status(200).json({
+            success: true,
+            message: `Seller payout ${isSettled ? "marked as settled" : "updated"}.`,
+            order,
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: error.message });
+    }
+};
+

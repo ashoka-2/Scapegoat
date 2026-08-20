@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import customAxios from "../../../utils/axios";
 import { useAdmin } from "../Hooks/useAdmin";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
 import AdminReviewCard from "../Components/AdminReviewCard";
@@ -11,18 +12,52 @@ const AdminUserDetailPage = () => {
   const { currentUser, loading, fetchUserById, changeUserRole, toggleBan } = useAdmin();
   const [activeTab, setActiveTab] = useState("orders");
   const [selectedReceiptOrder, setSelectedReceiptOrder] = useState(null);
+  const [localData, setLocalData] = useState(null);
+  const [localLoading, setLocalLoading] = useState(false);
+
+  const getDisplayPrice = (p) => {
+    if (!p) return 0;
+    if (typeof p.sellingPrice?.amount === "number") return p.sellingPrice.amount;
+    if (typeof p.maxPrice?.amount === "number") return p.maxPrice.amount;
+    if (typeof p.price?.amount === "number") return p.price.amount;
+    if (typeof p.price?.salePrice === "number") return p.price.salePrice;
+    if (typeof p.price?.mrp === "number") return p.price.mrp;
+    if (typeof p.price === "number") return p.price;
+    if (Array.isArray(p.variants) && p.variants[0]?.price?.amount) return p.variants[0].price.amount;
+    return 0;
+  };
+
+  const loadUserData = async () => {
+    if (!id) return;
+    fetchUserById(id);
+    try {
+      setLocalLoading(true);
+      const res = await customAxios.get(`/api/admin/users/${id}`);
+      if (res.data?.success) {
+        setLocalData(res.data);
+      }
+    } catch (err) {
+      console.error("Direct fetch user error:", err);
+    } finally {
+      setLocalLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (id) {
-      fetchUserById(id);
+      loadUserData();
     }
   }, [id]);
 
-  if (loading) {
+  const activePayload = localData || currentUser;
+  const rawUser = activePayload?.user || activePayload;
+  const currentUserId = (rawUser?._id || rawUser?.id || "").toString();
+
+  if ((loading && !localData) || (localLoading && !currentUser)) {
     return <AdminUserDetailSkeleton />;
   }
 
-  if (!currentUser || !currentUser.user || currentUser.user._id !== id) {
+  if (!activePayload || !rawUser || (currentUserId && id && currentUserId !== id.toString())) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center space-y-4">
         <p className="text-sm font-bold text-foreground/70">User record not found or invalid user ID.</p>
@@ -36,7 +71,14 @@ const AdminUserDetailPage = () => {
     );
   }
 
-  const { user, orders, reviews, cart, wishlist, sellerProducts } = currentUser;
+  const user = rawUser;
+  const orders = activePayload?.orders || user?.orders || [];
+  const reviews = activePayload?.reviews || user?.reviews || [];
+  const rawCart = activePayload?.cart || user?.cart || [];
+  const cart = Array.isArray(rawCart) ? rawCart : rawCart?.items || [];
+  const rawWishlist = activePayload?.wishlist || user?.wishlist || [];
+  const wishlist = Array.isArray(rawWishlist) ? rawWishlist : rawWishlist?.products || [];
+  const sellerProducts = activePayload?.sellerProducts || activePayload?.products || user?.sellerProducts || user?.products || [];
   const isSeller = user.role === "seller";
 
   return (
@@ -130,8 +172,8 @@ const AdminUserDetailPage = () => {
         </div>
       </div>
 
-      {/* Navigation Tabs for User Details */}
-      <div className="flex items-center gap-1.5 bg-background/60 p-1.5 rounded-2xl border border-border-theme overflow-x-auto">
+      {/* Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-border-theme pb-2 overflow-x-auto">
         <button
           onClick={() => setActiveTab("orders")}
           className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
@@ -164,7 +206,7 @@ const AdminUserDetailPage = () => {
           <button
             onClick={() => setActiveTab("products")}
             className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-              activeTab === "products" ? "bg-amber-500 text-black shadow-sm" : "text-amber-500 hover:text-amber-400"
+              activeTab === "products" ? "bg-amber-500 text-black shadow-sm font-extrabold" : "text-amber-500 hover:text-amber-400"
             }`}
           >
             <i className="ri-store-2-line" /> Listed Products ({sellerProducts?.length || 0})
@@ -181,52 +223,84 @@ const AdminUserDetailPage = () => {
         </button>
       </div>
 
-      {/* Tab 1: Orders View with View Receipt Modal support */}
+      {/* Tab 1: Orders View */}
       {activeTab === "orders" && (
         <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
-          <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Order History</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-black uppercase tracking-wider text-foreground">
+              User Order History ({orders?.length || 0})
+            </h2>
+            <span className="text-xs font-bold font-mono text-foreground/50 bg-background border border-border-theme px-3 py-1 rounded-xl">
+              {orders?.length || 0} Orders Recorded
+            </span>
+          </div>
 
           <div className="space-y-3">
             {orders?.length > 0 ? (
-              orders.map((ord) => (
-                <div
-                  key={ord._id}
-                  className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
-                >
-                  <div>
-                    <p className="text-xs font-mono font-bold text-accent">
-                      #{ord.orderId || ord._id.slice(-6).toUpperCase()}
-                    </p>
-                    <p className="text-[11px] text-foreground/50">
-                      {new Date(ord.createdAt).toLocaleDateString()} • {ord.items?.length || ord.orderItems?.length || 0} items
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end">
-                    <div className="text-right">
-                      <p className="text-xs font-mono font-black text-foreground">
-                        ₹{ord.totalPrice?.toLocaleString()}
+              orders.map((ord) => {
+                const orderItems = ord.orderItems || ord.items || [];
+                return (
+                  <div
+                    key={ord._id}
+                    className="p-4 bg-background/50 border border-border-theme/40 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 hover:border-border-theme transition"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono font-black text-accent">
+                          #{ord.orderId || ord._id.slice(-6).toUpperCase()}
+                        </span>
+                        <span className="text-[10px] text-foreground/40">•</span>
+                        <span className="text-[11px] text-foreground/50">
+                          {new Date(ord.createdAt).toLocaleDateString("en-IN", { dateStyle: "medium" })}
+                        </span>
+                      </div>
+                      <p className="text-xs text-foreground/70 font-medium">
+                        {orderItems.length} {orderItems.length === 1 ? "Product" : "Products"} ({orderItems.map((i) => i.name || i.product?.title || "Item").slice(0, 2).join(", ")}{orderItems.length > 2 ? "..." : ""})
                       </p>
-                      <span
-                        className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full ${
-                          ord.status === "Delivered" ? "bg-emerald-500/10 text-emerald-500" : "bg-amber-500/10 text-amber-500"
-                        }`}
-                      >
-                        {ord.status}
-                      </span>
                     </div>
 
-                    <button
-                      onClick={() => setSelectedReceiptOrder(ord)}
-                      className="px-3 py-1.5 rounded-xl bg-accent/10 text-accent border border-accent/20 text-xs font-bold hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1.5"
-                    >
-                      <i className="ri-receipt-line" /> View Receipt
-                    </button>
+                    <div className="flex items-center gap-3 w-full sm:w-auto justify-between sm:justify-end flex-wrap">
+                      <div className="text-right">
+                        <p className="text-xs font-mono font-black text-foreground">
+                          ₹{ord.totalPrice?.toLocaleString()}
+                        </p>
+                        <span
+                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-full border ${
+                            ord.status === "Delivered"
+                              ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/20"
+                              : ord.status === "Cancelled"
+                              ? "bg-red-500/10 text-red-500 border-red-500/20"
+                              : "bg-amber-500/10 text-amber-500 border-amber-500/20"
+                          }`}
+                        >
+                          {ord.status}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSelectedReceiptOrder(ord)}
+                          className="px-3 py-1.5 rounded-xl bg-background border border-border-theme text-xs font-bold text-foreground/70 hover:text-foreground hover:bg-surface transition cursor-pointer flex items-center gap-1.5"
+                          title="Print / View Receipt"
+                        >
+                          <i className="ri-receipt-line" /> Receipt
+                        </button>
+                        <button
+                          onClick={() => navigate(`/admin/orders/${ord._id}`)}
+                          className="px-3 py-1.5 rounded-xl bg-accent/10 text-accent border border-accent/20 text-xs font-bold hover:bg-accent hover:text-accent-content transition cursor-pointer flex items-center gap-1"
+                        >
+                          <span>Order Audit</span>
+                          <i className="ri-arrow-right-line" />
+                        </button>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))
+                );
+              })
             ) : (
-              <p className="text-xs text-foreground/40 italic py-8 text-center">No orders found for this user.</p>
+              <p className="text-xs text-foreground/40 italic py-8 text-center">
+                No orders found for this user.
+              </p>
             )}
           </div>
         </div>
@@ -236,18 +310,15 @@ const AdminUserDetailPage = () => {
       {activeTab === "cart" && (
         <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
           <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Cart Added Items</h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cart?.length > 0 ? (
               cart.map((item, idx) => {
                 const p = item.product || {};
-                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url;
+                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url || (typeof p.images?.[0] === "string" ? p.images[0] : "");
+                const price = getDisplayPrice(p);
+
                 return (
-                  <div
-                    key={idx}
-                    onClick={() => p._id && navigate(`/admin/products/${p._id}`)}
-                    className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-accent transition"
-                  >
+                  <div key={idx} onClick={() => p._id && navigate(`/admin/products/${p._id}`)} className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-accent transition">
                     <div className="w-12 h-14 rounded-xl overflow-hidden border border-border-theme shrink-0 bg-surface">
                       {primaryImg ? (
                         <img src={primaryImg} alt={p.title} className="w-full h-full object-cover" />
@@ -258,7 +329,7 @@ const AdminUserDetailPage = () => {
                     <div className="min-w-0 flex-1">
                       <p className="font-extrabold text-xs text-foreground truncate">{p.title || "Product"}</p>
                       <p className="text-[10px] text-accent font-bold">Qty: {item.quantity}</p>
-                      <p className="text-xs font-mono font-black text-foreground mt-0.5">₹{(p.price?.salePrice || p.price?.mrp || 0).toLocaleString()}</p>
+                      <p className="text-xs font-mono font-black text-foreground mt-0.5">₹{price.toLocaleString()}</p>
                     </div>
                   </div>
                 );
@@ -274,17 +345,14 @@ const AdminUserDetailPage = () => {
       {activeTab === "wishlist" && (
         <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
           <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Wishlist Saved Products</h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {wishlist?.length > 0 ? (
               wishlist.map((p) => {
-                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url;
+                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url || (typeof p.images?.[0] === "string" ? p.images[0] : "");
+                const price = getDisplayPrice(p);
+
                 return (
-                  <div
-                    key={p._id}
-                    onClick={() => navigate(`/admin/products/${p._id}`)}
-                    className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-accent transition"
-                  >
+                  <div key={p._id} onClick={() => navigate(`/admin/products/${p._id}`)} className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-accent transition">
                     <div className="w-12 h-14 rounded-xl overflow-hidden border border-border-theme shrink-0 bg-surface">
                       {primaryImg ? (
                         <img src={primaryImg} alt={p.title} className="w-full h-full object-cover" />
@@ -295,7 +363,7 @@ const AdminUserDetailPage = () => {
                     <div className="min-w-0 flex-1">
                       <p className="font-extrabold text-xs text-foreground truncate">{p.title}</p>
                       <p className="text-[10px] font-bold text-emerald-500">{p.stock > 0 ? "In Stock" : "Out of Stock"}</p>
-                      <p className="text-xs font-mono font-black text-foreground mt-0.5">₹{(p.price?.salePrice || p.price?.mrp || 0).toLocaleString()}</p>
+                      <p className="text-xs font-mono font-black text-foreground mt-0.5">₹{price.toLocaleString()}</p>
                     </div>
                   </div>
                 );
@@ -310,29 +378,42 @@ const AdminUserDetailPage = () => {
       {/* Tab 4: Listed Products (ONLY for Seller) */}
       {isSeller && activeTab === "products" && (
         <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
-          <h2 className="text-sm font-black uppercase tracking-wider text-amber-500">Products Listed by Seller ({sellerProducts?.length || 0})</h2>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-black uppercase tracking-wider text-amber-500">Products Listed by Seller ({sellerProducts?.length || 0})</h2>
+              <p className="text-xs text-foreground/50">All active catalog items published by this merchant</p>
+            </div>
+            <span className="text-xs font-bold text-foreground/60 font-mono bg-background border border-border-theme px-3 py-1 rounded-xl">
+              {sellerProducts?.length || 0} Listed Items
+            </span>
+          </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {sellerProducts?.length > 0 ? (
               sellerProducts.map((p) => {
-                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url;
+                const primaryImg = p.images?.find((i) => i.isPrimary)?.url || p.images?.[0]?.url || (typeof p.images?.[0] === "string" ? p.images[0] : "");
+                const price = getDisplayPrice(p);
+                const maxPrice = p.maxPrice?.amount || (typeof p.maxPrice === "number" ? p.maxPrice : null);
+
                 return (
-                  <div
-                    key={p._id}
-                    onClick={() => navigate(`/admin/products/${p._id}`)}
-                    className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3 cursor-pointer hover:border-accent transition"
-                  >
-                    <div className="w-12 h-14 rounded-xl overflow-hidden border border-border-theme shrink-0 bg-surface">
+                  <div key={p._id} onClick={() => navigate(`/admin/products/${p._id}`)} className="p-3.5 bg-background/50 border border-border-theme/40 rounded-2xl flex items-center gap-3.5 cursor-pointer hover:border-amber-500/50 hover:bg-background transition group shadow-sm">
+                    <div className="w-14 h-16 rounded-xl overflow-hidden border border-border-theme shrink-0 bg-surface">
                       {primaryImg ? (
-                        <img src={primaryImg} alt={p.title} className="w-full h-full object-cover" />
+                        <img src={primaryImg} alt={p.title} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-foreground/30"><i className="ri-image-line" /></div>
+                        <div className="w-full h-full flex items-center justify-center text-foreground/30"><i className="ri-image-line text-lg" /></div>
                       )}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="font-extrabold text-xs text-foreground truncate">{p.title}</p>
-                      <p className="text-[10px] font-mono text-accent">Stock: {p.stock}</p>
-                      <p className="text-xs font-mono font-black text-foreground mt-0.5">₹{(p.price?.salePrice || p.price?.mrp || 0).toLocaleString()}</p>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <p className="font-extrabold text-xs text-foreground truncate group-hover:text-amber-500 transition">{p.title}</p>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold ${p.stock > 0 ? "text-emerald-500" : "text-red-400"}`}>Stock: {p.stock || 0}</span>
+                        {p.status && <span className="text-[9px] uppercase px-1.5 py-0.2 rounded bg-surface border border-border-theme text-foreground/50 font-bold">{p.status}</span>}
+                      </div>
+                      <div className="flex items-baseline gap-1.5 pt-0.5">
+                        <span className="text-sm font-mono font-black text-foreground">₹{price.toLocaleString()}</span>
+                        {maxPrice && maxPrice > price && <span className="text-[10px] font-mono text-foreground/40 line-through">₹{maxPrice.toLocaleString()}</span>}
+                      </div>
                     </div>
                   </div>
                 );

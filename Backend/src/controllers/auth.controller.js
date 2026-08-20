@@ -547,35 +547,53 @@ export const getUserById = async (req, res) => {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        const wishlist = await wishlistModel.findOne({ user: id }).populate({
+        const userObjId = mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+
+        const wishlist = await wishlistModel.findOne({ $or: [{ user: userObjId }, { user: id }] }).populate({
             path: "products",
-            select: "title slug maxPrice sellingPrice images stockStatus category brand",
+            select: "title slug maxPrice sellingPrice price images stockStatus category brand",
         }).lean();
 
-        const cart = await cartModel.findOne({ user: id }).populate({
+        const cart = await cartModel.findOne({ $or: [{ user: userObjId }, { user: id }] }).populate({
             path: "items.product",
-            select: "title slug maxPrice sellingPrice images stockStatus",
+            select: "title slug maxPrice sellingPrice price images stockStatus",
         }).lean();
 
-        const orders = await orderModel.find({ user: id }).populate({
+        const orders = await orderModel.find({
+            $or: [
+                { user: userObjId },
+                { user: id },
+                { "orderItems.seller": userObjId },
+                { "orderItems.seller": id },
+                { "items.seller": userObjId },
+                { "items.seller": id },
+            ],
+        }).populate({
             path: "orderItems.product",
-            select: "title slug maxPrice sellingPrice images",
+            select: "title slug maxPrice sellingPrice price images",
+        }).populate({
+            path: "orderItems.seller",
+            select: "fullname email contact storeName",
         }).sort({ createdAt: -1 }).lean();
 
         let products = [];
         if (user.role === "seller") {
-            products = await productModel.find({ seller: id }).select("title slug maxPrice sellingPrice images status category brand").lean();
+            products = await productModel.find({ $or: [{ seller: userObjId }, { seller: id }] }).select("title slug maxPrice sellingPrice price images status category brand createdAt").lean();
         }
 
         return res.status(200).json({
             success: true,
             user: {
                 ...user,
-                wishlist: wishlist || { products: [] },
-                cart: cart || { items: [] },
+                wishlist: wishlist?.products || [],
+                cart: cart?.items || [],
                 orders: orders || [],
                 products: products || [],
             },
+            orders: orders || [],
+            cart: cart?.items || [],
+            wishlist: wishlist?.products || [],
+            sellerProducts: products || [],
         });
     } catch (error) {
         return handleServerError(res, error);

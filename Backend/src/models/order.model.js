@@ -95,7 +95,17 @@ const orderSchema = new mongoose.Schema(
             type: String,
             enum: ["Payment Pending", "Processing", "Shipped", "Delivered", "Cancelled"],
             default: "Processing",
-        }
+        },
+        sellerPayouts: [
+            {
+                seller: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+                amount: { type: Number, default: 0 },
+                isSettled: { type: Boolean, default: false },
+                settledAt: { type: Date },
+                transactionRef: { type: String, default: "" },
+                notes: { type: String, default: "" }
+            }
+        ]
     },
     { timestamps: true }
 );

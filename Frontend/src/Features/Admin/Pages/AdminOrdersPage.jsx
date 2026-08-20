@@ -1,10 +1,12 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAdmin } from "../Hooks/useAdmin";
 import AdminOrdersSkeleton from "../Components/Skeletons/AdminOrdersSkeleton";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
 import AdminSearchFilterHeader from "../Components/AdminSearchFilterHeader";
 
 const AdminOrdersPage = () => {
+  const navigate = useNavigate();
   const {
     orders,
     ordersTotal,
@@ -211,12 +213,22 @@ const AdminOrdersPage = () => {
                         </td>
 
                         <td className="py-3.5 px-4 text-right">
-                          <button
-                            onClick={() => setSelectedReceiptOrder(ord)}
-                            className="px-3 py-1.5 rounded-xl bg-background hover:bg-accent hover:text-accent-content border border-border-theme text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ml-auto"
-                          >
-                            <i className="ri-receipt-line" /> Audit & Receipt
-                          </button>
+                          <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                            <button
+                              onClick={() => setSelectedReceiptOrder(ord)}
+                              className="p-2 rounded-xl bg-background hover:bg-surface border border-border-theme text-foreground/70 hover:text-foreground text-xs font-bold transition cursor-pointer"
+                              title="Print Bill"
+                            >
+                              <i className="ri-printer-line" />
+                            </button>
+                            <button
+                              onClick={() => navigate(`/admin/orders/${ord._id}`)}
+                              className="px-3 py-1.5 rounded-xl bg-accent/10 hover:bg-accent text-accent hover:text-accent-content text-xs font-bold transition cursor-pointer flex items-center gap-1"
+                            >
+                              <span>Details & Payout</span>
+                              <i className="ri-arrow-right-line" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );

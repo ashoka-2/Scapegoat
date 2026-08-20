@@ -692,15 +692,29 @@ export const getUserById = async (req, res) => {
         .json({ success: false, message: "User not found" });
     }
 
+    const userObjId = mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+
     const [orders, activity, reviews, cart, wishlist, sellerProducts] =
       await Promise.all([
         orderModel
-          .find({ $or: [{ user: id }, { "items.seller": id }] })
-          .populate("items.product", "title images price")
+          .find({
+            $or: [
+              { user: userObjId },
+              { user: id },
+              { "orderItems.seller": userObjId },
+              { "orderItems.seller": id },
+            ],
+          })
+          .populate("user", "fullname email contact role")
+          .populate("orderItems.product", "title slug images maxPrice sellingPrice price stock")
+          .populate("orderItems.seller", "fullname email contact role")
           .sort({ createdAt: -1 })
-          .limit(20)
+          .limit(100)
           .lean()
-          .catch(() => []),
+          .catch((err) => {
+            console.error("Error fetching admin user orders:", err.message || err);
+            return [];
+          }),
         userActivityModel
           ? userActivityModel
               .findOne({ user: id })
@@ -710,29 +724,48 @@ export const getUserById = async (req, res) => {
         reviewModel
           .find({ user: id })
           .populate("product", "title images")
+          .sort({ createdAt: -1 })
           .lean()
           .catch(() => []),
         cartModel
-          .findOne({ user: id })
-          .populate("items.product", "title images price stock")
+          .findOne({ $or: [{ user: userObjId }, { user: id }] })
+          .populate("items.product", "title slug images maxPrice sellingPrice price stock stockStatus")
           .lean()
-          .catch(() => null),
+          .catch((err) => {
+            console.error("Error fetching admin user cart:", err);
+            return null;
+          }),
         wishlistModel
-          .findOne({ user: id })
-          .populate("products", "title images price stock rating")
+          .findOne({ $or: [{ user: userObjId }, { user: id }] })
+          .populate("products", "title slug images maxPrice sellingPrice price stock stockStatus rating")
           .lean()
-          .catch(() => null),
+          .catch((err) => {
+            console.error("Error fetching admin user wishlist:", err);
+            return null;
+          }),
         user.role === "seller"
           ? productModel
-              .find({ seller: id })
+              .find({ $or: [{ seller: userObjId }, { seller: id }] })
+              .select("title slug images maxPrice sellingPrice price stock stockStatus status category brand createdAt")
+              .sort({ createdAt: -1 })
               .lean()
-              .catch(() => [])
+              .catch((err) => {
+                console.error("Error fetching admin seller products:", err);
+                return [];
+              })
           : Promise.resolve([]),
       ]);
 
     return res.status(200).json({
       success: true,
-      user,
+      user: {
+        ...user,
+        orders: orders || [],
+        cart: cart?.items || [],
+        wishlist: wishlist?.products || [],
+        sellerProducts: sellerProducts || [],
+        reviews: reviews || [],
+      },
       orders: orders || [],
       activity: activity || null,
       reviews: reviews || [],
