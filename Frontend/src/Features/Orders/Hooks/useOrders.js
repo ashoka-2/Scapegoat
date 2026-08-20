@@ -36,10 +36,10 @@ export const useOrders = () => {
     }
   };
 
-  const handleRazorpayCheckout = async ({ shippingAddress, user }) => {
+  const handleRazorpayCheckout = async ({ shippingAddress, user, couponCode }) => {
     dispatch(setLoading(true));
     try {
-      const paymentOrder = await api.createRazorpayOrderApi({ shippingAddress });
+      const paymentOrder = await api.createRazorpayOrderApi({ shippingAddress, couponCode });
       if (!window.Razorpay) throw new Error("Razorpay Checkout could not be loaded. Please try again.");
 
       const order = await new Promise((resolve, reject) => {

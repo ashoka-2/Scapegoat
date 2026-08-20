@@ -291,6 +291,12 @@ const MarketTaxInvoice = ({ order, sellerUser, onClose }) => {
                 <span>Delivery:</span>
                 <span>{shippingCharges === 0 ? "FREE" : `₹${shippingCharges.toFixed(2)}`}</span>
               </div>
+              {((order.coupon && order.coupon.code) || order.discountPrice > 0) && (
+                <div className="flex justify-between text-neutral-800 font-bold">
+                  <span>Coupon ({order.coupon?.code || "PROMO"}):</span>
+                  <span>-₹{(order.coupon?.discountAmount || order.discountPrice || 0).toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-black text-sm pt-1 border-t border-dashed border-black">
                 <span>TOTAL:</span>
                 <span>₹{grandTotal.toFixed(2)}</span>
@@ -497,6 +503,12 @@ const MarketTaxInvoice = ({ order, sellerUser, onClose }) => {
                   <span>Shipping & Delivery:</span>
                   <span className="text-emerald-700 font-bold">{shippingCharges === 0 ? "FREE" : `₹${shippingCharges.toFixed(2)}`}</span>
                 </div>
+                {((order.coupon && order.coupon.code) || order.discountPrice > 0) && (
+                  <div className="flex justify-between text-emerald-700 font-bold">
+                    <span>Coupon Discount ({order.coupon?.code || "PROMO"}):</span>
+                    <span>-₹{(order.coupon?.discountAmount || order.discountPrice || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>
+                  </div>
+                )}
                 <div className="pt-2 border-t-2 border-neutral-900 flex justify-between text-sm font-black text-neutral-950">
                   <span>GRAND TOTAL:</span>
                   <span>₹{grandTotal.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</span>

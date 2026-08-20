@@ -32,7 +32,7 @@ export const getAllCoupons = async (req, res) => {
 
         const skip = (parseInt(page) - 1) * parseInt(limit);
 
-        const [coupons, total, activeCount, tieredCount, fixedCount] = await Promise.all([
+        const [coupons, total, activeCount, tieredCount, fixedCount, redemptionsAgg] = await Promise.all([
             couponModel.find(query)
                 .populate("applicableCategories", "name")
                 .populate("applicableProducts", "title")
@@ -44,7 +44,10 @@ export const getAllCoupons = async (req, res) => {
             couponModel.countDocuments({ isActive: true, endDate: { $gte: new Date() } }),
             couponModel.countDocuments({ couponType: "tiered" }),
             couponModel.countDocuments({ couponType: "fixed" }),
+            couponModel.aggregate([{ $group: { _id: null, total: { $sum: "$usedCount" } } }]),
         ]);
+
+        const totalRedemptions = redemptionsAgg[0]?.total || 0;
 
         return res.status(200).json({
             success: true,
@@ -57,6 +60,7 @@ export const getAllCoupons = async (req, res) => {
                 activeCoupons: activeCount,
                 tieredCoupons: tieredCount,
                 fixedCoupons: fixedCount,
+                totalRedemptions,
             },
         });
     } catch (error) {

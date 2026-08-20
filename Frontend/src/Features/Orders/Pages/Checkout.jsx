@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../../Cart/Hooks/useCart";
 import { useOrders } from "../Hooks/useOrders";
 import CheckoutSkeleton from "../Components/Skeletons/CheckoutSkeleton";
 import BannerCarousel from "../../Home/Components/BannerCarousel";
 import { InputField, SelectField, RadioCard } from "../../../Shared/FormFields";
+import customAxios from "../../../utils/axios";
+import { addToast } from "../../../utils/toast.slice";
 
 const INDIAN_STATES = [
   "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh",
@@ -35,6 +37,7 @@ const PAYMENT_METHODS = [
 ];
 
 const Checkout = () => {
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const { cart, items, totalItems, subtotal, loading: cartLoading, handleGetCart } = useCart();
   const { user } = useSelector((state) => state.auth);
@@ -54,6 +57,11 @@ const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = useState("Razorpay");
   const [placing, setPlacing] = useState(false);
 
+  // Coupon state
+  const [couponCodeInput, setCouponCodeInput] = useState("");
+  const [appliedCoupon, setAppliedCoupon] = useState(null);
+  const [couponLoading, setCouponLoading] = useState(false);
+
   useEffect(() => {
     if (userId && !cart) {
       handleGetCart();
@@ -62,8 +70,41 @@ const Checkout = () => {
 
   const cartItems = items || cart?.items || [];
 
+  const handleApplyCoupon = async (e) => {
+    e?.preventDefault();
+    if (!couponCodeInput.trim()) return;
+    setCouponLoading(true);
+    try {
+      const { data } = await customAxios.post("/api/coupons/validate", {
+        code: couponCodeInput.trim(),
+        cartItems,
+        totalAmount: subtotal,
+      });
+      if (data?.success) {
+        setAppliedCoupon(data);
+        dispatch(addToast({ message: `🎉 ${data.message}`, type: "success" }));
+      }
+    } catch (err) {
+      dispatch(
+        addToast({
+          message: err.response?.data?.message || err.message || "Invalid coupon code.",
+          type: "error",
+        })
+      );
+    } finally {
+      setCouponLoading(false);
+    }
+  };
+
+  const handleRemoveCoupon = () => {
+    setAppliedCoupon(null);
+    setCouponCodeInput("");
+    dispatch(addToast({ message: "Coupon removed.", type: "info" }));
+  };
+
+  const discountAmount = appliedCoupon?.discountAmount || 0;
   const shippingPrice = subtotal > 1999 ? 0 : 99;
-  const grandTotal = subtotal + shippingPrice; // Tax excluded by default
+  const grandTotal = Math.max(0, subtotal - discountAmount + shippingPrice);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -93,8 +134,8 @@ const Checkout = () => {
     setPlacing(true);
     try {
       const res = paymentMethod === "Razorpay"
-        ? await handleRazorpayCheckout({ shippingAddress: address, user })
-        : await handleCreateOrder({ shippingAddress: address, paymentMethod });
+        ? await handleRazorpayCheckout({ shippingAddress: address, user, couponCode: appliedCoupon?.code })
+        : await handleCreateOrder({ shippingAddress: address, paymentMethod, couponCode: appliedCoupon?.code });
       if (res?.order?._id) {
         navigate(`/orders/${res.order._id}`);
       } else {
@@ -278,12 +319,85 @@ const Checkout = () => {
               })}
             </div>
 
+            {/* Coupon Code Section */}
+            <div className="space-y-2 pt-3 border-t border-border-theme">
+              <label className="text-xs font-bold text-foreground/70 flex items-center justify-between">
+                <span className="flex items-center gap-1">
+                  <i className="ri-ticket-2-line text-accent" />
+                  <span>Promo / Coupon Code</span>
+                </span>
+                {appliedCoupon && (
+                  <span className="text-[10px] font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md uppercase">
+                    Applied
+                  </span>
+                )}
+              </label>
+
+              {appliedCoupon ? (
+                <div className="flex items-center justify-between p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-xs">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <i className="ri-checkbox-circle-fill text-emerald-500 text-base shrink-0" />
+                    <div className="min-w-0">
+                      <span className="font-mono font-black text-emerald-500 tracking-wider">
+                        {appliedCoupon.code}
+                      </span>
+                      <p className="text-[10px] text-foreground/60 truncate">
+                        {appliedCoupon.message}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleRemoveCoupon}
+                    className="text-xs text-red-400 hover:text-red-300 font-bold px-2 py-1 cursor-pointer transition shrink-0"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={couponCodeInput}
+                    onChange={(e) => setCouponCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code (e.g. SCAPE20)"
+                    className="flex-1 bg-background border border-border-theme rounded-xl px-3 py-2 text-xs font-mono font-bold text-foreground outline-none focus:border-accent uppercase tracking-wider"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleApplyCoupon}
+                    disabled={couponLoading || !couponCodeInput.trim()}
+                    className="px-4 py-2 rounded-xl bg-accent text-accent-content font-bold text-xs hover:opacity-90 active:scale-95 transition cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {couponLoading ? (
+                      <i className="ri-loader-4-line animate-spin" />
+                    ) : (
+                      "Apply"
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Price Calculations Breakdown */}
             <div className="space-y-2.5 pt-4 border-t border-border-theme text-xs font-semibold text-foreground/80">
               <div className="flex justify-between">
                 <span>Subtotal</span>
                 <span className="font-mono font-bold text-foreground">₹{subtotal.toLocaleString()}</span>
               </div>
+
+              {appliedCoupon && discountAmount > 0 && (
+                <div className="flex justify-between text-emerald-500 font-bold">
+                  <span className="flex items-center gap-1">
+                    <i className="ri-discount-percent-fill" />
+                    <span>Coupon Discount ({appliedCoupon.code})</span>
+                  </span>
+                  <span className="font-mono font-bold">
+                    -₹{Number(discountAmount).toLocaleString("en-IN")}
+                  </span>
+                </div>
+              )}
+
               <div className="flex justify-between">
                 <span>Shipping Fee</span>
                 <span className="font-mono font-bold text-foreground">

@@ -193,7 +193,12 @@ const AdminOrdersPage = () => {
                         </td>
 
                         <td className="py-3.5 px-4 font-mono font-black text-foreground">
-                          ₹{ord.totalPrice?.toLocaleString()}
+                          <div>₹{ord.totalPrice?.toLocaleString()}</div>
+                          {ord.coupon?.code && (
+                            <span className="text-[9px] font-mono font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20 inline-flex items-center gap-0.5 mt-0.5">
+                              <i className="ri-coupon-3-fill text-[10px]" /> {ord.coupon.code}
+                            </span>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4">

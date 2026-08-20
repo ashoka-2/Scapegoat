@@ -583,6 +583,15 @@ const AdminOrderDetailPage = () => {
                 <span>Items Subtotal:</span>
                 <span>₹{(order.itemsPrice || order.totalPrice || 0).toLocaleString()}</span>
               </div>
+              {((order.coupon && order.coupon.code) || order.discountPrice > 0) && (
+                <div className="flex justify-between text-emerald-500 font-bold bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    <i className="ri-coupon-3-fill" />
+                    <span>Coupon Discount ({order.coupon?.code || "PROMO"}):</span>
+                  </span>
+                  <span>-₹{(order.coupon?.discountAmount || order.discountPrice || 0).toLocaleString()}</span>
+                </div>
+              )}
               <div className="flex justify-between text-foreground/70">
                 <span>Shipping Fee:</span>
                 <span className="text-emerald-500 font-bold">{order.shippingPrice === 0 ? "FREE" : `₹${order.shippingPrice}`}</span>

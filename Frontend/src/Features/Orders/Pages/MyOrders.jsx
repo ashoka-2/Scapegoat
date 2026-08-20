@@ -151,6 +151,11 @@ const MyOrders = () => {
                       <span className="text-sm font-mono font-black text-accent">
                         #{order.orderId || order._id.slice(-6).toUpperCase()}
                       </span>
+                      {order.coupon?.code && (
+                        <span className="text-[10px] font-mono font-black text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20 flex items-center gap-1">
+                          <i className="ri-coupon-3-fill text-xs" /> {order.coupon.code}
+                        </span>
+                      )}
                     </div>
                     <p className="text-[11px] font-semibold text-foreground/50">
                       {new Date(order.createdAt).toLocaleDateString("en-IN", {

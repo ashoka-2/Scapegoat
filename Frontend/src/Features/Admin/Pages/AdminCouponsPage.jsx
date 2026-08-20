@@ -20,6 +20,7 @@ const AdminCouponsPage = () => {
     activeCoupons: 0,
     tieredCoupons: 0,
     fixedCoupons: 0,
+    totalRedemptions: 0,
   });
 
   // Modal State
@@ -244,22 +245,26 @@ const AdminCouponsPage = () => {
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-5 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
-          <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Total Coupons</p>
-          <p className="text-2xl font-mono font-black text-foreground">{stats.totalCoupons}</p>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3.5">
+        <div className="p-4 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
+          <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider">Total Coupons</p>
+          <p className="text-xl font-mono font-black text-foreground">{stats.totalCoupons}</p>
         </div>
-        <div className="p-5 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
-          <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Active Campaigns</p>
-          <p className="text-2xl font-mono font-black text-emerald-500">{stats.activeCoupons}</p>
+        <div className="p-4 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
+          <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider">Active Campaigns</p>
+          <p className="text-xl font-mono font-black text-emerald-500">{stats.activeCoupons}</p>
         </div>
-        <div className="p-5 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
-          <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Fixed Discount Codes</p>
-          <p className="text-2xl font-mono font-black text-accent">{stats.fixedCoupons}</p>
+        <div className="p-4 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
+          <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider">Total Redemptions</p>
+          <p className="text-xl font-mono font-black text-blue-500">{stats.totalRedemptions || 0}</p>
         </div>
-        <div className="p-5 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
-          <p className="text-xs font-bold text-foreground/50 uppercase tracking-wider">Tiered / Volume Deals</p>
-          <p className="text-2xl font-mono font-black text-purple-500">{stats.tieredCoupons}</p>
+        <div className="p-4 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
+          <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider">Fixed Codes</p>
+          <p className="text-xl font-mono font-black text-accent">{stats.fixedCoupons}</p>
+        </div>
+        <div className="p-4 rounded-3xl bg-surface border border-border-theme space-y-1 shadow-sm">
+          <p className="text-[11px] font-bold text-foreground/50 uppercase tracking-wider">Volume Deals</p>
+          <p className="text-xl font-mono font-black text-purple-500">{stats.tieredCoupons}</p>
         </div>
       </div>
 
@@ -393,11 +398,29 @@ const AdminCouponsPage = () => {
                         {coupon.minPurchase ? `₹${coupon.minPurchase.toLocaleString()}` : "No Minimum"}
                       </span>
                     </div>
-                    <div>
-                      <span className="font-bold text-foreground/40 block">Redemptions:</span>
-                      <span className="font-semibold text-foreground font-mono">
-                        {coupon.usedCount} / {coupon.usageLimit || "∞"}
-                      </span>
+                    <div className="space-y-1">
+                      <div className="flex justify-between items-center">
+                        <span className="font-bold text-foreground/40">Redemptions:</span>
+                        <span className="font-semibold text-foreground font-mono">
+                          {coupon.usedCount} / {coupon.usageLimit || "∞"}
+                        </span>
+                      </div>
+                      {coupon.usageLimit ? (
+                        <div className="w-full h-1.5 bg-background rounded-full overflow-hidden border border-border-theme/60">
+                          <div
+                            className={`h-full transition-all ${
+                              coupon.usedCount >= coupon.usageLimit
+                                ? "bg-red-500"
+                                : "bg-accent"
+                            }`}
+                            style={{
+                              width: `${Math.min(100, (coupon.usedCount / coupon.usageLimit) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-[9px] text-emerald-500 font-bold block">Unlimited Uses</span>
+                      )}
                     </div>
                     <div className="col-span-2 text-[10px] text-foreground/40 font-mono">
                       Valid: {new Date(coupon.startDate).toLocaleDateString()} — {new Date(coupon.endDate).toLocaleDateString()}

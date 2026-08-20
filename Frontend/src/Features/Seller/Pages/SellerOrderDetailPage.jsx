@@ -379,6 +379,15 @@ const SellerOrderDetailPage = () => {
                   </span>
                 </div>
               )}
+              {order.coupon?.code && (
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl flex items-center justify-between text-xs font-bold text-emerald-500">
+                  <span className="flex items-center gap-1.5">
+                    <i className="ri-coupon-3-fill" />
+                    <span>Coupon Applied:</span>
+                  </span>
+                  <span className="font-mono">{order.coupon.code} (-₹{order.coupon.discountAmount?.toLocaleString()})</span>
+                </div>
+              )}
             </div>
           </div>
 

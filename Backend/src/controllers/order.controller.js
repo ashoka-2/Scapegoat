@@ -3,6 +3,7 @@ import productModel from "../models/product.model.js";
 import cartModel from "../models/cart.model.js";
 import sellerCustomerModel from "../models/sellerCustomer.model.js";
 import WebhookEvent from "../models/webhookEvent.model.js";
+import couponModel from "../models/coupon.model.js";
 import { broadcastUpdate, emitToSeller, emitToUser } from "../services/socket.service.js";
 import { sendPushToUser } from "../services/notification.service.js";
 import { config } from "../config/config.js";
@@ -23,6 +24,59 @@ const createRazorpayClient = () => {
 };
 
 /**
+ * Server-side helper to validate and compute coupon discount for an order
+ */
+const calculateCouponDiscount = async (couponCode, orderItems = [], itemsPrice = 0) => {
+    if (!couponCode) return { coupon: null, discountAmount: 0 };
+    try {
+        const normalizedCode = couponCode.trim().toUpperCase();
+        const coupon = await couponModel.findOne({ code: normalizedCode });
+        if (!coupon || !coupon.isActive) return { coupon: null, discountAmount: 0 };
+
+        const now = new Date();
+        if (now < new Date(coupon.startDate) || now > new Date(coupon.endDate)) return { coupon: null, discountAmount: 0 };
+        if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) return { coupon: null, discountAmount: 0 };
+        if (itemsPrice < coupon.minPurchase) return { coupon: null, discountAmount: 0 };
+
+        let discountAmount = 0;
+        const totalQuantity = orderItems.reduce((acc, item) => acc + (item.quantity || 1), 0);
+
+        if (coupon.couponType === "fixed") {
+            if (coupon.discountType === "percentage") {
+                discountAmount = (itemsPrice * coupon.discountValue) / 100;
+                if (coupon.maxDiscount && discountAmount > coupon.maxDiscount) {
+                    discountAmount = coupon.maxDiscount;
+                }
+            } else {
+                discountAmount = Math.min(coupon.discountValue, itemsPrice);
+            }
+        } else if (coupon.couponType === "tiered" && coupon.tiers?.length > 0) {
+            const sortedTiers = [...coupon.tiers].sort((a, b) => b.minQuantity - a.minQuantity);
+            const qualifiedTier = sortedTiers.find((t) => totalQuantity >= t.minQuantity);
+            if (qualifiedTier) {
+                if (qualifiedTier.discountType === "percentage") {
+                    discountAmount = (itemsPrice * qualifiedTier.discountValue) / 100;
+                } else {
+                    discountAmount = Math.min(qualifiedTier.discountValue, itemsPrice);
+                }
+            }
+        }
+
+        return {
+            coupon: {
+                code: coupon.code,
+                discountAmount: Math.round(discountAmount),
+                couponId: coupon._id,
+            },
+            discountAmount: Math.round(discountAmount),
+        };
+    } catch (e) {
+        console.error("Calculate coupon discount error:", e);
+        return { coupon: null, discountAmount: 0 };
+    }
+};
+
+/**
  * @desc    Create a new order
  * @route   POST /api/orders
  * @access  Private
@@ -30,7 +84,7 @@ const createRazorpayClient = () => {
 export const createOrder = async (req, res) => {
     try {
         const userId = req.user._id;
-        const { shippingAddress, paymentMethod, items: customItems } = req.body;
+        const { shippingAddress, paymentMethod, items: customItems, couponCode } = req.body;
 
         if (!shippingAddress || !paymentMethod) {
             return res.status(400).json({ success: false, message: "Shipping address and payment method are required." });
@@ -144,9 +198,10 @@ export const createOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: "No valid items to order." });
         }
 
+        const { coupon, discountAmount } = await calculateCouponDiscount(couponCode, orderItems, itemsPrice);
         const shippingPrice = itemsPrice > 1999 ? 0 : 99;
         const taxPrice = 0; // Tax excluded by default
-        const totalPrice = itemsPrice + shippingPrice;
+        const totalPrice = Math.max(0, itemsPrice - discountAmount + shippingPrice);
 
         const order = await orderModel.create({
             user: userId,
@@ -154,6 +209,8 @@ export const createOrder = async (req, res) => {
             shippingAddress,
             paymentMethod,
             itemsPrice,
+            discountPrice: discountAmount,
+            coupon: coupon || undefined,
             taxPrice,
             shippingPrice,
             totalPrice,
@@ -161,6 +218,10 @@ export const createOrder = async (req, res) => {
             paidAt: paymentMethod !== "COD" ? new Date() : null,
             status: "Processing",
         });
+
+        if (coupon?.couponId) {
+            await couponModel.findByIdAndUpdate(coupon.couponId, { $inc: { usedCount: 1 } });
+        }
 
         // Notify sellers in real-time & save permanent customer connection
         const sellerIds = [...new Set(orderItems.map((item) => item.seller.toString()))];
@@ -195,7 +256,7 @@ export const createOrder = async (req, res) => {
  */
 export const createRazorpayOrder = async (req, res) => {
     try {
-        const { shippingAddress } = req.body;
+        const { shippingAddress, couponCode } = req.body;
         const userId = req.user._id;
 
         if (!shippingAddress) {
@@ -236,8 +297,9 @@ export const createRazorpayOrder = async (req, res) => {
             itemsPrice += price * cartItem.quantity;
         }
 
+        const { coupon, discountAmount } = await calculateCouponDiscount(couponCode, orderItems, itemsPrice);
         const shippingPrice = itemsPrice > 1999 ? 0 : 99;
-        const totalPrice = itemsPrice + shippingPrice;
+        const totalPrice = Math.max(0, itemsPrice - discountAmount + shippingPrice);
 
         // Retry loop handles race condition where two concurrent orders get the same orderId
         let internalOrder;
@@ -249,6 +311,8 @@ export const createRazorpayOrder = async (req, res) => {
                     shippingAddress,
                     paymentMethod: "Razorpay",
                     itemsPrice,
+                    discountPrice: discountAmount,
+                    coupon: coupon || undefined,
                     taxPrice: 0,
                     shippingPrice,
                     totalPrice,
@@ -369,6 +433,10 @@ export const verifyRazorpayPayment = async (req, res) => {
 
         if (order.paymentResult.cartCheckout) {
             await cartModel.findOneAndUpdate({ user: req.user._id }, { $set: { items: [] } });
+        }
+
+        if (order.coupon?.couponId) {
+            await couponModel.findByIdAndUpdate(order.coupon.couponId, { $inc: { usedCount: 1 } }).catch(() => {});
         }
 
         // Notify sellers in real-time & save permanent customer connection

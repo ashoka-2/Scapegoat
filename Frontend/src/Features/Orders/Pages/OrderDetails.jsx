@@ -283,6 +283,19 @@ const OrderDetails = () => {
                 ₹{order.itemsPrice?.toLocaleString()}
               </span>
             </div>
+
+            {((order.coupon && order.coupon.code) || order.discountPrice > 0) && (
+              <div className="flex justify-between text-emerald-500 font-bold bg-emerald-500/10 px-2.5 py-1.5 rounded-xl border border-emerald-500/20 text-xs">
+                <span className="flex items-center gap-1.5">
+                  <i className="ri-coupon-3-fill" />
+                  <span>Coupon ({order.coupon?.code || "PROMO"})</span>
+                </span>
+                <span className="font-mono">
+                  -₹{(order.coupon?.discountAmount || order.discountPrice || 0).toLocaleString()}
+                </span>
+              </div>
+            )}
+
             <div className="flex justify-between text-foreground/80">
               <span>Shipping Fee</span>
               <span className="font-mono font-bold text-foreground">
