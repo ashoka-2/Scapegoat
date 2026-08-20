@@ -41,37 +41,37 @@ const Wishlist = () => {
   const wishlistProducts = wishlist?.products || [];
 
   return (
-    <div className="min-h-screen bg-background text-foreground pt-24 pb-20 px-4 md:px-10 max-w-[1400px] mx-auto">
+    <div className="min-h-screen bg-background text-foreground pt-20 md:pt-24 pb-20 px-2 sm:px-4 md:px-10 max-w-[1400px] mx-auto">
       {/* Header Banner */}
-      <header className="mb-12 border-b border-border-theme/40 pb-6">
-        <span className="text-[10px] font-black tracking-[0.4em] uppercase text-accent mb-1 block">
+      <header className="mb-6 md:mb-10 border-b border-border-theme/40 pb-4 md:pb-6 px-1">
+        <span className="text-[9px] md:text-[10px] font-black tracking-[0.3em] uppercase text-accent mb-1 block">
           Your Saved Vault
         </span>
-        <h1 className="text-4xl md:text-5xl font-black tracking-tighter uppercase text-foreground">
+        <h1 className="text-2xl min-[380px]:text-3xl md:text-5xl font-black tracking-tighter uppercase text-foreground">
           My Wishlist
         </h1>
-        <p className="text-foreground/50 text-sm mt-2 font-medium">
+        <p className="text-foreground/50 text-xs md:text-sm mt-1 md:mt-2 font-medium">
           Saved drops and exclusive pieces ready for checkout.
         </p>
       </header>
 
       {wishlistProducts.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4 md:gap-6">
           {wishlistProducts.map((product) => {
             if (!product || typeof product !== "object") return null;
             return (
-              <div key={product._id} className="relative group">
+              <div key={product._id} className="relative group flex flex-col">
                 <ProductCard product={product} />
 
                 {/* Quick Action Overlay inside wishlist card */}
-                <div className="mt-2.5 px-1">
+                <div className="mt-2 px-0.5">
                   <button
                     type="button"
                     onClick={(e) => handleMoveToCart(e, product)}
-                    className="w-full py-2 px-3 rounded-full bg-accent text-accent-content text-[10px] font-black tracking-widest uppercase hover:opacity-90 transition flex items-center justify-center gap-1.5 shadow-sm"
+                    className="w-full py-1.5 min-[380px]:py-2 px-2 rounded-full bg-accent text-accent-content text-[9px] min-[380px]:text-[10px] font-black tracking-wider uppercase hover:opacity-90 active:scale-95 transition flex items-center justify-center gap-1 shadow-sm cursor-pointer"
                   >
                     <i className="ri-shopping-bag-line text-xs" />
-                    Move to Bag
+                    <span>Move to Bag</span>
                   </button>
                 </div>
               </div>
