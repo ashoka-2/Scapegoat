@@ -21,6 +21,7 @@ import orderRouter from "./routes/order.routes.js";
 import reviewRouter from "./routes/review.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import bannerRouter from "./routes/banner.routes.js";
+import { generalLimiter } from "./middlewares/rateLimiter.middleware.js";
 
 const app = express();
 
@@ -96,7 +97,10 @@ app.get("/api/health", (_req, res) => {
   res.status(200).json({ ok: true, service: "scapegoat-api", uptime: Math.round(process.uptime()) });
 });
 
-// 4. API Routes
+// 4. Rate Limiting (DDoS & Abuse Protection matching Snitch)
+app.use("/api", generalLimiter);
+
+// 5. API Routes
 app.use("/api/auth", authRouter);
 app.use("/api/products", productRouter);
 app.use("/api/cart", cartRouter);

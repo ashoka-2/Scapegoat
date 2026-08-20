@@ -1,5 +1,6 @@
 import express from "express";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
+import { checkoutLimiter } from "../middlewares/rateLimiter.middleware.js";
 import {
     createOrder,
     createRazorpayOrder,
@@ -15,8 +16,8 @@ import {
 const router = express.Router();
 
 // Private customer endpoints
-router.post("/", verifyToken, createOrder);
-router.post("/razorpay/create-order", verifyToken, createRazorpayOrder);
+router.post("/", verifyToken, checkoutLimiter, createOrder);
+router.post("/razorpay/create-order", verifyToken, checkoutLimiter, createRazorpayOrder);
 router.post("/razorpay/verify", verifyToken, verifyRazorpayPayment);
 router.get("/my-orders", verifyToken, getMyOrders);
 router.put("/:id/cancel", verifyToken, cancelMyOrder);

@@ -3,6 +3,7 @@ import { validateLoginUser, validateRegisterUser, validateCompleteProfile } from
 import passport from "passport";
 import {getMe, googleCallback, login, logout, register, verifyEmail, resendVerificationEmail, completeProfile, updateProfile, changePassword, forgotPassword, resetPassword, getAllUsers, getUserById, getSellerCustomers, becomeSeller} from "../controllers/auth.controller.js"
 import {verifyToken, requireRole} from "../middlewares/auth.middleware.js"
+import { registerLimiter, authLimiter } from "../middlewares/rateLimiter.middleware.js";
 import { config } from "../config/config.js";
 
 const router = Router();
@@ -17,14 +18,14 @@ router.put("/become-seller", verifyToken, becomeSeller);
  * @description Register the user
  * @access Public
  */
-router.post("/register",validateRegisterUser,register)
+router.post("/register", registerLimiter, validateRegisterUser, register)
 
 /**
  * @route POST /api/auth/login
  * @description Login the user
  * @access Private
  */
-router.post("/login",validateLoginUser,login);
+router.post("/login", authLimiter, validateLoginUser, login);
 
 /**
  * @route GET /api/auth/getMe
@@ -89,7 +90,7 @@ router.get("/verify-email", verifyEmail);
  * @description Resend verification email
  * @access Public
  */
-router.post("/resend-verification", resendVerificationEmail);
+router.post("/resend-verification", authLimiter, resendVerificationEmail);
 
 /**
  * @route POST /api/auth/complete-profile
@@ -98,7 +99,7 @@ router.post("/resend-verification", resendVerificationEmail);
  */
 router.post("/complete-profile", verifyToken, validateCompleteProfile, completeProfile);
 
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
+router.post("/forgot-password", authLimiter, forgotPassword);
+router.post("/reset-password", authLimiter, resetPassword);
 
 export default router;
