@@ -1,6 +1,7 @@
 import express from "express";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
+import { cacheRoute } from "../middlewares/cache.middleware.js";
 import {
     getActiveBanners,
     getAllBanners,
@@ -16,7 +17,7 @@ import {
 const bannerRouter = express.Router();
 
 // ── Public Routes ──
-bannerRouter.get("/active", getActiveBanners);
+bannerRouter.get("/active", cacheRoute("banners:active", 600), getActiveBanners);
 
 // ── Admin Routes ──
 bannerRouter.use(verifyToken, requireRole("admin"));

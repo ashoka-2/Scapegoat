@@ -2,6 +2,7 @@ import orderModel from "../models/order.model.js";
 import productModel from "../models/product.model.js";
 import cartModel from "../models/cart.model.js";
 import sellerCustomerModel from "../models/sellerCustomer.model.js";
+import WebhookEvent from "../models/webhookEvent.model.js";
 import { broadcastUpdate, emitToSeller, emitToUser } from "../services/socket.service.js";
 import { config } from "../config/config.js";
 import Razorpay from "razorpay";
@@ -641,6 +642,141 @@ export const updateSellerPayout = async (req, res) => {
         });
     } catch (error) {
         return res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+/**
+ * @desc    Handle Razorpay Webhooks with Idempotency & Replay Protection
+ * @route   POST /api/orders/razorpay/webhook
+ * @access  Public (Secured with Razorpay HMAC SHA-256 signature)
+ */
+export const handleRazorpayWebhook = async (req, res) => {
+    try {
+        const signature = req.headers["x-razorpay-signature"];
+        const webhookSecret = config.RAZORPAY_WEBHOOK_SECRET || config.RAZORPAY_KEY_SECRET;
+
+        if (!signature) {
+            return res.status(400).json({ success: false, message: "Missing Razorpay webhook signature header." });
+        }
+
+        // 1. Verify Webhook HMAC SHA-256 Signature
+        const payloadString = JSON.stringify(req.body);
+        const expectedSignature = crypto
+            .createHmac("sha256", webhookSecret)
+            .update(payloadString)
+            .digest("hex");
+
+        const isValid =
+            signature.length === expectedSignature.length &&
+            crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature));
+
+        if (!isValid) {
+            console.warn("⚠️ [Razorpay Webhook] Invalid webhook signature received.");
+            return res.status(400).json({ success: false, message: "Invalid webhook signature." });
+        }
+
+        const event = req.body;
+        const eventId =
+            req.headers["x-razorpay-event-id"] ||
+            event.event_id ||
+            event.id ||
+            (event.payload?.payment?.entity?.id ? `${event.event}_${event.payload.payment.entity.id}` : null) ||
+            `evt_${Date.now()}`;
+
+        const eventType = event.event;
+        const paymentEntity = event.payload?.payment?.entity || {};
+        const razorpayOrderId = paymentEntity.order_id || event.payload?.order?.entity?.id;
+        const razorpayPaymentId = paymentEntity.id;
+
+        // 2. IDEMPOTENCY CHECK: Ensure we never double-process or double-fulfill
+        const existingEvent = await WebhookEvent.findOne({ eventId });
+        if (existingEvent) {
+            console.log(`🛡️ [Razorpay Webhook] Duplicate event "${eventId}" safely ignored (idempotent).`);
+            return res.status(200).json({
+                success: true,
+                message: "Duplicate webhook event already processed (idempotent)",
+                eventId,
+                status: existingEvent.status,
+            });
+        }
+
+        // Record incoming webhook to lock processing
+        await WebhookEvent.create({
+            eventId,
+            eventType: eventType || "unknown",
+            entityId: razorpayPaymentId || razorpayOrderId || null,
+            provider: "razorpay",
+            status: "processed",
+            payload: event,
+        });
+
+        // 3. Process specific payment events
+        if (eventType === "payment.captured" || eventType === "order.paid") {
+            const internalOrderId = paymentEntity.notes?.scapegoatOrderId;
+
+            const order = await orderModel.findOne({
+                $or: [
+                    { _id: internalOrderId },
+                    { "paymentResult.razorpayOrderId": razorpayOrderId },
+                ].filter(Boolean),
+            });
+
+            if (order && !order.isPaid) {
+                // Deduct stock atomically if not yet deducted
+                for (const item of order.orderItems) {
+                    await productModel.findOneAndUpdate(
+                        { _id: item.product, stock: { $gte: item.quantity } },
+                        { $inc: { stock: -item.quantity } }
+                    );
+                }
+
+                order.isPaid = true;
+                order.paidAt = new Date();
+                order.status = "Processing";
+                if (!order.paymentResult) order.paymentResult = {};
+                order.paymentResult.id = razorpayPaymentId;
+                order.paymentResult.razorpayPaymentId = razorpayPaymentId;
+                order.paymentResult.status = "verified_webhook";
+                order.markModified("paymentResult");
+                await order.save();
+
+                // Clear buyer's cart if applicable
+                if (order.paymentResult.cartCheckout && order.user) {
+                    await cartModel.findOneAndUpdate({ user: order.user }, { $set: { items: [] } });
+                }
+
+                // Notify sellers in real-time
+                const sellerIds = [...new Set(order.orderItems.map((item) => (item.seller?._id || item.seller)?.toString()).filter(Boolean))];
+                for (const sellerId of sellerIds) {
+                    emitToSeller(sellerId, "new_order", { orderId: order._id, totalPrice: order.totalPrice });
+                }
+
+                console.log(`✅ [Razorpay Webhook] Order ${order._id} fulfilled successfully via webhook ${eventId}`);
+            }
+        } else if (eventType === "payment.failed") {
+            const internalOrderId = paymentEntity.notes?.scapegoatOrderId;
+            const order = await orderModel.findOne({
+                $or: [
+                    { _id: internalOrderId },
+                    { "paymentResult.razorpayOrderId": razorpayOrderId },
+                ].filter(Boolean),
+            });
+
+            if (order && !order.isPaid) {
+                order.status = "Payment Failed";
+                await order.save();
+                console.log(`⚠️ [Razorpay Webhook] Order ${order._id} marked as Payment Failed.`);
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: "Webhook processed and verified successfully",
+            eventId,
+        });
+    } catch (error) {
+        console.error("❌ [Razorpay Webhook Error]:", error);
+        return res.status(500).json({ success: false, message: error.message || "Internal server error processing webhook." });
     }
 };
 

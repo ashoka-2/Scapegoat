@@ -1,6 +1,7 @@
 import bannerModel from "../models/banner.model.js";
 import { uploadFile, deleteFile } from "../services/imageKit.service.js";
 import { broadcastUpdate } from "../services/socket.service.js";
+import { clearCatalogCache } from "../services/cache.service.js";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 

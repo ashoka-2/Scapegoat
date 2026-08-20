@@ -1,5 +1,6 @@
 import categoryModel from "../models/category.model.js";
 import productModel from "../models/product.model.js";
+import { clearCatalogCache } from "../services/cache.service.js";
 
 /**
  * Get all active categories (including parent & subcategories)
@@ -50,6 +51,8 @@ export const createCategory = async (req, res) => {
       parentCategory: parentCategory || null,
       createdBy: req.user?._id || null,
     });
+
+    clearCatalogCache().catch(() => {});
 
     return res.status(201).json({
       success: true,
@@ -106,6 +109,8 @@ export const updateCategory = async (req, res) => {
     if (isAdmin && req.body.isLocked !== undefined) category.isLocked = Boolean(req.body.isLocked);
 
     await category.save();
+
+    clearCatalogCache().catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -166,6 +171,8 @@ export const deleteCategory = async (req, res) => {
     }
 
     await categoryModel.findByIdAndDelete(id);
+
+    clearCatalogCache().catch(() => {});
 
     return res.status(200).json({
       success: true,

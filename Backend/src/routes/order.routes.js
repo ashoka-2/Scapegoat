@@ -5,6 +5,7 @@ import {
     createOrder,
     createRazorpayOrder,
     verifyRazorpayPayment,
+    handleRazorpayWebhook,
     getMyOrders,
     getOrderById,
     getSellerOrders,
@@ -14,6 +15,9 @@ import {
 } from "../controllers/order.controller.js";
 
 const router = express.Router();
+
+// Public webhook endpoint (Protected with HMAC SHA-256 signature + Idempotency)
+router.post("/razorpay/webhook", handleRazorpayWebhook);
 
 // Private customer endpoints
 router.post("/", verifyToken, checkoutLimiter, createOrder);

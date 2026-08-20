@@ -21,6 +21,7 @@ import {
 import { getFrequentlyBoughtTogether } from "../controllers/userActivity.controller.js";
 import { verifyToken, requireRole } from "../middlewares/auth.middleware.js";
 import { upload } from "../middlewares/upload.middleware.js";
+import { cacheRoute } from "../middlewares/cache.middleware.js";
 import {
   validateCreateProduct,
   validateUpdateProduct,
@@ -30,9 +31,9 @@ const router = express.Router();
 
 // ── Public Routes ─────────────────────────────────────────────────────────────
 
-// Get all published products (search, filter, sort, paginate)
-router.get("/", getAllProducts);
-router.get("/facets", getProductFacets);
+// Get all published products (search, filter, sort, paginate) with Redis cache
+router.get("/", cacheRoute("products", 300), getAllProducts);
+router.get("/facets", cacheRoute("products:facets", 600), getProductFacets);
 
 // Suggest catalog description based on title, category, and shortDescription
 router.post("/suggest-description", suggestProductDescription);

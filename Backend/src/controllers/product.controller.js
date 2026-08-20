@@ -30,6 +30,7 @@ import {
   vectorSearchText,
   vectorSearchImages,
 } from "../services/mongoVectorSearch.service.js";
+import { clearCatalogCache } from "../services/cache.service.js";
 
 /**
  * Helper to check if current user is owner of the product or an admin
@@ -699,6 +700,8 @@ export const createProduct = async (req, res) => {
       }
     });
 
+    clearCatalogCache().catch(() => {});
+
     return res.status(201).json({
       success: true,
       message: "Product created successfully",
@@ -909,6 +912,8 @@ export const updateProduct = async (req, res) => {
       }
     });
 
+    clearCatalogCache().catch(() => {});
+
     return res.status(200).json({
       success: true,
       message: "Product updated successfully",
@@ -951,6 +956,7 @@ export const deleteProduct = async (req, res) => {
     // If already in trash or force parameter requested -> Permanent Delete
     if (product.status === "trash" || req.query.force === "true") {
       await productModel.findByIdAndDelete(id);
+      clearCatalogCache().catch(() => {});
       return res.status(200).json({
         success: true,
         message: "Product deleted permanently",
@@ -969,6 +975,8 @@ export const deleteProduct = async (req, res) => {
 
     // Remove the product's vectors from Pinecone (no-op without API key)
     deleteProductVectors(product._id);
+
+    clearCatalogCache().catch(() => {});
 
     return res.status(200).json({
       success: true,
@@ -1017,6 +1025,8 @@ export const restoreProduct = async (req, res) => {
       price: product.sellingPrice?.amount || product.maxPrice?.amount,
       image: product.images[0]?.url || null,
     });
+
+    clearCatalogCache().catch(() => {});
 
     return res.status(200).json({
       success: true,
