@@ -297,29 +297,43 @@ const Profile = () => {
         </div>
 
         {/* ── Minimalist Clean Tab Bar ── */}
-        <div className="flex items-center gap-1 bg-surface border border-border-theme/80 p-1.5 rounded-2xl overflow-x-auto scrollbar-none shadow-sm">
+        <div className="flex items-center gap-1.5 bg-surface border border-border-theme/80 p-1.5 rounded-2xl overflow-x-auto scrollbar-none shadow-sm relative">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
-              <button
+              <motion.button
                 key={tab.id}
+                whileTap={{ scale: 0.98 }}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap ${
+                className={`relative flex-1 min-w-[120px] py-2.5 px-3 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 whitespace-nowrap z-10 ${
                   isActive
-                    ? "bg-accent text-accent-content shadow-sm"
-                    : "text-foreground/70 hover:text-foreground hover:bg-background/50"
+                    ? "text-accent-content"
+                    : "text-foreground/70 hover:text-foreground hover:bg-background/40"
                 }`}
               >
-                <i className={`${tab.icon} text-sm`} />
-                <span>{tab.label}</span>
+                <i className={`${tab.icon} text-sm relative z-10`} />
+                <span className="relative z-10">{tab.label}</span>
                 {tab.id === "reviews" && userReviews.length > 0 && (
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${
+                  <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black relative z-10 ${
                     isActive ? "bg-accent-content text-accent" : "bg-accent/15 text-accent"
                   }`}>
                     {userReviews.length}
                   </span>
                 )}
-              </button>
+
+                {/* Smooth Spring Bubble Background */}
+                {isActive && (
+                  <motion.div
+                    layoutId="activeProfileTabBubble"
+                    className="absolute inset-0 bg-accent rounded-xl shadow-md shadow-accent/25 z-0"
+                    transition={{
+                      type: "spring",
+                      stiffness: 450,
+                      damping: 35,
+                    }}
+                  />
+                )}
+              </motion.button>
             );
           })}
         </div>

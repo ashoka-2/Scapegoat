@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import customAxios from "../../../utils/axios";
 import { useAdmin } from "../Hooks/useAdmin";
 import OrderReceiptModal from "../Components/OrderReceiptModal";
@@ -173,66 +174,76 @@ const AdminUserDetailPage = () => {
       </div>
 
       {/* Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-border-theme pb-2 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("orders")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-            activeTab === "orders" ? "bg-accent text-accent-content shadow-sm" : "text-foreground/70 hover:text-foreground"
-          }`}
-        >
-          <i className="ri-receipt-line" /> Orders ({orders?.length || 0})
-        </button>
+      <div className="flex items-center gap-1.5 bg-surface border border-border-theme p-1.5 rounded-2xl overflow-x-auto scrollbar-none shadow-sm relative">
+        {[
+          { id: "orders", label: "Orders", icon: "ri-receipt-line", count: orders?.length || 0 },
+          { id: "cart", label: "Cart Items", icon: "ri-shopping-cart-2-line", count: cart?.length || 0 },
+          { id: "wishlist", label: "Wishlist", icon: "ri-heart-line", count: wishlist?.length || 0 },
+          ...(isSeller
+            ? [{ id: "products", label: "Listed Products", icon: "ri-store-2-line", count: sellerProducts?.length || 0 }]
+            : []),
+          { id: "reviews", label: "Reviews", icon: "ri-star-line", count: reviews?.length || 0 },
+        ].map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <motion.button
+              key={tab.id}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => setActiveTab(tab.id)}
+              className={`relative px-4 py-2.5 rounded-xl text-xs font-bold transition-colors cursor-pointer flex items-center gap-2 shrink-0 z-10 ${
+                isActive
+                  ? "text-accent-content"
+                  : "text-foreground/70 hover:text-foreground hover:bg-background/40"
+              }`}
+            >
+              <i className={`${tab.icon} relative z-10 text-sm`} />
+              <span className="relative z-10">{tab.label}</span>
+              <span
+                className={`relative z-10 text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold ${
+                  isActive
+                    ? "bg-accent-content text-accent"
+                    : "bg-background/80 text-foreground/60 border border-border-theme/40"
+                }`}
+              >
+                {tab.count}
+              </span>
 
-        <button
-          onClick={() => setActiveTab("cart")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-            activeTab === "cart" ? "bg-accent text-accent-content shadow-sm" : "text-foreground/70 hover:text-foreground"
-          }`}
-        >
-          <i className="ri-shopping-cart-2-line" /> Cart Items ({cart?.length || 0})
-        </button>
-
-        <button
-          onClick={() => setActiveTab("wishlist")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-            activeTab === "wishlist" ? "bg-accent text-accent-content shadow-sm" : "text-foreground/70 hover:text-foreground"
-          }`}
-        >
-          <i className="ri-heart-line" /> Wishlist ({wishlist?.length || 0})
-        </button>
-
-        {/* Products Tab — ONLY for Seller! */}
-        {isSeller && (
-          <button
-            onClick={() => setActiveTab("products")}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-              activeTab === "products" ? "bg-amber-500 text-black shadow-sm font-extrabold" : "text-amber-500 hover:text-amber-400"
-            }`}
-          >
-            <i className="ri-store-2-line" /> Listed Products ({sellerProducts?.length || 0})
-          </button>
-        )}
-
-        <button
-          onClick={() => setActiveTab("reviews")}
-          className={`px-4 py-2 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-2 shrink-0 ${
-            activeTab === "reviews" ? "bg-accent text-accent-content shadow-sm" : "text-foreground/70 hover:text-foreground"
-          }`}
-        >
-          <i className="ri-star-line" /> Reviews ({reviews?.length || 0})
-        </button>
+              {/* Smooth Spring Bubble Background */}
+              {isActive && (
+                <motion.div
+                  layoutId="activeAdminUserDetailTabBubble"
+                  className="absolute inset-0 bg-accent rounded-xl shadow-md shadow-accent/25 z-0"
+                  transition={{
+                    type: "spring",
+                    stiffness: 450,
+                    damping: 35,
+                  }}
+                />
+              )}
+            </motion.button>
+          );
+        })}
       </div>
 
-      {/* Tab 1: Orders View */}
-      {activeTab === "orders" && (
-        <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-black uppercase tracking-wider text-foreground">
-              User Order History ({orders?.length || 0})
-            </h2>
-            <span className="text-xs font-bold font-mono text-foreground/50 bg-background border border-border-theme px-3 py-1 rounded-xl">
-              {orders?.length || 0} Orders Recorded
-            </span>
+      {/* ── Smooth Animated Tab Views ── */}
+      <AnimatePresence mode="wait">
+        {/* Tab 1: Orders View */}
+        {activeTab === "orders" && (
+          <motion.div
+            key="orders"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.2 }}
+            className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm"
+          >
+            <div className="flex items-center justify-between">
+              <h2 className="text-sm font-black uppercase tracking-wider text-foreground">
+                User Order History ({orders?.length || 0})
+              </h2>
+              <span className="text-xs font-bold font-mono text-foreground/50 bg-background border border-border-theme px-3 py-1 rounded-xl">
+                {orders?.length || 0} Orders Recorded
+              </span>
           </div>
 
           <div className="space-y-3">
@@ -303,12 +314,19 @@ const AdminUserDetailPage = () => {
               </p>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Tab 2: Cart Items */}
       {activeTab === "cart" && (
-        <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
+        <motion.div
+          key="cart"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm"
+        >
           <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Cart Added Items</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {cart?.length > 0 ? (
@@ -338,12 +356,19 @@ const AdminUserDetailPage = () => {
               <p className="text-xs text-foreground/40 italic py-8 text-center sm:col-span-2 lg:col-span-3">User has no active cart items.</p>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Tab 3: Wishlist Items */}
       {activeTab === "wishlist" && (
-        <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
+        <motion.div
+          key="wishlist"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm"
+        >
           <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Wishlist Saved Products</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {wishlist?.length > 0 ? (
@@ -372,12 +397,19 @@ const AdminUserDetailPage = () => {
               <p className="text-xs text-foreground/40 italic py-8 text-center sm:col-span-2 lg:col-span-3">User has no wishlist items.</p>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Tab 4: Listed Products (ONLY for Seller) */}
       {isSeller && activeTab === "products" && (
-        <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
+        <motion.div
+          key="products"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm"
+        >
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-sm font-black uppercase tracking-wider text-amber-500">Products Listed by Seller ({sellerProducts?.length || 0})</h2>
@@ -422,12 +454,19 @@ const AdminUserDetailPage = () => {
               <p className="text-xs text-foreground/40 italic py-8 text-center sm:col-span-2 lg:col-span-3">This seller has not created any products yet.</p>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
 
       {/* Tab 5: Reviews */}
       {activeTab === "reviews" && (
-        <div className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm animate-in fade-in">
+        <motion.div
+          key="reviews"
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -10 }}
+          transition={{ duration: 0.2 }}
+          className="bg-surface border border-border-theme rounded-3xl p-6 space-y-4 shadow-sm"
+        >
           <h2 className="text-sm font-black uppercase tracking-wider text-foreground">Submitted Reviews</h2>
 
           <div className="space-y-3">
@@ -443,8 +482,9 @@ const AdminUserDetailPage = () => {
               <p className="text-xs text-foreground/40 italic py-8 text-center">No reviews submitted by this user.</p>
             )}
           </div>
-        </div>
+        </motion.div>
       )}
+      </AnimatePresence>
 
       {/* Reusable Receipt Modal */}
       {selectedReceiptOrder && (

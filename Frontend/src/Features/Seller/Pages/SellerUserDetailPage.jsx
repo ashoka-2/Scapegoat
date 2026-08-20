@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import { useSeller } from "../Hooks/useSeller";
 import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
 
@@ -112,68 +113,66 @@ const SellerUserDetailPage = () => {
         {/* Right Column: Tabbed Information */}
         <div className="lg:col-span-8 space-y-4">
           {/* Tabs header */}
-          <div className="flex gap-2 overflow-x-auto bg-surface border border-border-theme p-1.5 rounded-2xl">
-            {tabs.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => setActiveTab(t.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase transition cursor-pointer flex-1 justify-center ${
-                  activeTab === t.id
-                    ? "bg-accent text-accent-content shadow-sm"
-                    : "text-foreground/70 hover:bg-background/50"
-                }`}
-              >
-                <i className={t.icon} />
-                <span>{t.label}</span>
-                <span className="bg-background/40 px-2 py-0.5 rounded-full text-[10px]">{t.count}</span>
-              </button>
-            ))}
+          <div className="flex gap-1.5 overflow-x-auto bg-surface border border-border-theme p-1.5 rounded-2xl relative shadow-sm">
+            {tabs.map((t) => {
+              const isActive = activeTab === t.id;
+              return (
+                <motion.button
+                  key={t.id}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => setActiveTab(t.id)}
+                  className={`relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-black uppercase transition-colors cursor-pointer flex-1 justify-center z-10 ${
+                    isActive
+                      ? "text-accent-content"
+                      : "text-foreground/70 hover:text-foreground hover:bg-background/40"
+                  }`}
+                >
+                  <i className={`${t.icon} relative z-10 text-sm`} />
+                  <span className="relative z-10">{t.label}</span>
+                  <span
+                    className={`relative z-10 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                      isActive ? "bg-accent-content text-accent" : "bg-background/60 text-foreground/70"
+                    }`}
+                  >
+                    {t.count}
+                  </span>
+
+                  {/* Smooth Spring Bubble Background */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeSellerUserDetailTabBubble"
+                      className="absolute inset-0 bg-accent rounded-xl shadow-md shadow-accent/25 z-0"
+                      transition={{
+                        type: "spring",
+                        stiffness: 450,
+                        damping: 35,
+                      }}
+                    />
+                  )}
+                </motion.button>
+              );
+            })}
           </div>
 
           {/* Tab Content Box */}
           <div className="bg-surface border border-border-theme p-6 rounded-3xl shadow-lg min-h-[300px]">
-            {activeTab === "wishlist" && (
-              <div className="space-y-3">
-                {user.wishlist?.products?.length === 0 ? (
-                  <p className="text-xs text-foreground/40 text-center py-10">No wishlisted products.</p>
-                ) : (
-                  user.wishlist?.products?.map((p) => (
-                    <div
-                      key={p._id}
-                      onClick={() => navigate(`/product/${p._id}`)}
-                      className="flex items-center justify-between gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
-                    >
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={p.images?.[0]?.url || p.images?.[0]}
-                          alt={p.title}
-                          className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
-                        />
-                        <div>
-                          <p className="text-xs font-bold text-foreground">{p.title}</p>
-                          <p className="text-[11px] font-mono text-accent">
-                            ₹{(p.sellingPrice?.amount || p.maxPrice?.amount || 0).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                      <i className="ri-arrow-right-s-line text-foreground/40 text-lg" />
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
-
-            {activeTab === "cart" && (
-              <div className="space-y-3">
-                {user.cart?.items?.length === 0 ? (
-                  <p className="text-xs text-foreground/40 text-center py-10">Shopping cart is empty.</p>
-                ) : (
-                  user.cart?.items?.map((item, idx) => {
-                    const p = item.product || {};
-                    return (
+            <AnimatePresence mode="wait">
+              {activeTab === "wishlist" && (
+                <motion.div
+                  key="wishlist"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
+                >
+                  {user.wishlist?.products?.length === 0 ? (
+                    <p className="text-xs text-foreground/40 text-center py-10">No wishlisted products.</p>
+                  ) : (
+                    user.wishlist?.products?.map((p) => (
                       <div
-                        key={idx}
-                        onClick={() => p._id && navigate(`/product/${p._id}`)}
+                        key={p._id}
+                        onClick={() => navigate(`/product/${p._id}`)}
                         className="flex items-center justify-between gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
                       >
                         <div className="flex items-center gap-3">
@@ -184,62 +183,117 @@ const SellerUserDetailPage = () => {
                           />
                           <div>
                             <p className="text-xs font-bold text-foreground">{p.title}</p>
-                            <p className="text-[11px] text-foreground/60">Qty: {item.quantity}</p>
+                            <p className="text-[11px] font-mono text-accent">
+                              ₹{(p.sellingPrice?.amount || p.maxPrice?.amount || 0).toLocaleString()}
+                            </p>
                           </div>
                         </div>
                         <i className="ri-arrow-right-s-line text-foreground/40 text-lg" />
                       </div>
-                    );
-                  })
-                )}
-              </div>
-            )}
+                    ))
+                  )}
+                </motion.div>
+              )}
 
-            {activeTab === "orders" && (
-              <div className="space-y-3">
-                {user.orders?.length === 0 ? (
-                  <p className="text-xs text-foreground/40 text-center py-10">No orders placed yet.</p>
-                ) : (
-                  user.orders?.map((o) => (
-                    <div key={o._id} className="p-4 bg-background/50 rounded-2xl border border-border-theme/40 space-y-2 text-xs">
-                      <div className="flex justify-between font-mono font-bold text-accent">
-                        <span>#{o.orderId || o._id.slice(-6).toUpperCase()}</span>
-                        <span>₹{o.totalPrice?.toLocaleString()}</span>
-                      </div>
-                      <p className="text-[11px] text-foreground/60">Status: {o.status}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+              {activeTab === "cart" && (
+                <motion.div
+                  key="cart"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
+                >
+                  {user.cart?.items?.length === 0 ? (
+                    <p className="text-xs text-foreground/40 text-center py-10">Shopping cart is empty.</p>
+                  ) : (
+                    user.cart?.items?.map((item, idx) => {
+                      const p = item.product || {};
+                      return (
+                        <div
+                          key={idx}
+                          onClick={() => p._id && navigate(`/product/${p._id}`)}
+                          className="flex items-center justify-between gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
+                        >
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={p.images?.[0]?.url || p.images?.[0]}
+                              alt={p.title}
+                              className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
+                            />
+                            <div>
+                              <p className="text-xs font-bold text-foreground">{p.title}</p>
+                              <p className="text-[11px] text-foreground/60">Qty: {item.quantity}</p>
+                            </div>
+                          </div>
+                          <i className="ri-arrow-right-s-line text-foreground/40 text-lg" />
+                        </div>
+                      );
+                    })
+                  )}
+                </motion.div>
+              )}
 
-            {activeTab === "products" && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {user.products?.length === 0 ? (
-                  <p className="text-xs text-foreground/40 text-center py-10 col-span-2">No listed products.</p>
-                ) : (
-                  user.products?.map((p) => (
-                    <div
-                      key={p._id}
-                      onClick={() => navigate(`/product/${p._id}`)}
-                      className="flex items-center gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
-                    >
-                      <img
-                        src={p.images?.[0]?.url || p.images?.[0]}
-                        alt={p.title}
-                        className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-foreground truncate">{p.title}</p>
-                        <p className="text-[11px] font-mono text-accent">
-                          ₹{(p.sellingPrice?.amount || p.maxPrice?.amount || 0).toLocaleString()}
-                        </p>
+              {activeTab === "orders" && (
+                <motion.div
+                  key="orders"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="space-y-3"
+                >
+                  {user.orders?.length === 0 ? (
+                    <p className="text-xs text-foreground/40 text-center py-10">No orders placed yet.</p>
+                  ) : (
+                    user.orders?.map((o) => (
+                      <div key={o._id} className="p-4 bg-background/50 rounded-2xl border border-border-theme/40 space-y-2 text-xs">
+                        <div className="flex justify-between font-mono font-bold text-accent">
+                          <span>#{o.orderId || o._id.slice(-6).toUpperCase()}</span>
+                          <span>₹{o.totalPrice?.toLocaleString()}</span>
+                        </div>
+                        <p className="text-[11px] text-foreground/60">Status: {o.status}</p>
                       </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            )}
+                    ))
+                  )}
+                </motion.div>
+              )}
+
+              {activeTab === "products" && (
+                <motion.div
+                  key="products"
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.2 }}
+                  className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                >
+                  {user.products?.length === 0 ? (
+                    <p className="text-xs text-foreground/40 text-center py-10 col-span-2">No listed products.</p>
+                  ) : (
+                    user.products?.map((p) => (
+                      <div
+                        key={p._id}
+                        onClick={() => navigate(`/product/${p._id}`)}
+                        className="flex items-center gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
+                      >
+                        <img
+                          src={p.images?.[0]?.url || p.images?.[0]}
+                          alt={p.title}
+                          className="w-10 h-12 object-cover rounded-xl border border-border-theme shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{p.title}</p>
+                          <p className="text-[11px] font-mono text-accent">
+                            ₹{(p.sellingPrice?.amount || p.maxPrice?.amount || 0).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
