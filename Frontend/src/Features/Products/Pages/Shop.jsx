@@ -919,10 +919,10 @@ const Shop = () => {
         {/* Product Grid with Infinite Scroll */}
         <div className="flex-1">
           {visualResults && (
-            <div className="mb-5 flex items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/5 px-4 py-3">
+            <div className="mb-6 flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 rounded-2xl border border-accent/30 bg-accent/10 p-3 sm:px-4 sm:py-3 shadow-sm">
               <div className="flex items-center gap-2 min-w-0">
-                <i className="ri-camera-lens-line text-accent text-lg shrink-0" />
-                <p className="text-xs font-black uppercase tracking-widest text-accent truncate">
+                <i className="ri-camera-lens-line text-accent text-base sm:text-lg shrink-0" />
+                <p className="text-[10px] sm:text-xs font-black  tracking-wider text-accent truncate">
                   Visual Search Results — {visualResults.length}{" "}
                   {visualResults.length === 1 ? "match" : "matches"}
                 </p>
@@ -930,7 +930,7 @@ const Shop = () => {
               <button
                 type="button"
                 onClick={clearVisualResults}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-surface border border-border-theme text-[10px] font-bold uppercase tracking-widest text-foreground/70 hover:text-red-400 hover:border-red-500/40 transition cursor-pointer"
+                className="shrink-0 ml-auto flex items-center gap-1 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl bg-surface border border-border-theme text-[10px] font-bold uppercase tracking-wider text-foreground/80 hover:text-red-400 hover:border-red-500/40 transition cursor-pointer shadow-sm"
               >
                 <i className="ri-close-line text-xs" />
                 Clear
@@ -941,7 +941,7 @@ const Shop = () => {
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
-              <div className="grid grid-cols-2 sm:grid-cols-[repeat(auto-fill,minmax(150px,176px))] gap-4">
+              <div className="grid grid-cols-2 min-[560px]:grid-cols-3 md:grid-cols-[repeat(auto-fill,minmax(160px,1fr))] lg:grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3 sm:gap-4.5">
                 {displayedUnits.map((unit) => (
                   <ProductCard
                     key={unit.key}

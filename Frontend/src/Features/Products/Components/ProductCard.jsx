@@ -125,10 +125,10 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
           `/product/${product?._id || product?.slug}${colorParam ? `?color=${encodeURIComponent(colorParam)}` : ""}`
         )
       }
-      className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[2.2rem] w-full max-w-[240px] min-w-0 mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden flex-shrink-0 cursor-pointer p-2.5"
+      className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[1.8rem] sm:rounded-[2.2rem] w-full min-w-0 max-w-[260px] mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer p-2 sm:p-2.5"
     >
       {/* Image Container with Inset Padding */}
-      <div className="relative w-full aspect-square rounded-[1.6rem] overflow-hidden bg-background-alt">
+      <div className="relative w-full aspect-square rounded-[1.3rem] sm:rounded-[1.6rem] overflow-hidden bg-background-alt">
         <img
           src={image}
           alt={title}
@@ -137,10 +137,10 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
         />
 
         {/* Wishlist Heart only */}
-        <div className="absolute top-3 right-3 z-20">
+        <div className="absolute top-2.5 right-2.5 sm:top-3 sm:right-3 z-20">
           <button
             onClick={handleToggleWishlist}
-            className={`w-7 h-7 rounded-full backdrop-blur-md flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all ${
+            className={`w-6.5 h-6.5 sm:w-7 sm:h-7 rounded-full backdrop-blur-md flex items-center justify-center shadow-md hover:scale-110 active:scale-95 transition-all ${
               isWishlisted
                 ? "bg-red-500/15 text-red-500 border border-red-500/30"
                 : "bg-background/80 hover:bg-background text-foreground/45"
@@ -151,12 +151,12 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
         </div>
       </div>
 
-      <div className="px-2 pt-3 pb-1">
-        <div className="flex flex-col mb-3">
-          <h4 className="font-bold text-[11px] mb-0.5 tracking-tight truncate uppercase leading-none text-foreground">
+      <div className="px-1 sm:px-2 pt-2.5 sm:pt-3 pb-1">
+        <div className="flex flex-col mb-2.5 sm:mb-3">
+          <h4 className="font-bold text-[10px] sm:text-[11px] mb-0.5 tracking-tight truncate uppercase leading-none text-foreground">
             {title}
           </h4>
-          <p className="text-[8px] text-accent font-bold tracking-[0.25em] uppercase truncate h-3">
+          <p className="text-[7.5px] sm:text-[8px] text-accent font-bold tracking-[0.2em] sm:tracking-[0.25em] uppercase truncate h-3">
             {categoryName}
           </p>
         </div>
@@ -165,7 +165,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
         <div
           ref={dragContainerRef}
           onClick={(e) => e.stopPropagation()}
-          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-10 sm:h-11 touch-none"
+          className="relative bg-background border border-border-theme/40 rounded-full flex items-center w-full shadow-sm overflow-hidden h-9 sm:h-10.5 touch-none"
           style={{ transition: "background-color 0.3s" }}
         >
           <div
@@ -177,21 +177,21 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
           {/* Price (sale price, or MRP when there is no sale) — right-aligned */}
           <div
             className={`absolute inset-0 flex items-center pointer-events-none ${
-              isDragged ? "justify-center" : "justify-end pr-3"
+              isDragged ? "justify-center" : "justify-end pr-2.5 sm:pr-3"
             }`}
           >
             {isDragged ? (
-              <span className="font-black text-[11px] text-accent-content tracking-[0.25em] uppercase animate-pulse">
-                Added to Bag
+              <span className="font-black text-[9.5px] sm:text-[11px] text-accent-content tracking-wider uppercase animate-pulse">
+                Added
               </span>
             ) : (
-              <span className="font-black text-[10.5px] min-[380px]:text-[11.5px] sm:text-[12px] lg:text-[13px] tracking-[0.15em] text-accent uppercase whitespace-nowrap">
+              <span className="font-black text-[9.5px] min-[360px]:text-[10.5px] sm:text-[12px] tracking-tight sm:tracking-[0.1em] text-accent uppercase whitespace-nowrap">
                 {formatPrice(currentPrice, currency)}
               </span>
             )}
           </div>
 
-          {/* Draggable Circle — slightly smaller */}
+          {/* Draggable Circle — slightly smaller on mobile */}
           <motion.div
             drag={isDragged ? false : "x"}
             initial={{ x: 0 }}
@@ -200,13 +200,13 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
             dragMomentum={false}
             onDragEnd={handleDragEnd}
             animate={controls}
-            className="w-8 h-8 sm:w-9 sm:h-9 top-1/2 -translate-y-1/2 left-1 bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute"
+            className="w-7 h-7 sm:w-8.5 sm:h-8.5 top-1/2 -translate-y-1/2 left-1 bg-accent text-accent-content rounded-full shadow-md z-10 flex items-center justify-center cursor-grab active:cursor-grabbing absolute"
           >
             <i
               className={
                 isDragged
-                  ? "ri-check-line text-base sm:text-lg font-black"
-                  : "ri-arrow-right-s-line text-base sm:text-lg font-bold pointer-events-none"
+                  ? "ri-check-line text-sm sm:text-base font-black"
+                  : "ri-arrow-right-s-line text-sm sm:text-base font-bold pointer-events-none"
               }
             ></i>
           </motion.div>
