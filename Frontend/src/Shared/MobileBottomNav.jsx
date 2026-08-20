@@ -6,11 +6,10 @@ import { useSelector } from "react-redux";
 const MobileBottomNav = () => {
   const location = useLocation();
   const user = useSelector((state) => state.auth?.user);
-  const cartItems = useSelector((state) => state.cart?.items || []);
-
-  const totalCartCount = cartItems.reduce(
-    (sum, item) => sum + (item.quantity || 1),
-    0
+  const totalCartCount = useSelector((state) =>
+    state.cart?.items
+      ? state.cart.items.reduce((sum, item) => sum + (item.quantity || 1), 0)
+      : 0
   );
 
   const pathname = location.pathname;
