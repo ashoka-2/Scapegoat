@@ -56,6 +56,11 @@ const AdminNavbar = ({ onLogout, isCollapsed = false, setIsCollapsed }) => {
       icon: "ri-notification-3-line",
     },
     {
+      name: "Discount Coupons",
+      path: "/admin/coupons",
+      icon: "ri-coupon-3-line",
+    },
+    {
       name: "Site Settings",
       path: "/admin/settings",
       icon: "ri-settings-4-line",

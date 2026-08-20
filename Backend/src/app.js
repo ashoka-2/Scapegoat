@@ -23,6 +23,7 @@ import reviewRouter from "./routes/review.routes.js";
 import adminRouter from "./routes/admin.routes.js";
 import bannerRouter from "./routes/banner.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
+import couponRouter from "./routes/coupon.routes.js";
 import { generalLimiter } from "./middlewares/rateLimiter.middleware.js";
 
 const app = express();
@@ -128,6 +129,7 @@ app.use("/api/reviews", reviewRouter);
 app.use("/api/admin", adminRouter);
 app.use("/api/banners", bannerRouter);
 app.use("/api/notifications", notificationRouter);
+app.use("/api/coupons", couponRouter);
 
 // 6. Global Error Handling Middleware (Ensures CORS headers are preserved on error responses)
 app.use((err, req, res, next) => {
