@@ -651,7 +651,7 @@ export const getAllUsers = async (req, res) => {
     const [users, total] = await Promise.all([
       userModel
         .find(query)
-        .select("-password")
+        .select("-password -deviceInfo -googleId")
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(parseInt(limit))

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import userModel from "../models/user.model.js";
 import wishlistModel from "../models/wishlist.model.js";
 import cartModel from "../models/cart.model.js";
@@ -532,7 +533,17 @@ export const resetPassword = async (req, res) => {
 
 export const getAllUsers = async (req, res) => {
     try {
-        const users = await userModel.find({ role: { $ne: "admin" } }).select("-password").sort({ createdAt: -1 });
+        const isAdmin = req.user && req.user.role === "admin";
+        const projection = isAdmin
+            ? "-password"
+            : "_id fullname email contact role profilePic verified isBanned profileCompleted createdAt";
+
+        const users = await userModel
+            .find({ role: { $ne: "admin" } })
+            .select(projection)
+            .sort({ createdAt: -1 })
+            .lean();
+
         return res.status(200).json({ success: true, users });
     } catch (error) {
         return handleServerError(res, error);
@@ -542,12 +553,41 @@ export const getAllUsers = async (req, res) => {
 export const getUserById = async (req, res) => {
     try {
         const { id } = req.params;
-        const user = await userModel.findById(id).select("-password").lean();
+
+        if (!id || !mongoose.Types.ObjectId.isValid(id)) {
+            return res.status(400).json({ success: false, message: "Invalid User ID format" });
+        }
+
+        const isAdmin = req.user && req.user.role === "admin";
+        const userProjection = isAdmin ? "-password" : "-password -deviceInfo -googleId";
+
+        const user = await userModel.findById(id).select(userProjection).lean();
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
 
-        const userObjId = mongoose.Types.ObjectId.isValid(id) ? new mongoose.Types.ObjectId(id) : id;
+        const userObjId = new mongoose.Types.ObjectId(id);
+        const sellerId = req.user._id;
+
+        // If seller is viewing, only show orders containing this seller's products
+        const orderQuery = isAdmin
+            ? {
+                $or: [
+                    { user: userObjId },
+                    { user: id },
+                    { "orderItems.seller": userObjId },
+                    { "orderItems.seller": id },
+                    { "items.seller": userObjId },
+                    { "items.seller": id },
+                ],
+            }
+            : {
+                $or: [
+                    { user: userObjId, "orderItems.seller": sellerId },
+                    { user: id, "orderItems.seller": sellerId },
+                    { "orderItems.seller": sellerId },
+                ],
+            };
 
         const wishlist = await wishlistModel.findOne({ $or: [{ user: userObjId }, { user: id }] }).populate({
             path: "products",
@@ -559,16 +599,7 @@ export const getUserById = async (req, res) => {
             select: "title slug maxPrice sellingPrice price images stockStatus",
         }).lean();
 
-        const orders = await orderModel.find({
-            $or: [
-                { user: userObjId },
-                { user: id },
-                { "orderItems.seller": userObjId },
-                { "orderItems.seller": id },
-                { "items.seller": userObjId },
-                { "items.seller": id },
-            ],
-        }).populate({
+        const orders = await orderModel.find(orderQuery).populate({
             path: "orderItems.product",
             select: "title slug maxPrice sellingPrice price images",
         }).populate({
@@ -603,13 +634,20 @@ export const getUserById = async (req, res) => {
 export const getSellerCustomers = async (req, res) => {
     try {
         const sellerId = req.user._id;
+        const basicFields = "fullname email contact role profilePic addresses createdAt";
 
         // 1. Get permanent customers from sellerCustomer model
-        const relations = await sellerCustomerModel.find({ seller: sellerId }).populate("customer", "-password").lean();
+        const relations = await sellerCustomerModel
+            .find({ seller: sellerId })
+            .populate("customer", basicFields)
+            .lean();
         const permanentCustomers = relations.map((r) => r.customer).filter(Boolean);
 
         // 2. Also find current buyers from active orders
-        const orders = await orderModel.find({ "orderItems.seller": sellerId }).populate("user", "-password").lean();
+        const orders = await orderModel
+            .find({ "orderItems.seller": sellerId })
+            .populate("user", basicFields)
+            .lean();
         const orderCustomers = orders.map((o) => o.user).filter(Boolean);
 
         // Combine unique customers by ID (excluding seller self & admins)
