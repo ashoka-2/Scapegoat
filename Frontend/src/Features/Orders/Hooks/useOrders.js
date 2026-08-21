@@ -12,6 +12,7 @@ import { addToast } from "../../../utils/toast.slice";
 import { clearCart } from "../../Cart/State/cart.slice";
 import * as api from "../Services/orders.api";
 import { addItemToCartApi } from "../../Cart/Services/cart.api";
+import { loadRazorpay } from "../../../utils/loadRazorpay";
 
 export const useOrders = () => {
   const dispatch = useDispatch();
@@ -40,7 +41,7 @@ export const useOrders = () => {
     dispatch(setLoading(true));
     try {
       const paymentOrder = await api.createRazorpayOrderApi({ shippingAddress, couponCode });
-      if (!window.Razorpay) throw new Error("Razorpay Checkout could not be loaded. Please try again.");
+      await loadRazorpay();
 
       const order = await new Promise((resolve, reject) => {
         const razorpay = new window.Razorpay({

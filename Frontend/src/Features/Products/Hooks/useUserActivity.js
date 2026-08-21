@@ -8,24 +8,6 @@ import {
   getFrequentlyBoughtTogetherApi,
 } from "../Services/activity.api";
 
-// ── localStorage fallback for guests ─────────────────────────────────────────
-const LS_KEY = "sg_recently_viewed";
-const MAX_LOCAL = 50;
-
-const getLocalViews = () => {
-  try {
-    return JSON.parse(localStorage.getItem(LS_KEY) || "[]");
-  } catch {
-    return [];
-  }
-};
-
-const addLocalView = (productId) => {
-  const views = getLocalViews().filter((id) => id !== productId);
-  views.unshift(productId);
-  localStorage.setItem(LS_KEY, JSON.stringify(views.slice(0, MAX_LOCAL)));
-};
-
 // ── Hook ─────────────────────────────────────────────────────────────────────
 export const useUserActivity = () => {
   const user = useSelector((state) => state.auth?.user);
@@ -40,11 +22,10 @@ export const useUserActivity = () => {
 
   const lastFbtIdRef = useRef(null);
 
-  // Track a product view
+  // Track a product view (backend handles user OR visitor identity via X-Visitor-Id)
   const trackView = useCallback(
     (productId) => {
       if (!productId) return;
-      addLocalView(productId);
       trackViewApi(productId); // backend handles user OR visitor identity
     },
     []
