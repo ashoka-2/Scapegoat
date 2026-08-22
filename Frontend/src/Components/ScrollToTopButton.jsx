@@ -112,7 +112,7 @@ const ScrollToTopButton = () => {
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.5, y: 20 }}
           transition={{ type: "spring", stiffness: 300, damping: 22 }}
-          className="fixed bottom-6 right-6 z-40 flex items-center justify-center"
+          className="fixed bottom-24 right-7.5 z-40 flex items-center justify-center"
         >
           {/* Flash Aura Shockwave Ring */}
           <span

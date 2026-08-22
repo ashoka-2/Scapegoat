@@ -31,6 +31,7 @@ import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
 import ResetPassword from "../Features/auth/Pages/ResetPassword.jsx";
+import AIAssistantPage from "../Features/AI/Pages/AIAssistantPage.jsx";
 
 // Admin Pages
 import AdminDashboard from "../Features/Admin/Pages/AdminDashboard.jsx";
@@ -99,6 +100,22 @@ export const routes = createBrowserRouter([
   {
     path: "/reset-password",
     element: <ResetPassword />,
+  },
+  {
+    path: "/ai-assistant",
+    element: <AIAssistantPage />,
+  },
+  {
+    path: "/ai-assistant/:sessionId",
+    element: <AIAssistantPage />,
+  },
+  {
+    path: "/ai-stylist",
+    element: <AIAssistantPage />,
+  },
+  {
+    path: "/ai-stylist/:sessionId",
+    element: <AIAssistantPage />,
   },
   {
     path: "/admin",

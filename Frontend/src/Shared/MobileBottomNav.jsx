@@ -14,7 +14,7 @@ const MobileBottomNav = () => {
 
   const pathname = location.pathname;
 
-  // Define the 4 core tabs
+  // Define the 5 core tabs with AI in the center
   const navItems = [
     {
       id: "home",
@@ -31,6 +31,15 @@ const MobileBottomNav = () => {
       iconOutline: "ri-store-2-line",
       iconFill: "ri-store-2-fill",
       isActive: pathname.startsWith("/shop") || pathname.startsWith("/categories"),
+    },
+    {
+      id: "ai",
+      label: "AI Stylist",
+      path: "/ai-assistant",
+      iconOutline: "ri-sparkling-2-line",
+      iconFill: "ri-sparkling-2-fill",
+      isAi: true,
+      isActive: pathname.startsWith("/ai-assistant") || pathname.startsWith("/ai-stylist"),
     },
     {
       id: "cart",
@@ -79,7 +88,7 @@ const MobileBottomNav = () => {
       {/* Floating Bottom Nav Island (Mobile Only) */}
       <nav
         aria-label="Mobile Navigation"
-        className="md:hidden fixed bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-[1000] max-w-[320px] sm:max-w-[340px] w-[90%] select-none"
+        className="md:hidden fixed bottom-4 sm:bottom-5 left-1/2 -translate-x-1/2 z-[1000] max-w-[360px] sm:max-w-[380px] w-[94%] select-none"
       >
         <div className="relative flex items-center justify-around px-2 py-1.5 rounded-full bg-surface/90 dark:bg-[#141414]/90 backdrop-blur-2xl border border-white/20 dark:border-white/10 shadow-[0_12px_36px_rgba(0,0,0,0.35)] ring-1 ring-black/5">
           {navItems.map((item) => {

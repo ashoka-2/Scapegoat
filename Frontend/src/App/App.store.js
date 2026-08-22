@@ -12,6 +12,7 @@ import settingsReducer from "../Features/Settings/State/settings.slice";
 import ordersReducer from "../Features/Orders/State/orders.slice";
 import sellerReducer from "../Features/Seller/State/seller.slice";
 import adminReducer from "../Features/Admin/State/admin.slice";
+import aiChatReducer from "../Features/AI/State/aiChat.slice.js";
 
 export const store = configureStore({
   reducer: {
@@ -28,5 +29,6 @@ export const store = configureStore({
     orders: ordersReducer,
     seller: sellerReducer,
     admin: adminReducer,
+    aiChat: aiChatReducer,
   },
 });

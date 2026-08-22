@@ -22,6 +22,7 @@ import ScrollToTop from "../Components/ScrollToTop.jsx";
 import ScrollToTopButton from "../Components/ScrollToTopButton.jsx";
 import { useActiveHeartbeat } from "../Hooks/useActiveHeartbeat.js";
 import { useLenis } from "../Hooks/useLenis.js";
+import FloatingAIWidget from "../Features/AI/Components/FloatingAIWidget.jsx";
 
 const STYLE_ID = "theme-transition-style";
 
@@ -143,6 +144,7 @@ const MainLayout = () => {
       <CartDrawer />
       <PopupBanner />
       <ScrollToTopButton />
+      <FloatingAIWidget />
       <MobileBottomNav />
     </div>
   );

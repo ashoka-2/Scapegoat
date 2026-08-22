@@ -133,8 +133,6 @@ const couponSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Fast lookup by coupon code (already unique, but explicit index for queries)
-couponSchema.index({ code: 1 });
 // Find active coupons within a date range
 couponSchema.index({ isActive: 1, startDate: 1, endDate: 1 });
 
