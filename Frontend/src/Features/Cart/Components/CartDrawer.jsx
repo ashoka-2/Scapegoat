@@ -39,6 +39,18 @@ const CartDrawer = () => {
     }
   }, [isDrawerOpen, firstId]);
 
+  // ── Lock Body Scroll when Cart Drawer is Open ──────────────────────────────
+  useEffect(() => {
+    if (isDrawerOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isDrawerOpen]);
+
 const isColorAttrKey = (key) => /^colou?r$/i.test(String(key || "").trim());
 
 const formatSelectedAttributesTag = (item) => {
@@ -110,22 +122,24 @@ const getItemVariantImage = (item) => {
     <AnimatePresence>
       {isDrawerOpen && (
         <>
-          {/* Backdrop Blur */}
+          {/* Backdrop Blur (Highest Priority Z-Index) */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={() => handleSetDrawerOpen(false)}
-            className="fixed inset-0 bg-black/60 backdrop-blur-md z-[1100]"
+            className="fixed inset-0 bg-black/70 backdrop-blur-md z-[9999998]"
+            onWheel={(e) => e.stopPropagation()}
           />
 
-          {/* Drawer Slide-Over Panel */}
+          {/* Drawer Slide-Over Panel (Above Everything) */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 25, stiffness: 200 }}
-            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-surface border-l border-border-theme z-[1200] flex flex-col justify-between shadow-2xl font-sans"
+            className="fixed right-0 top-0 bottom-0 w-full max-w-md bg-surface border-l border-border-theme z-[9999999] flex flex-col justify-between shadow-2xl font-sans overscroll-contain touch-pan-y"
+            onWheel={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
             <div className="p-5 border-b border-border-theme flex items-center justify-between bg-background/50">
@@ -146,7 +160,10 @@ const getItemVariantImage = (item) => {
             </div>
 
             {/* Cart Items List */}
-            <div className="flex-1 overflow-y-auto p-5 space-y-4 scrollbar-thin">
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-5 space-y-4 scrollbar-thin"
+              onWheel={(e) => e.stopPropagation()}
+            >
               {loading && !cart ? (
                 <CartItemSkeleton count={3} />
               ) : items.length > 0 ? (

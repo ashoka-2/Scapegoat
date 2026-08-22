@@ -5,6 +5,7 @@ import { useAIChat } from "../Hooks/useAIChat.js";
 import AIChatSidebar from "../Components/AIChatSidebar.jsx";
 import AIChatMessage from "../Components/AIChatMessage.jsx";
 import MultiImageUploader from "../Components/MultiImageUploader.jsx";
+import AIAssistantSkeleton from "../Components/Skeletons/AIAssistantSkeleton.jsx";
 
 const STUDIO_SHORTCUTS = [
   { icon: "ri-t-shirt-air-line", title: "Coastal Summer Outfit", prompt: "Suggest me 3 summer coastal outfits with linen shirts, shorts and shades under ₹4,000" },
@@ -99,11 +100,16 @@ const AIAssistantPage = () => {
         setTimeout(() => {
           sendMessage(`Please generate a virtual try-on render of the "${bundle.title}" outfit on my photo.`);
           selectedTryOnBundleRef.current = null;
-        }, 300);
+        }, 500);
       }
       e.target.value = "";
     }
   };
+
+  // ── Show High-Fidelity AI Stylist Skeleton on Initial Session Route Load ──
+  if (routeSessionId && loadingSessions && messages.length === 0) {
+    return <AIAssistantSkeleton />;
+  }
 
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground font-sans selection:bg-accent selection:text-accent-content flex overflow-hidden">
@@ -206,7 +212,7 @@ const AIAssistantPage = () => {
         </header>
 
         {/* ── Scrollable Chat Messages Stream ── */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 lg:p-12 space-y-6 scrollbar-none max-w-4xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 lg:p-12 space-y-6 scrollbar-none max-w-4xl mx-auto w-full">
           {messages.length === 0 && !isStreaming ? (
             <div className="py-12 sm:py-20 flex flex-col items-center text-center space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-4xl shadow-inner">

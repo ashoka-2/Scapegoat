@@ -38,7 +38,7 @@ export const useAIChat = () => {
   const aiState = useSelector((state) => state.aiChat);
   const user = useSelector((state) => state.auth?.user);
   const { handleGetCart } = useCart();
-  const { handleGetWishlist } = useWishlist();
+  const { getWishlist } = useWishlist();
 
   // ── Load Quota & Sessions on Mount / User change ────────────────────────────
   const refreshQuota = useCallback(async () => {
@@ -280,12 +280,14 @@ export const useAIChat = () => {
       try {
         const res = await addBundleToWishlistApi({ productIds, action: "add" });
         dispatch(addToast({ message: `Saved "${bundle.title}" (${res.count} items) to your wishlist! ❤️`, type: "success" }));
-        handleGetWishlist(); // Refresh Redux wishlist state
+        if (typeof getWishlist === "function") {
+          getWishlist(); // Refresh Redux wishlist state
+        }
       } catch (err) {
         dispatch(addToast({ message: err.message || "Failed to save outfit to wishlist.", type: "error" }));
       }
     },
-    [dispatch, user, handleGetWishlist]
+    [dispatch, user, getWishlist]
   );
 
   return {

@@ -13,6 +13,7 @@ import {
   CheckoutSkeleton,
   OrdersSkeleton,
   OrderDetailsSkeleton,
+  AIAssistantSkeleton,
 } from "./index.js";
 
 // Dedicated Admin Skeletons
@@ -59,6 +60,11 @@ export const getPageSkeleton = (path) => {
   if (path.startsWith("/product/")) return SingleProductSkeleton;
   if (path.startsWith("/seller")) return SellerSkeleton;
 
+  // Dedicated AI Assistant / Stylist Studio Skeleton
+  if (path.startsWith("/ai-assistant") || path.startsWith("/ai-stylist")) {
+    return AIAssistantSkeleton;
+  }
+
   // Dedicated Admin Route Skeletons
   if (path === "/admin" || path === "/admin/dashboard") return AdminDashboardSkeleton;
   if (path === "/admin/users") return AdminUsersSkeleton;
@@ -86,6 +92,7 @@ export const shouldHideNavbarSkeleton = (path) => {
     path === "/complete-profile";
   const isAdminPage = path.startsWith("/admin");
   const isSellerPage = path.startsWith("/seller");
+  const isAIPage = path.startsWith("/ai-assistant") || path.startsWith("/ai-stylist");
 
-  return isAuthPage || isAdminPage || isSellerPage;
+  return isAuthPage || isAdminPage || isSellerPage || isAIPage;
 };

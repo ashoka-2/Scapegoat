@@ -165,39 +165,6 @@ export const runAIAgent = async ({
       ? targetOutfitItems.map((i) => `${i.tier}: ${i.title}`).join(", ")
       : candidateProducts.slice(0, 3).map((p) => p.title).join(", ") || userMessage;
 
-  const isTryOnIntent =
-    lowerMsg.includes("on my body") ||
-    lowerMsg.includes("on me") ||
-    lowerMsg.includes("try on") ||
-    lowerMsg.includes("try this") ||
-    lowerMsg.includes("wear this") ||
-    lowerMsg.includes("wear it") ||
-    lowerMsg.includes("visualize") ||
-    lowerMsg.includes("generate image") ||
-    lowerMsg.includes("generate a virtual") ||
-    lowerMsg.includes("virtual try-on") ||
-    lowerMsg.includes("my face") ||
-    lowerMsg.includes("my photo") ||
-    lowerMsg.includes("photo of me") ||
-    lowerMsg.includes("picture of me") ||
-    lowerMsg.includes("look on me") ||
-    lowerMsg.includes("how it will look") ||
-    lowerMsg.includes("how i look") ||
-    lowerMsg.includes("how i will look") ||
-    Boolean(images && images.length > 0 && targetOutfitItems.length > 0);
-
-  if (isTryOnIntent) {
-    toolCalls.push({
-      toolName: "virtual_try_on_studio",
-      args: { outfit: outfitDescription },
-      result: { 
-        status: "studio_ready",
-        note: "User can click '✨ Try On' on any bundle card to launch ChatGPT (GPT-4o) or Google Gemini with pre-filled garment specs and image links!"
-      },
-      status: "success",
-    });
-  }
-
   // ── Step 4: Agent Direct Actions (Cart / Wishlist / Review queries) ────────
   if ((lowerMsg.includes("add to cart") || lowerMsg.includes("add to bag") || lowerMsg.includes("buy")) && user?._id) {
     const targetItems = [];
@@ -288,14 +255,10 @@ export const runAIAgent = async ({
 ══════════════════════════════════════════════════════════════
 ✨ VIRTUAL TRY-ON & VISUALIZER CAPABILITY:
 ══════════════════════════════════════════════════════════════
-- You HAVE an integrated AI Virtual Try-On and Outfit Visualizer engine!
-- When a user asks to "try on", "wear on my body", "visualize on me", or "show how I look in this outfit":
-  1. IF THE USER HAS NOT UPLOADED A PHOTO YET:
-     Politely and warmly ask them to upload or snap a photo of themselves:
-     "📸 **Let's Visualize This On You!**
-     Please attach or take a clear photo of yourself (showing your face & body) using the camera/attachment button below. I will generate a custom editorial lookbook of this outfit on you!"
-  2. IF THE USER HAS UPLOADED A PHOTO:
-     Confirm that the virtual try-on render is being generated and discuss how the coordinated pieces (topwear, bottomwear, footwear) complement their style and silhouette!
+- ScapeGoat features a 1-Click AI Virtual Try-On Studio connected to ChatGPT (GPT-4o) and Google Gemini!
+- When a user asks to "try on", "wear on my body", "visualize on me", or "how will I look in this outfit":
+  1. Recommend the coordinated outfit bundle pieces.
+  2. Encourage them to click the **"✨ Try On"** button directly on the outfit bundle card to launch ChatGPT / Google Gemini with their photo and garment references!
 
 ══════════════════════════════════════════════════════════════
 🛍️ CATALOG CONTEXT & PRODUCT RECOMMENDATIONS:

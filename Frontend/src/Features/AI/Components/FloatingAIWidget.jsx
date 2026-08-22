@@ -137,7 +137,8 @@ const FloatingAIWidget = () => {
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 30 }}
             transition={{ type: "spring", stiffness: 350, damping: 28 }}
-            className="fixed bottom-24 right-6 z-[99999] w-[calc(100vw-2rem)] sm:w-[420px] max-h-[720px] h-[82vh] bg-surface/95 backdrop-blur-2xl border border-border-theme rounded-3xl shadow-2xl flex flex-col overflow-hidden select-none"
+            className="fixed bottom-24 right-6 z-[99999] w-[calc(100vw-2rem)] sm:w-[420px] max-h-[720px] h-[82vh] bg-surface/95 backdrop-blur-2xl border border-border-theme rounded-3xl shadow-2xl flex flex-col overflow-hidden select-none overscroll-contain touch-pan-y"
+            onWheel={(e) => e.stopPropagation()}
           >
             {/* ── Chat Header ── */}
             <div className="px-5 py-4 bg-background/80 border-b border-border-theme flex items-center justify-between shrink-0">
@@ -181,7 +182,10 @@ const FloatingAIWidget = () => {
             </div>
 
             {/* ── Scrollable Chat Content Stream ── */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scrollbar-none">
+            <div
+              className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4 scrollbar-thin scrollbar-thumb-border-theme scrollbar-track-transparent"
+              onWheel={(e) => e.stopPropagation()}
+            >
               {messages.length === 0 && !isStreaming ? (
                 <div className="py-6 flex flex-col items-center text-center space-y-4">
                   <div className="w-14 h-14 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-2xl">

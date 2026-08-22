@@ -23,3 +23,4 @@ export { default as LegalSkeleton } from "../../Features/Home/Components/Skeleto
 export { default as CheckoutSkeleton } from "../../Features/Orders/Components/Skeletons/CheckoutSkeleton";
 export { default as OrdersSkeleton } from "../../Features/Orders/Components/Skeletons/OrdersSkeleton";
 export { default as OrderDetailsSkeleton } from "../../Features/Orders/Components/Skeletons/OrderDetailsSkeleton";
+export { default as AIAssistantSkeleton } from "../../Features/AI/Components/Skeletons/AIAssistantSkeleton.jsx";

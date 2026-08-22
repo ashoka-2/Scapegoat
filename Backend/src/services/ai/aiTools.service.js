@@ -160,6 +160,8 @@ export const executeCartAction = async ({ user, items = [] }) => {
   }
 
   const addedItems = [];
+  const skippedSellerItems = [];
+  const outOfStockItems = [];
 
   for (const item of items) {
     const { productId, variantId, quantity = 1, selectedAttributes = {} } = item;
@@ -167,6 +169,18 @@ export const executeCartAction = async ({ user, items = [] }) => {
 
     const prod = await productModel.findById(productId).lean();
     if (!prod || prod.status !== "published") continue;
+
+    // Rule: Seller cannot buy their own listed product
+    if (prod.seller && String(prod.seller) === String(user._id)) {
+      skippedSellerItems.push(prod.title);
+      continue;
+    }
+
+    // Rule: Check stock availability
+    if (prod.manageStock && (prod.stock < quantity || prod.stockStatus === "outofstock")) {
+      outOfStockItems.push(prod.title);
+      continue;
+    }
 
     const existingIndex = cart.items.findIndex(
       (ci) => String(ci.product) === String(productId) && String(ci.variantId || "") === String(variantId || "")
@@ -191,13 +205,37 @@ export const executeCartAction = async ({ user, items = [] }) => {
     });
   }
 
+  if (addedItems.length === 0) {
+    if (skippedSellerItems.length > 0) {
+      return {
+        success: false,
+        message: "Sellers cannot purchase their own listed products.",
+      };
+    }
+    if (outOfStockItems.length > 0) {
+      return {
+        success: false,
+        message: `Items are currently out of stock: ${outOfStockItems.join(", ")}`,
+      };
+    }
+    return {
+      success: false,
+      message: "Could not add items to cart. Please check availability.",
+    };
+  }
+
   await cart.save();
+
+  let msg = `Successfully added ${addedItems.length} item(s) to your cart!`;
+  if (skippedSellerItems.length > 0) {
+    msg += ` (${skippedSellerItems.length} items skipped as you are the seller)`;
+  }
 
   return {
     success: true,
     addedCount: addedItems.length,
     items: addedItems,
-    message: `Successfully added ${addedItems.length} item(s) to your cart!`,
+    message: msg,
   };
 };
 
