@@ -186,8 +186,6 @@ export const runAIAgent = async ({
     lowerMsg.includes("how i will look") ||
     Boolean(images && images.length > 0 && targetOutfitItems.length > 0);
 
-  let visualImageUrl = "";
-
   if (isTryOnIntent) {
     toolCalls.push({
       toolName: "virtual_try_on_studio",
@@ -345,7 +343,6 @@ PRODUCT PRESENTATION RULES:
     products: candidateProducts.slice(0, 8).map((p) => p._id),
     sources,
     toolCalls,
-    visualImage: visualImageUrl,
     error,
   };
 };

@@ -168,7 +168,7 @@ const AIAssistantPage = () => {
             </button>
 
             <Link
-              to="/products"
+              to="/shop"
               className="flex items-center gap-1 text-xs font-bold text-foreground/60 hover:text-accent transition cursor-pointer shrink-0"
             >
               <i className="ri-arrow-left-line text-sm" />
@@ -271,12 +271,9 @@ const AIAssistantPage = () => {
                     products: streamingMeta?.products || [],
                     sources: streamingMeta?.sources || [],
                     toolCalls: streamingMeta?.toolCalls || [],
-                    visualImage: streamingMeta?.visualImage || "",
-                    hasVisualIntent: Boolean(pendingImages.length > 0 || streamingMeta?.visualImage),
                   }}
                   onAddToCart={addBundleToCart}
                   onAddToWishlist={addBundleToWishlist}
-                  onTryOn={handleTryOnBundle}
                 />
               )}
               <div ref={messagesEndRef} />

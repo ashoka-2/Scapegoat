@@ -5,7 +5,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import OutfitBundleCard from "./OutfitBundleCard.jsx";
 import SetupBundleCard from "./SetupBundleCard.jsx";
-import { AIStreamingStatus, AIVisualSkeleton, AIMessageSkeleton } from "./AISkeletonLoader.jsx";
+import { AIStreamingStatus } from "./AISkeletonLoader.jsx";
 
 /**
  * Custom ReactMarkdown components for Perplexity / Editorial Stylist Typography
@@ -79,10 +79,9 @@ const markdownComponents = {
   ),
 };
 
-const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishlist, onTryOn }) => {
+const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishlist }) => {
   const isUser = message.role === "user";
   const [showSources, setShowSources] = useState(false);
-  const [visualModalOpen, setVisualModalOpen] = useState(false);
 
   // ── Render User Turn ────────────────────────────────────────────────────────
   if (isUser) {
@@ -118,8 +117,6 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
   const hasBundles = message.bundles && message.bundles.length > 0;
   const hasProducts = message.products && message.products.length > 0;
   const hasSources = message.sources && message.sources.length > 0;
-  const visualImg = message.visualImage || "";
-  const isGeneratingVisual = isStreaming && Boolean(message.hasVisualIntent || message.isVisualGenerating);
 
   return (
     <motion.div
@@ -135,7 +132,7 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
       <div className="flex-1 space-y-4 min-w-0">
         {/* ── Dynamic Live Streaming Status Bar ── */}
         {isStreaming && (
-          <AIStreamingStatus isVisualIntent={isGeneratingVisual} />
+          <AIStreamingStatus />
         )}
 
         {/* ── Perplexity-Style Sources Chips ── */}
@@ -190,48 +187,6 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
           </div>
         ) : null}
 
-        {/* ── Virtual Try-On Render Card (when generated) ── */}
-        {visualImg ? (
-          <div className="p-4 rounded-3xl bg-surface border border-accent/40 shadow-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-accent animate-pulse" />
-                <span className="text-xs font-black uppercase tracking-wider text-accent">
-                  AI Virtual Try-On Lookbook
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVisualModalOpen(true)}
-                className="text-[10px] font-bold text-foreground/60 hover:text-accent flex items-center gap-1 transition cursor-pointer"
-              >
-                <i className="ri-fullscreen-line" />
-                <span>Expand Full HD</span>
-              </button>
-            </div>
-
-            <div
-              className="relative rounded-2xl overflow-hidden cursor-pointer group/tryon bg-background border border-border-theme"
-              onClick={() => setVisualModalOpen(true)}
-            >
-              <img
-                src={visualImg}
-                alt="AI Virtual Try-On"
-                className="w-full h-64 sm:h-80 object-cover group-hover/tryon:scale-105 transition duration-500"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover/tryon:opacity-100 transition-opacity flex items-end p-4">
-                <span className="text-white text-xs font-bold flex items-center gap-1.5">
-                  <i className="ri-zoom-in-line" />
-                  Click to view full screen
-                </span>
-              </div>
-            </div>
-          </div>
-        ) : isGeneratingVisual ? (
-          /* ── Shimmering Image-Sized Skeleton Loader while generating image ── */
-          <AIVisualSkeleton />
-        ) : null}
-
         {/* ── Multi-Tier Outfit / Tech Setup Bundles ── */}
         {hasBundles && (
           <div className="space-y-3 pt-1">
@@ -249,7 +204,6 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
                   bundle={bundle}
                   onAddToCart={onAddToCart}
                   onAddToWishlist={onAddToWishlist}
-                  onTryOn={onTryOn}
                 />
               )
             ))}
@@ -306,24 +260,6 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
           </div>
         )}
       </div>
-
-      {/* Fullscreen Try-on Modal */}
-      {visualModalOpen && visualImg && (
-        <div
-          className="fixed inset-0 z-[999999] bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setVisualModalOpen(false)}
-        >
-          <div className="relative max-w-2xl w-full max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl border border-white/20">
-            <img src={visualImg} alt="Virtual Try-On Fullscreen" className="w-full h-auto object-contain max-h-[85vh]" />
-            <button
-              onClick={() => setVisualModalOpen(false)}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center text-lg hover:bg-black transition cursor-pointer"
-            >
-              <i className="ri-close-line" />
-            </button>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 };

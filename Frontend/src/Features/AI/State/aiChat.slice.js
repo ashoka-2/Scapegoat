@@ -83,7 +83,6 @@ export const aiChatSlice = createSlice({
           products: state.streamingMeta?.products || [],
           sources: state.streamingMeta?.sources || [],
           toolCalls: state.streamingMeta?.toolCalls || [],
-          visualImage: state.streamingMeta?.visualImage || "",
           modelUsed: state.streamingMeta?.modelUsed || "gemini-2.5-flash",
           createdAt: new Date().toISOString(),
         });

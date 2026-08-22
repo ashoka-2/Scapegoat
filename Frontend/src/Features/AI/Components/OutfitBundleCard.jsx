@@ -14,8 +14,7 @@ const TIER_META = {
   Accessories: { icon: "ri-sparkling-fill", color: "text-amber-400 bg-amber-500/10 border-amber-500/20" },
 };
 
-const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => {
-  const [imageModalOpen, setImageModalOpen] = useState(false);
+const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist }) => {
   const [studioModalOpen, setStudioModalOpen] = useState(false);
 
   if (!bundle || !bundle.items?.length) return null;
@@ -55,22 +54,6 @@ const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => 
           )}
         </div>
       </div>
-
-      {/* ── Visual Try-On Render Banner (if generated) ── */}
-      {bundle.visualImage && (
-        <div className="relative rounded-2xl overflow-hidden border border-accent/30 group/visual">
-          <img
-            src={bundle.visualImage}
-            alt="Virtual Try-On Render"
-            className="w-full h-48 sm:h-56 object-cover cursor-pointer group-hover/visual:scale-105 transition duration-500"
-            onClick={() => setImageModalOpen(true)}
-          />
-          <div className="absolute top-3 left-3 px-3 py-1 rounded-full bg-background/80 backdrop-blur-md border border-border-theme text-[10px] font-black uppercase tracking-wider text-accent flex items-center gap-1.5 shadow-md">
-            <i className="ri-sparkling-fill" />
-            <span>AI Virtual Try-On</span>
-          </div>
-        </div>
-      )}
 
       {/* ── Multi-Tier Head-to-Toe Layer Breakdown ── */}
       <div className="space-y-2.5 pt-1">
@@ -147,7 +130,7 @@ const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => 
           type="button"
           onClick={() => setStudioModalOpen(true)}
           className="py-2.5 px-3.5 rounded-2xl bg-surface border border-accent/40 text-accent hover:bg-accent/10 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group"
-          title="Try this outfit on your face/body using ChatGPT, Gemini, or In-App AI"
+          title="Try this outfit on your face/body using ChatGPT or Google Gemini"
         >
           <i className="ri-sparkling-2-line text-sm group-hover:rotate-12 transition-transform" />
           <span className="hidden sm:inline">Try On</span>
@@ -169,26 +152,7 @@ const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => 
         isOpen={studioModalOpen}
         onClose={() => setStudioModalOpen(false)}
         bundle={bundle}
-        onInAppTryOn={onTryOn}
       />
-
-      {/* Fullscreen Zoom Modal for Try-on Image */}
-      {imageModalOpen && bundle.visualImage && (
-        <div
-          className="fixed inset-0 z-[999999] bg-black/80 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setImageModalOpen(false)}
-        >
-          <div className="relative max-w-xl w-full max-h-[90vh] rounded-3xl overflow-hidden shadow-2xl border border-white/20">
-            <img src={bundle.visualImage} alt="Try On Large" className="w-full h-auto object-contain max-h-[85vh]" />
-            <button
-              onClick={() => setImageModalOpen(false)}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center text-lg hover:bg-black transition cursor-pointer"
-            >
-              <i className="ri-close-line" />
-            </button>
-          </div>
-        </div>
-      )}
     </motion.div>
   );
 };

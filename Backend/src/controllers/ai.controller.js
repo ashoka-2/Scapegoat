@@ -190,7 +190,6 @@ export const streamAiChat = async (req, res) => {
       products: agentResult.products,
       sources: agentResult.sources,
       toolCalls: agentResult.toolCalls,
-      visualImage: agentResult.visualImage || "",
       modelUsed: agentResult.modelUsed,
     });
 
@@ -205,7 +204,6 @@ export const streamAiChat = async (req, res) => {
       products: populatedProducts,
       sources: agentResult.sources,
       toolCalls: agentResult.toolCalls,
-      visualImage: agentResult.visualImage || "",
       modelUsed: agentResult.modelUsed,
     });
 

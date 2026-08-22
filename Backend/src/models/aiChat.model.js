@@ -119,10 +119,6 @@ const bundleSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
-    visualImage: {
-      type: String,
-      default: "",
-    },
     items: [bundleItemSchema],
   },
   { _id: false }
@@ -157,11 +153,6 @@ const aiChatMessageSchema = new mongoose.Schema(
         embedding: { type: [Number], select: false, default: [] },
       },
     ],
-    // Generated AI Try-on or lookbook visual image
-    visualImage: {
-      type: String,
-      default: "",
-    },
     // Structured tool calls & results
     toolCalls: [
       {

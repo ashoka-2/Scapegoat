@@ -235,12 +235,9 @@ const FloatingAIWidget = () => {
                         products: streamingMeta?.products || [],
                         sources: streamingMeta?.sources || [],
                         toolCalls: streamingMeta?.toolCalls || [],
-                        visualImage: streamingMeta?.visualImage || "",
-                        hasVisualIntent: Boolean(pendingImages.length > 0 || streamingMeta?.visualImage),
                       }}
                       onAddToCart={addBundleToCart}
                       onAddToWishlist={addBundleToWishlist}
-                      onTryOn={handleTryOnBundle}
                     />
                   )}
                   <div ref={messagesEndRef} />
