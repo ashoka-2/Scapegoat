@@ -127,28 +127,19 @@ export const runAIAgent = async ({
   }
 
   // ── Step 3.5: Virtual Try-On & Outfit Visualizer Intent ───────────────────────
-  const isTryOnIntent =
-    lowerMsg.includes("on my body") ||
-    lowerMsg.includes("on me") ||
-    lowerMsg.includes("try on") ||
-    lowerMsg.includes("try this") ||
-    lowerMsg.includes("wear this") ||
-    lowerMsg.includes("wear it") ||
-    lowerMsg.includes("visualize") ||
-    lowerMsg.includes("generate image") ||
-    lowerMsg.includes("generate a virtual") ||
-    lowerMsg.includes("virtual try-on") ||
-    lowerMsg.includes("my face") ||
-    lowerMsg.includes("my photo") ||
-    lowerMsg.includes("photo of me") ||
-    lowerMsg.includes("picture of me") ||
-    lowerMsg.includes("look on me") ||
-    lowerMsg.includes("how it will look") ||
-    lowerMsg.includes("how i look") ||
-    lowerMsg.includes("how i will look") ||
-    Boolean(images && images.length > 0 && targetOutfitItems.length > 0);
+  // ── Step 3.5: Identify & Enrich Outfit Description with Detailed Catalog Specs ────────
+  let targetOutfitItems = [];
+  if (generatedBundles.length > 0) {
+    targetOutfitItems = generatedBundles[0].items;
+  } else {
+    for (let i = history.length - 1; i >= 0; i--) {
+      if (history[i].bundles?.length > 0) {
+        targetOutfitItems = history[i].bundles[0].items;
+        break;
+      }
+    }
+  }
 
-  // ── Step 3.5: Enrich Outfit Description with Detailed Catalog Specs ────────
   let detailedOutfitSpecs = [];
   if (targetOutfitItems.length > 0) {
     try {
@@ -174,32 +165,39 @@ export const runAIAgent = async ({
       ? targetOutfitItems.map((i) => `${i.tier}: ${i.title}`).join(", ")
       : candidateProducts.slice(0, 3).map((p) => p.title).join(", ") || userMessage;
 
+  const isTryOnIntent =
+    lowerMsg.includes("on my body") ||
+    lowerMsg.includes("on me") ||
+    lowerMsg.includes("try on") ||
+    lowerMsg.includes("try this") ||
+    lowerMsg.includes("wear this") ||
+    lowerMsg.includes("wear it") ||
+    lowerMsg.includes("visualize") ||
+    lowerMsg.includes("generate image") ||
+    lowerMsg.includes("generate a virtual") ||
+    lowerMsg.includes("virtual try-on") ||
+    lowerMsg.includes("my face") ||
+    lowerMsg.includes("my photo") ||
+    lowerMsg.includes("photo of me") ||
+    lowerMsg.includes("picture of me") ||
+    lowerMsg.includes("look on me") ||
+    lowerMsg.includes("how it will look") ||
+    lowerMsg.includes("how i look") ||
+    lowerMsg.includes("how i will look") ||
+    Boolean(images && images.length > 0 && targetOutfitItems.length > 0);
+
+  let visualImageUrl = "";
+
   if (isTryOnIntent) {
-    if (images && images.length > 0) {
-      // User has uploaded photo/image -> generate high-fashion virtual try-on render
-      visualImageUrl = await aiOrchestrator.generateVirtualTryOn({
-        outfitDescription,
-        userImageUrl: images[0]?.url || "",
-      });
-
-      if (generatedBundles.length > 0) {
-        generatedBundles[0].visualImage = visualImageUrl;
-      }
-
-      toolCalls.push({
-        toolName: "virtual_try_on",
-        args: { outfit: outfitDescription, hasUserImage: true },
-        result: { visualUrl: visualImageUrl },
-        status: "success",
-      });
-    } else {
-      toolCalls.push({
-        toolName: "virtual_try_on",
-        args: { outfit: outfitDescription, hasUserImage: false },
-        result: { status: "prompt_photo_upload" },
-        status: "success",
-      });
-    }
+    toolCalls.push({
+      toolName: "virtual_try_on_studio",
+      args: { outfit: outfitDescription },
+      result: { 
+        status: "studio_ready",
+        note: "User can click '✨ Try On' on any bundle card to launch ChatGPT (GPT-4o) or Google Gemini with pre-filled garment specs and image links!"
+      },
+      status: "success",
+    });
   }
 
   // ── Step 4: Agent Direct Actions (Cart / Wishlist / Review queries) ────────

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import VirtualTryOnModal from "./VirtualTryOnModal.jsx";
 
 /**
  * Tier Icons and Styling Badges for Head-to-Toe Outfit Layers
@@ -15,6 +16,8 @@ const TIER_META = {
 
 const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => {
   const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [studioModalOpen, setStudioModalOpen] = useState(false);
+
   if (!bundle || !bundle.items?.length) return null;
 
   return (
@@ -140,17 +143,15 @@ const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => 
           <span>Add Full Outfit to Bag</span>
         </button>
 
-        {onTryOn && (
-          <button
-            type="button"
-            onClick={() => onTryOn(bundle)}
-            className="py-2.5 px-3.5 rounded-2xl bg-surface border border-accent/40 text-accent hover:bg-accent/10 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm"
-            title="Try this outfit on your face/body"
-          >
-            <i className="ri-sparkling-2-line text-sm" />
-            <span className="hidden sm:inline">Try On</span>
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={() => setStudioModalOpen(true)}
+          className="py-2.5 px-3.5 rounded-2xl bg-surface border border-accent/40 text-accent hover:bg-accent/10 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-sm group"
+          title="Try this outfit on your face/body using ChatGPT, Gemini, or In-App AI"
+        >
+          <i className="ri-sparkling-2-line text-sm group-hover:rotate-12 transition-transform" />
+          <span className="hidden sm:inline">Try On</span>
+        </button>
 
         <button
           type="button"
@@ -162,6 +163,14 @@ const OutfitBundleCard = ({ bundle, onAddToCart, onAddToWishlist, onTryOn }) => 
           <span className="hidden sm:inline">Save</span>
         </button>
       </div>
+
+      {/* ── AI Virtual Try-On Studio Modal (ChatGPT & Gemini Launcher) ── */}
+      <VirtualTryOnModal
+        isOpen={studioModalOpen}
+        onClose={() => setStudioModalOpen(false)}
+        bundle={bundle}
+        onInAppTryOn={onTryOn}
+      />
 
       {/* Fullscreen Zoom Modal for Try-on Image */}
       {imageModalOpen && bundle.visualImage && (

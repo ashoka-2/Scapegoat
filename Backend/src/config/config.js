@@ -59,7 +59,6 @@ export const config = {
     GROQ_API_KEY: process.env.GROQ_API_KEY || "",
     MISTRAL_API_KEY: process.env.MISTRAL_API_KEY || "",
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY || "",
-    HUGGINGFACE_API_TOKEN: process.env.HUGGINGFACE_API_TOKEN || "",
     NODE_ENV: process.env.NODE_ENV || "development",
     FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:5173",
     BACKEND_URL: process.env.BACKEND_URL || "http://localhost:3000",
