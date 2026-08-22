@@ -19,6 +19,9 @@ const initialState = {
     resetsInSeconds: 86400,
   },
   loadingSessions: false,
+  loadingChat: false, // Indicates switching or initial loading of messages in current thread
+  hasMoreMessages: false, // True if older messages exist for pagination
+  loadingMoreMessages: false, // True while loading older 10 messages on scroll up
 };
 
 export const aiChatSlice = createSlice({
@@ -39,6 +42,13 @@ export const aiChatSlice = createSlice({
     },
     setMessages: (state, action) => {
       state.messages = action.payload || [];
+    },
+    prependMessages: (state, action) => {
+      const olderMessages = action.payload || [];
+      // Prepend avoiding duplicate IDs
+      const existingIds = new Set(state.messages.map((m) => String(m._id)));
+      const filteredOlder = olderMessages.filter((m) => !existingIds.has(String(m._id)));
+      state.messages = [...filteredOlder, ...state.messages];
     },
     addMessage: (state, action) => {
       state.messages.push(action.payload);
@@ -61,7 +71,6 @@ export const aiChatSlice = createSlice({
       state.isStreaming = true;
       state.streamingContent = "";
       state.streamingMeta = null;
-      // Optimistically add user turn
       if (action.payload?.userMessage) {
         state.messages.push(action.payload.userMessage);
       }
@@ -116,9 +125,21 @@ export const aiChatSlice = createSlice({
       state.streamingMeta = null;
       state.isStreaming = false;
       state.pendingImages = [];
+      state.loadingChat = false;
+      state.hasMoreMessages = false;
+      state.loadingMoreMessages = false;
     },
     setLoadingSessions: (state, action) => {
       state.loadingSessions = action.payload;
+    },
+    setLoadingChat: (state, action) => {
+      state.loadingChat = action.payload;
+    },
+    setHasMoreMessages: (state, action) => {
+      state.hasMoreMessages = action.payload;
+    },
+    setLoadingMoreMessages: (state, action) => {
+      state.loadingMoreMessages = action.payload;
     },
   },
 });
@@ -129,6 +150,7 @@ export const {
   setActiveSessionId,
   setSessions,
   setMessages,
+  prependMessages,
   addMessage,
   updateLastAssistantMessage,
   setQuota,
@@ -143,6 +165,9 @@ export const {
   clearPendingImages,
   resetChat,
   setLoadingSessions,
+  setLoadingChat,
+  setHasMoreMessages,
+  setLoadingMoreMessages,
 } = aiChatSlice.actions;
 
 export default aiChatSlice.reducer;

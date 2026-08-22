@@ -243,13 +243,16 @@ export const getAiSessions = async (req, res) => {
 };
 
 /**
- * @desc    Get Single AI Session with Full Message History
- * @route   GET /api/ai/sessions/:sessionId
+ * @desc    Get Single AI Session with Paginated Message History (Default 10 recent messages)
+ * @route   GET /api/ai/sessions/:sessionId?limit=10&before=2026-08-22T...
  * @access  Public / Authenticated
  */
 export const getAiSessionDetail = async (req, res) => {
   try {
     const { sessionId } = req.params;
+    const limit = Math.max(1, Math.min(50, parseInt(req.query.limit, 10) || 10));
+    const before = req.query.before; // ISO timestamp string for older messages pagination
+
     if (!sessionId || !mongoose.Types.ObjectId.isValid(sessionId)) {
       return res.status(400).json({ success: false, message: "Invalid session ID." });
     }
@@ -259,12 +262,41 @@ export const getAiSessionDetail = async (req, res) => {
       return res.status(404).json({ success: false, message: "Session not found." });
     }
 
-    const messages = await AiChatMessage.find({ session: sessionId })
-      .sort({ createdAt: 1 })
+    const filter = { session: sessionId };
+    if (before) {
+      filter.createdAt = { $lt: new Date(before) };
+    }
+
+    const totalMessages = await AiChatMessage.countDocuments({ session: sessionId });
+
+    // Fetch `limit` messages sorted descending (most recent first)
+    const rawMessages = await AiChatMessage.find(filter)
+      .sort({ createdAt: -1 })
+      .limit(limit)
       .populate("products", "title sellingPrice maxPrice images stock rating totalReviews category")
       .lean();
 
-    return res.status(200).json({ success: true, session, messages });
+    // Determine if more older messages exist
+    let hasMore = false;
+    if (rawMessages.length > 0) {
+      const oldestInBatch = rawMessages[rawMessages.length - 1].createdAt;
+      const olderCount = await AiChatMessage.countDocuments({
+        session: sessionId,
+        createdAt: { $lt: oldestInBatch },
+      });
+      hasMore = olderCount > 0;
+    }
+
+    // Return in chronological order (oldest to newest in this batch)
+    const messages = rawMessages.reverse();
+
+    return res.status(200).json({
+      success: true,
+      session,
+      messages,
+      hasMore,
+      totalMessages,
+    });
   } catch (error) {
     return res.status(500).json({ success: false, message: error.message });
   }

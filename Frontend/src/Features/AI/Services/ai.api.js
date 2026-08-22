@@ -25,10 +25,12 @@ export const fetchAiSessions = async () => {
 };
 
 /**
- * Fetches full message history for a specific session thread
+ * Fetches message history for a specific session thread (paginated, default 10 most recent)
  */
-export const fetchAiSessionById = async (sessionId) => {
-  const response = await customAxios.get(`/api/ai/sessions/${sessionId}`);
+export const fetchAiSessionById = async (sessionId, { limit = 10, before = null } = {}) => {
+  const params = { limit };
+  if (before) params.before = before;
+  const response = await customAxios.get(`/api/ai/sessions/${sessionId}`, { params });
   return response.data;
 };
 

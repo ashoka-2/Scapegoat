@@ -5,7 +5,7 @@ import { useAIChat } from "../Hooks/useAIChat.js";
 import AIChatSidebar from "../Components/AIChatSidebar.jsx";
 import AIChatMessage from "../Components/AIChatMessage.jsx";
 import MultiImageUploader from "../Components/MultiImageUploader.jsx";
-import AIAssistantSkeleton from "../Components/Skeletons/AIAssistantSkeleton.jsx";
+import AIChatMessagesSkeleton from "../Components/Skeletons/AIChatMessagesSkeleton.jsx";
 
 const STUDIO_SHORTCUTS = [
   { icon: "ri-t-shirt-air-line", title: "Coastal Summer Outfit", prompt: "Suggest me 3 summer coastal outfits with linen shirts, shorts and shades under ₹4,000" },
@@ -28,10 +28,14 @@ const AIAssistantPage = () => {
     pendingImages,
     quota,
     loadingSessions,
+    loadingChat,
+    hasMoreMessages,
+    loadingMoreMessages,
     removePendingImage,
     handleImageUpload,
     sendMessage,
     loadSession,
+    loadMoreMessages,
     deleteSession,
     startNewChat,
     addBundleToCart,
@@ -41,30 +45,59 @@ const AIAssistantPage = () => {
   const [inputVal, setInputVal] = useState("");
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const isPrependingRef = useRef(false);
 
-  // ── Load Session from URL Param on Reload / Direct Link ─────────────────────
+  // ── Load Chat Session whenever routeSessionId changes in URL ────────────────
   useEffect(() => {
-    if (routeSessionId && routeSessionId !== activeSessionId) {
+    if (routeSessionId) {
       loadSession(routeSessionId);
+    } else {
+      startNewChat();
     }
-  }, [routeSessionId, activeSessionId, loadSession]);
+  }, [routeSessionId, loadSession, startNewChat]);
 
-  // ── Sync URL when Active Session changes in Redux ───────────────────────────
+  // ── Sync URL when a brand new session is created during first message ───────
   useEffect(() => {
-    if (activeSessionId && activeSessionId !== routeSessionId) {
+    if (activeSessionId && !routeSessionId) {
       navigate(`/ai-assistant/${activeSessionId}`, { replace: true });
     }
   }, [activeSessionId, routeSessionId, navigate]);
 
-  // ── Auto-scroll to latest message ──────────────────────────────────────────
+  // ── Auto-scroll to latest message on new stream / message (not when prepending) ──
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, streamingContent]);
+    if (!isPrependingRef.current && !loadingChat) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages, streamingContent, loadingChat]);
+
+  // ── Handle Infinite Scroll / Load Previous 10 Messages on Scroll Up ─────────
+  const handleScroll = (e) => {
+    const container = e.target;
+    if (container.scrollTop < 40 && hasMoreMessages && !loadingMoreMessages && !loadingChat) {
+      isPrependingRef.current = true;
+      const prevScrollHeight = container.scrollHeight;
+      const prevScrollTop = container.scrollTop;
+
+      loadMoreMessages().then(() => {
+        requestAnimationFrame(() => {
+          if (chatContainerRef.current) {
+            const newScrollHeight = chatContainerRef.current.scrollHeight;
+            chatContainerRef.current.scrollTop = prevScrollTop + (newScrollHeight - prevScrollHeight);
+          }
+          setTimeout(() => {
+            isPrependingRef.current = false;
+          }, 300);
+        });
+      });
+    }
+  };
 
   const handleSend = (e) => {
     e?.preventDefault();
     if (!inputVal.trim() && pendingImages.length === 0) return;
+    isPrependingRef.current = false;
     sendMessage(inputVal);
     setInputVal("");
   };
@@ -76,7 +109,7 @@ const AIAssistantPage = () => {
   };
 
   const handleSelectSession = (sId) => {
-    loadSession(sId);
+    if (sId === routeSessionId) return;
     navigate(`/ai-assistant/${sId}`);
     setMobileSidebarOpen(false);
   };
@@ -106,18 +139,13 @@ const AIAssistantPage = () => {
     }
   };
 
-  // ── Show High-Fidelity AI Stylist Skeleton on Initial Session Route Load ──
-  if (routeSessionId && loadingSessions && messages.length === 0) {
-    return <AIAssistantSkeleton />;
-  }
-
   return (
     <div className="h-[100dvh] w-full bg-background text-foreground font-sans selection:bg-accent selection:text-accent-content flex overflow-hidden">
       {/* ── Desktop Left Sidebar (Thread History) ── */}
       <div className="hidden md:flex h-full">
         <AIChatSidebar
           sessions={sessions}
-          activeSessionId={activeSessionId}
+          activeSessionId={activeSessionId || routeSessionId}
           loading={loadingSessions}
           quota={quota}
           onSelectSession={handleSelectSession}
@@ -145,7 +173,7 @@ const AIAssistantPage = () => {
             >
               <AIChatSidebar
                 sessions={sessions}
-                activeSessionId={activeSessionId}
+                activeSessionId={activeSessionId || routeSessionId}
                 loading={loadingSessions}
                 quota={quota}
                 onSelectSession={handleSelectSession}
@@ -212,8 +240,42 @@ const AIAssistantPage = () => {
         </header>
 
         {/* ── Scrollable Chat Messages Stream ── */}
-        <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 lg:p-12 space-y-6 scrollbar-none max-w-4xl mx-auto w-full">
-          {messages.length === 0 && !isStreaming ? (
+        <div
+          ref={chatContainerRef}
+          onScroll={handleScroll}
+          className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-8 lg:p-12 space-y-6 scrollbar-none max-w-4xl mx-auto w-full"
+        >
+          {/* Top Pagination Loader / Load Earlier Button */}
+          {hasMoreMessages && !loadingChat && (
+            <div className="flex justify-center py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  isPrependingRef.current = true;
+                  loadMoreMessages();
+                }}
+                disabled={loadingMoreMessages}
+                className="px-4 py-1.5 rounded-full bg-surface border border-border-theme text-[11px] font-bold text-foreground/70 hover:text-accent hover:border-accent transition flex items-center gap-2 shadow-sm cursor-pointer disabled:opacity-50"
+              >
+                {loadingMoreMessages ? (
+                  <>
+                    <i className="ri-loader-4-line animate-spin text-accent text-xs" />
+                    <span>Loading previous 10 messages...</span>
+                  </>
+                ) : (
+                  <>
+                    <i className="ri-arrow-up-line text-xs" />
+                    <span>Scroll up or click to load earlier messages</span>
+                  </>
+                )}
+              </button>
+            </div>
+          )}
+
+          {/* Skeleton Loader during Chat Switching */}
+          {loadingChat ? (
+            <AIChatMessagesSkeleton />
+          ) : messages.length === 0 && !isStreaming ? (
             <div className="py-12 sm:py-20 flex flex-col items-center text-center space-y-6">
               <div className="w-20 h-20 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-4xl shadow-inner">
                 <i className="ri-sparkling-fill" />
@@ -224,25 +286,29 @@ const AIAssistantPage = () => {
                   Next-Gen Multimodal Fashion AI
                 </span>
                 <h2 className="text-2xl sm:text-4xl font-black uppercase tracking-tight text-foreground">
-                  What Look Can I Curate For You Today?
+                  Your Personal Stylist & Search Engine
                 </h2>
                 <p className="text-xs sm:text-sm text-foreground/60 leading-relaxed">
-                  Ask for full head-to-toe outfits, PC builds, category setups, or upload photos to discover matching luxury pieces at the best prices.
+                  Ask for personalized coordinated outfits, search products by
+                  style or budget, or upload reference photos to find matching
+                  items from the ScapeGoat catalog.
                 </p>
               </div>
 
-              {/* Studio Shortcut Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full pt-4">
+              {/* Quick Starter Cards */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl pt-4">
                 {STUDIO_SHORTCUTS.map((card, idx) => (
                   <motion.div
                     key={idx}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
-                    onClick={() => sendMessage(card.prompt)}
-                    className="p-4 rounded-3xl bg-surface border border-border-theme hover:border-accent text-left space-y-1.5 cursor-pointer transition shadow-sm group"
+                    onClick={() => {
+                      sendMessage(card.prompt);
+                    }}
+                    className="p-4 rounded-3xl bg-surface border border-border-theme hover:border-accent cursor-pointer transition text-left space-y-2 group shadow-sm"
                   >
-                    <div className="flex items-center gap-2 text-accent">
-                      <i className={`${card.icon} text-base`} />
+                    <div className="flex items-center gap-2">
+                      <i className={`${card.icon} text-lg text-accent`} />
                       <span className="text-xs font-black uppercase tracking-wider group-hover:text-accent">
                         {card.title}
                       </span>
@@ -289,53 +355,60 @@ const AIAssistantPage = () => {
 
         {/* ── Studio Input Box with Multi-Image Tray ── */}
         <div className="p-3 sm:p-6 pb-4 sm:pb-6 bg-surface/80 border-t border-border-theme/60 backdrop-blur-xl shrink-0">
-          <div className="max-w-4xl mx-auto space-y-2">
+          <div className="max-w-4xl mx-auto space-y-3">
+            {/* Multi-Image Tray */}
             <MultiImageUploader
               pendingImages={pendingImages}
-              onUpload={handleImageUpload}
-              onRemove={removePendingImage}
+              onRemoveImage={removePendingImage}
+              onUploadImages={handleImageUpload}
             />
 
-            <form onSubmit={handleSend} className="relative flex items-center gap-1.5 sm:gap-2">
-              {/* Attach Button */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-background border border-border-theme hover:border-accent flex items-center justify-center text-foreground/70 hover:text-accent transition cursor-pointer shrink-0"
-                title="Attach Images / Camera"
-              >
-                <i className="ri-image-add-line text-base sm:text-lg" />
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept="image/*"
-                className="hidden"
-                onChange={onFileInputChange}
-              />
+            {/* Hidden File Input for Triggering from Camera / Try-on Button */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              accept="image/jpeg,image/png,image/webp,image/avif"
+              multiple
+              className="hidden"
+              onChange={onFileInputChange}
+            />
 
-              {/* Text Input */}
+            {/* Main Form */}
+            <form onSubmit={handleSend} className="relative flex items-center">
               <input
                 type="text"
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
-                placeholder="Ask for an outfit, PC setup, or photo match..."
-                className="flex-1 min-w-0 bg-background border border-border-theme focus:border-accent rounded-2xl px-3.5 sm:px-5 py-2.5 sm:py-3.5 text-xs sm:text-sm text-foreground outline-none transition focus:ring-2 focus:ring-accent/20 placeholder:text-foreground/40"
+                placeholder="Ask about outfits, style advice, or describe an item..."
+                disabled={isStreaming}
+                className="w-full py-3.5 sm:py-4 pl-4 sm:pl-5 pr-24 sm:pr-28 rounded-2xl bg-background border border-border-theme focus:border-accent focus:ring-1 focus:ring-accent outline-none text-xs sm:text-sm text-foreground placeholder:text-foreground/40 transition shadow-inner disabled:opacity-50"
               />
 
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={isStreaming || (!inputVal.trim() && pendingImages.length === 0)}
-                className="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-accent text-accent-content flex items-center justify-center text-base sm:text-lg shadow-lg shadow-accent/25 hover:scale-105 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:hover:scale-100 shrink-0"
-              >
-                {isStreaming ? (
-                  <div className="w-4 h-4 sm:w-5 sm:h-5 border-2 border-accent-content/30 border-t-accent-content rounded-full animate-spin" />
-                ) : (
-                  <i className="ri-send-plane-2-fill" />
-                )}
-              </button>
+              <div className="absolute right-2 sm:right-2.5 flex items-center gap-1 sm:gap-1.5">
+                {/* Photo Upload Attachment Button */}
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isStreaming || pendingImages.length >= 5}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-surface border border-border-theme hover:border-accent flex items-center justify-center text-foreground/70 hover:text-accent transition disabled:opacity-30 cursor-pointer"
+                  title="Attach reference photos for AI visual match"
+                >
+                  <i className="ri-image-add-line text-sm sm:text-base" />
+                </button>
+
+                {/* Send Query Button */}
+                <button
+                  type="submit"
+                  disabled={isStreaming || (!inputVal.trim() && pendingImages.length === 0)}
+                  className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-accent text-accent-content flex items-center justify-center text-sm shadow-md shadow-accent/20 hover:scale-105 active:scale-95 transition disabled:opacity-30 disabled:scale-100 cursor-pointer"
+                >
+                  {isStreaming ? (
+                    <i className="ri-loader-4-line animate-spin text-sm" />
+                  ) : (
+                    <i className="ri-send-plane-2-fill text-sm" />
+                  )}
+                </button>
+              </div>
             </form>
           </div>
         </div>

@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   toggleWidget,
@@ -6,6 +6,7 @@ import {
   setActiveSessionId,
   setSessions,
   setMessages,
+  prependMessages,
   setQuota,
   decrementQuota,
   startStreaming,
@@ -18,6 +19,9 @@ import {
   clearPendingImages,
   resetChat,
   setLoadingSessions,
+  setLoadingChat,
+  setHasMoreMessages,
+  setLoadingMoreMessages,
 } from "../State/aiChat.slice.js";
 import {
   fetchAiQuota,
@@ -67,20 +71,62 @@ export const useAIChat = () => {
     refreshSessions();
   }, [user, refreshQuota, refreshSessions]);
 
-  // ── Load a Specific Chat Thread ─────────────────────────────────────────────
+  const activeLoadingSessionRef = useRef(null);
+
+  // ── Load a Specific Chat Thread with Skeleton State (Default 10 Messages) ──
   const loadSession = useCallback(
     async (sessionId) => {
       if (!sessionId) return;
+      activeLoadingSessionRef.current = sessionId;
       dispatch(setActiveSessionId(sessionId));
+      dispatch(setLoadingChat(true));
+      dispatch(setMessages([]));
+
       try {
-        const data = await fetchAiSessionById(sessionId);
-        dispatch(setMessages(data.messages || []));
+        const data = await fetchAiSessionById(sessionId, { limit: 10 });
+        if (activeLoadingSessionRef.current === sessionId) {
+          dispatch(setMessages(data.messages || []));
+          dispatch(setHasMoreMessages(Boolean(data.hasMore)));
+        }
       } catch (err) {
         dispatch(addToast({ message: err.message || "Failed to load chat history.", type: "error" }));
+      } finally {
+        if (activeLoadingSessionRef.current === sessionId) {
+          dispatch(setLoadingChat(false));
+        }
       }
     },
     [dispatch]
   );
+
+  // ── Load More (Previous 10 Messages) on Scroll Up ───────────────────────────
+  const loadMoreMessages = useCallback(async () => {
+    if (aiState.loadingMoreMessages || !aiState.hasMoreMessages || !aiState.activeSessionId) {
+      return;
+    }
+
+    const oldestMsg = aiState.messages[0];
+    if (!oldestMsg) return;
+
+    const before = oldestMsg.createdAt || null;
+    if (!before) return;
+
+    dispatch(setLoadingMoreMessages(true));
+
+    try {
+      const data = await fetchAiSessionById(aiState.activeSessionId, { limit: 10, before });
+      if (data?.messages && data.messages.length > 0) {
+        dispatch(prependMessages(data.messages));
+        dispatch(setHasMoreMessages(Boolean(data.hasMore)));
+      } else {
+        dispatch(setHasMoreMessages(false));
+      }
+    } catch (err) {
+      console.warn("Failed to load older messages:", err);
+    } finally {
+      dispatch(setLoadingMoreMessages(false));
+    }
+  }, [dispatch, aiState.loadingMoreMessages, aiState.hasMoreMessages, aiState.activeSessionId, aiState.messages]);
 
   // ── Delete a Session Thread ────────────────────────────────────────────────
   const deleteSession = useCallback(
@@ -101,6 +147,7 @@ export const useAIChat = () => {
 
   // ── Start New Chat ──────────────────────────────────────────────────────────
   const startNewChat = useCallback(() => {
+    activeLoadingSessionRef.current = null;
     dispatch(resetChat());
   }, [dispatch]);
 
@@ -126,7 +173,7 @@ export const useAIChat = () => {
               url: localPreviewUrl,
               base64,
               name: file.name,
-              isEmbedding: true, // Shows circular spinner loader on image
+              isEmbedding: true,
               embedding: [],
             })
           );
@@ -138,14 +185,12 @@ export const useAIChat = () => {
               updatePendingImage({
                 id: tempId,
                 updates: {
-                  url: embedRes.url || localPreviewUrl,
-                  isEmbedding: false,
                   embedding: embedRes.embedding || [],
+                  isEmbedding: false,
                 },
               })
             );
           } catch {
-            // Spinner ends even on failure
             dispatch(
               updatePendingImage({
                 id: tempId,
@@ -299,6 +344,7 @@ export const useAIChat = () => {
     handleImageUpload,
     sendMessage,
     loadSession,
+    loadMoreMessages,
     deleteSession,
     startNewChat,
     refreshQuota,
@@ -307,3 +353,5 @@ export const useAIChat = () => {
     addBundleToWishlist,
   };
 };
+
+export default useAIChat;

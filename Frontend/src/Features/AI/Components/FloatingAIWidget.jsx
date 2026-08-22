@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useAIChat } from "../Hooks/useAIChat.js";
 import AIChatMessage from "./AIChatMessage.jsx";
 import MultiImageUploader from "./MultiImageUploader.jsx";
+import AIChatMessagesSkeleton from "./Skeletons/AIChatMessagesSkeleton.jsx";
 
 const SHORTCUT_PROMPTS = [
   {
@@ -40,6 +41,7 @@ const FloatingAIWidget = () => {
     streamingMeta,
     pendingImages,
     quota,
+    loadingChat,
     toggleWidget,
     toggleExpanded,
     removePendingImage,
@@ -186,7 +188,9 @@ const FloatingAIWidget = () => {
               className="flex-1 overflow-y-auto overscroll-contain touch-pan-y p-4 space-y-4 scrollbar-thin scrollbar-thumb-border-theme scrollbar-track-transparent"
               onWheel={(e) => e.stopPropagation()}
             >
-              {messages.length === 0 && !isStreaming ? (
+              {loadingChat ? (
+                <AIChatMessagesSkeleton />
+              ) : messages.length === 0 && !isStreaming ? (
                 <div className="py-6 flex flex-col items-center text-center space-y-4">
                   <div className="w-14 h-14 rounded-3xl bg-accent/10 border border-accent/20 flex items-center justify-center text-accent text-2xl">
                     <i className="ri-sparkling-fill" />
