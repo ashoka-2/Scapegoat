@@ -16,6 +16,14 @@ const aiChatSessionSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // Hash of an opaque, HTTP-only guest-session cookie. Unlike visitorId,
+    // this is not supplied by the caller and is used for guest authorization.
+    guestSessionHash: {
+      type: String,
+      default: null,
+      index: true,
+      select: false,
+    },
     title: {
       type: String,
       default: "New Fashion Conversation",

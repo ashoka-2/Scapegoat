@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useSettings } from "../../Settings/Hooks/useSettings";
+import { sanitizeLegalHtml } from "../../../utils/sanitizeLegalHtml";
 
 const LegalReturns = () => {
   const { settings, loading } = useSelector((state) => state.settings);
@@ -28,7 +29,7 @@ const LegalReturns = () => {
           ) : (
             <div
               className="text-foreground/80 whitespace-pre-wrap font-sans"
-              dangerouslySetInnerHTML={{ __html: settings?.legal?.returnPolicy || "Return Policy content is currently being updated." }}
+              dangerouslySetInnerHTML={{ __html: sanitizeLegalHtml(settings?.legal?.returnPolicy || "Return Policy content is currently being updated.") }}
             />
           )}
         </div>

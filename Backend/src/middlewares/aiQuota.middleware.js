@@ -1,4 +1,8 @@
 import redisClient, { isRedisReady } from "../config/redis.js";
+import { ensureGuestSession, getGuestSessionHash } from "../utils/aiGuestSession.js";
+
+const getQuotaGuestIdentity = (req, res, create = false) =>
+  create ? ensureGuestSession(req, res) : getGuestSessionHash(req);
 
 // In-memory fallback map if Redis is temporarily unreachable
 const inMemoryQuotaMap = new Map();
@@ -94,7 +98,7 @@ export const getUserAiQuotaStatus = async (user, visitorId) => {
 export const checkAiChatQuota = async (req, res, next) => {
   try {
     const user = req.user;
-    const visitorId = req.headers["x-visitor-id"] || req.body?.visitorId;
+    const visitorId = user?._id ? null : getQuotaGuestIdentity(req, res, true);
 
     if (user?.role === "admin") {
       req.aiQuota = { isAdmin: true };
@@ -148,7 +152,7 @@ export const checkAiChatQuota = async (req, res, next) => {
 export const checkAiImageQuota = async (req, res, next) => {
   try {
     const user = req.user;
-    const visitorId = req.headers["x-visitor-id"] || req.body?.visitorId;
+    const visitorId = user?._id ? null : getQuotaGuestIdentity(req, res);
 
     if (user?.role === "admin") {
       return next();

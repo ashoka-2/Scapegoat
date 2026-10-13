@@ -52,6 +52,15 @@ export const getCart = async (req, res) => {
       cart = await cartModel.create({ user: req.user._id, items: [] });
     }
 
+    // A product can be deleted or unpublished after it was put in a cart.
+    // Remove only those stale references and tell the client so it can explain
+    // what happened instead of allowing a confusing failed checkout later.
+    const unavailableItemCount = cart.items.filter((item) => !item.product).length;
+    if (unavailableItemCount > 0) {
+      cart.items = cart.items.filter((item) => item.product);
+      await cart.save();
+    }
+
     const { totalItems, subtotal } = calculateCartTotals(cart);
 
     return res.status(200).json({
@@ -60,6 +69,7 @@ export const getCart = async (req, res) => {
       subtotal,
       data: cart,
       cart,
+      unavailableItemCount,
     });
   } catch (error) {
     console.error("Error fetching cart:", error);

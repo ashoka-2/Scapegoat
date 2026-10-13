@@ -30,6 +30,26 @@ const cleanupImage = async (fileId) => {
     }
 };
 
+const isSafeBannerLink = (value) => {
+    if (!value || value === "#") return true;
+    if (value.startsWith("/")) return true;
+    try {
+        const url = new URL(value);
+        return url.protocol === "https:" || url.protocol === "http:";
+    } catch {
+        return false;
+    }
+};
+
+const parseBannerElements = (value) => {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    if (!Array.isArray(parsed) || parsed.length > 100) throw new Error("Invalid banner elements.");
+    if (parsed.some((element) => !isSafeBannerLink(element?.link))) {
+        throw new Error("Banner links must be relative paths or HTTP(S) URLs.");
+    }
+    return parsed;
+};
+
 /**
  * Build a Mongo filter for "currently active" banners
  */
@@ -204,6 +224,9 @@ export const createBanner = async (req, res) => {
         if (!title) {
             return res.status(400).json({ success: false, message: "Title is required" });
         }
+        if (!isSafeBannerLink(link)) {
+            return res.status(400).json({ success: false, message: "Banner links must be relative paths or HTTP(S) URLs." });
+        }
 
         // Handle image uploads
         const files = req.files || {};
@@ -311,7 +334,7 @@ export const createBanner = async (req, res) => {
             buttons: parsedButtons,
             textOverlays: parsedTextOverlays,
             timerOverlay: parsedTimerOverlay,
-            elements: elements ? (typeof elements === "string" ? JSON.parse(elements) : elements) : [],
+            elements: elements ? parseBannerElements(elements) : [],
             canvasWidth: canvasWidth ? parseInt(canvasWidth) : 1200,
             canvasHeight: canvasHeight ? parseInt(canvasHeight) : 500,
             aspectRatio: aspectRatio || "21:9",
@@ -375,6 +398,10 @@ export const updateBanner = async (req, res) => {
         // Handle image replacements
         const files = req.files || {};
 
+        if (link !== undefined && !isSafeBannerLink(link)) {
+            return res.status(400).json({ success: false, message: "Banner links must be relative paths or HTTP(S) URLs." });
+        }
+
         if (files.image && files.image[0]) {
             // Cleanup old desktop image
             await cleanupImage(banner.imageId);
@@ -418,7 +445,7 @@ export const updateBanner = async (req, res) => {
         if (position !== undefined) banner.position = parseInt(position);
         if (altText !== undefined) banner.altText = altText;
         if (backgroundColor !== undefined) banner.backgroundColor = backgroundColor;
-        if (elements !== undefined) banner.elements = typeof elements === "string" ? JSON.parse(elements) : elements;
+        if (elements !== undefined) banner.elements = parseBannerElements(elements);
         if (canvasWidth !== undefined) banner.canvasWidth = parseInt(canvasWidth);
         if (canvasHeight !== undefined) banner.canvasHeight = parseInt(canvasHeight);
         if (aspectRatio !== undefined) banner.aspectRatio = aspectRatio;

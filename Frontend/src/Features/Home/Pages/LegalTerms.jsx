@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { useSelector } from "react-redux";
 import { useSettings } from "../../Settings/Hooks/useSettings";
+import { sanitizeLegalHtml } from "../../../utils/sanitizeLegalHtml";
 
 const LegalTerms = () => {
   const { settings, loading } = useSelector((state) => state.settings);
@@ -28,7 +29,7 @@ const LegalTerms = () => {
           ) : (
             <div
               className="text-foreground/80 whitespace-pre-wrap font-sans"
-              dangerouslySetInnerHTML={{ __html: settings?.legal?.termsOfService || "Terms of Service content is currently being updated." }}
+              dangerouslySetInnerHTML={{ __html: sanitizeLegalHtml(settings?.legal?.termsOfService || "Terms of Service content is currently being updated.") }}
             />
           )}
         </div>

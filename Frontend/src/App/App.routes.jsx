@@ -57,6 +57,7 @@ import Contact from "../Features/Home/Pages/Contact.jsx";
 import LegalPrivacy from "../Features/Home/Pages/LegalPrivacy.jsx";
 import LegalReturns from "../Features/Home/Pages/LegalReturns.jsx";
 import LegalTerms from "../Features/Home/Pages/LegalTerms.jsx";
+import LegalCookie from "../Features/Home/Pages/LegalCookie.jsx";
 
 // Order Pages
 import Checkout from "../Features/Orders/Pages/Checkout.jsx";
@@ -232,6 +233,10 @@ export const routes = createBrowserRouter([
       {
         path: "terms-of-service",
         element: <LegalTerms />,
+      },
+      {
+        path: "cookie-policy",
+        element: <LegalCookie />,
       },
       {
         path: "checkout",

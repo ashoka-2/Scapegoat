@@ -53,6 +53,9 @@ export const useCart = () => {
       .fetchUserCartApi()
       .then((data) => {
         dispatch(setCart(data));
+        if (data?.unavailableItemCount > 0) {
+          toast(`${data.unavailableItemCount} item${data.unavailableItemCount > 1 ? "s were" : " was"} removed because ${data.unavailableItemCount > 1 ? "they are" : "it is"} no longer available.`, "info");
+        }
         return data?.data || data?.cart;
       })
       .catch((e) => {

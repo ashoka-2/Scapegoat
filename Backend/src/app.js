@@ -26,33 +26,16 @@ import notificationRouter from "./routes/notification.routes.js";
 import couponRouter from "./routes/coupon.routes.js";
 import aiRouter from "./routes/ai.routes.js";
 import { generalLimiter } from "./middlewares/rateLimiter.middleware.js";
+import { isAllowedCorsOrigin, parseAllowedOrigins } from "./config/corsPolicy.js";
 
 const app = express();
 
 // Parse environment configured origins
-const allowedOrigins = (config.FRONTEND_URL || "")
-  .split(",")
-  .concat(config.BACKEND_URL || "")
-  .map((url) => url.trim().replace(/\/+$/, ""))
-  .filter(Boolean);
+const originsList = parseAllowedOrigins(config.FRONTEND_URL);
 
-const originsList = Array.from(new Set(allowedOrigins));
-
-// Helper function to validate allowed CORS origins (Localhost, Vercel, Render)
-const isAllowedOrigin = (origin) => {
-  if (!origin) return true;
-  const cleanOrigin = origin.trim().replace(/\/+$/, "");
-  if (
-    cleanOrigin.startsWith("http://localhost") ||
-    cleanOrigin.startsWith("http://127.0.0.1") ||
-    cleanOrigin.endsWith(".vercel.app") ||
-    cleanOrigin.endsWith(".onrender.com") ||
-    originsList.includes(cleanOrigin)
-  ) {
-    return true;
-  }
-  return false;
-};
+// CORS is a browser boundary, not authorization. Credentialed browser requests
+// must use an explicit allowlist; never reflect arbitrary origins.
+const isAllowedOrigin = (origin) => isAllowedCorsOrigin(origin, originsList, config.NODE_ENV);
 
 // 1. CORS Middleware (Must be registered FIRST before all routes and parsers)
 const corsOptions = {
@@ -60,7 +43,7 @@ const corsOptions = {
     if (isAllowedOrigin(origin)) {
       return callback(null, true);
     }
-    return callback(null, true); // Fallback to allow request in dev/prod
+    return callback(new Error("Origin is not allowed by CORS"));
   },
   methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   credentials: true,
@@ -94,6 +77,9 @@ app.use(cors(corsOptions));
 
 // 3. Logging & Body Parsers
 app.use(morgan("dev"));
+// Razorpay signs the exact request bytes. This route must run before the
+// JSON parser so its HMAC verification is not performed over re-serialized JSON.
+app.use("/api/orders/razorpay/webhook", express.raw({ type: "application/json", limit: "1mb" }));
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());

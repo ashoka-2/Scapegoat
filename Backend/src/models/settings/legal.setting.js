@@ -44,11 +44,21 @@ export const DEFAULT_TERMS_OF_SERVICE = `<h2><strong>1. Agreement to Terms</stro
 <h2><strong>5. Limitation of Liability</strong></h2>
 <p>ScapeGoat shall not be liable for any indirect, incidental, or consequential damages resulting from your use or inability to use our website or products.</p>`;
 
+export const DEFAULT_COOKIE_POLICY = `<h2><strong>Cookie Policy</strong></h2>
+<p>ScapeGoat uses essential cookies to keep the site secure, maintain your sign-in session, remember preferences, and keep your shopping experience working. With your permission, we may also use optional analytics and personalization cookies.</p>
+<h2><strong>Your choices</strong></h2>
+<p>You can accept or reject optional cookies from the cookie notice. Essential cookies remain active because they are required for core features such as authentication, cart access, security, and fraud prevention. You can also manage cookies in your browser settings.</p>
+<h2><strong>Third parties</strong></h2>
+<p>Payment, hosting, and content-delivery providers may set cookies or process limited technical data to deliver their services. Their processing is governed by their own policies.</p>
+<h2><strong>Contact</strong></h2>
+<p>For questions about cookies or privacy, contact ScapeGoat through our support page.</p>`;
+
 const legalSettingSchema = new mongoose.Schema(
     {
         privacyPolicy: { type: String, default: DEFAULT_PRIVACY_POLICY },
         returnPolicy: { type: String, default: DEFAULT_RETURN_POLICY },
         termsOfService: { type: String, default: DEFAULT_TERMS_OF_SERVICE },
+        cookiePolicy: { type: String, default: DEFAULT_COOKIE_POLICY },
     },
     { timestamps: true }
 );

@@ -236,7 +236,8 @@ const CartPage = () => {
           <div className="lg:col-span-2 space-y-4">
             {/* Out of Stock Alert Banner */}
             {items.some((item) => {
-              const prod = item.product || {};
+              if (!item.product) return true;
+              const prod = item.product;
               const itemStock = item.variant?.stock ?? prod.stock ?? 0;
               return (
                 prod.stockStatus === "outofstock" ||
@@ -265,7 +266,8 @@ const CartPage = () => {
               const img = getCartItemImage(item);
               const itemStock = item.variant?.stock ?? prod.stock ?? 999;
 
-              const isOutOfStock =
+              const isDeleted = !item.product;
+              const isOutOfStock = isDeleted ||
                 prod.stockStatus === "outofstock" ||
                 (prod.manageStock && itemStock <= 0);
               const exceedsStock =
@@ -297,7 +299,7 @@ const CartPage = () => {
                       {isOutOfStock && (
                         <div className="absolute inset-0 bg-black/60 flex items-center justify-center p-0.5 text-center">
                           <span className="text-[8px] font-black text-white uppercase tracking-tighter leading-none">
-                            Out of Stock
+                            {isDeleted ? "No longer available" : "Out of Stock"}
                           </span>
                         </div>
                       )}
@@ -313,7 +315,11 @@ const CartPage = () => {
                         >
                           {prod.title || "Product Item"}
                         </h3>
-                        {isOutOfStock ? (
+                          {isDeleted ? (
+                          <span className="text-[10px] font-extrabold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-0.5 rounded-md">
+                            Removed by seller
+                          </span>
+                        ) : isOutOfStock ? (
                           <span className="text-[10px] font-extrabold text-red-400 bg-red-500/10 border border-red-500/30 px-2 py-0.5 rounded-md">
                             ⚠️ Sold Out
                           </span>
@@ -527,7 +533,8 @@ const CartPage = () => {
 
               {(() => {
                 const hasOutOfStock = items.some((item) => {
-                  const prod = item.product || {};
+                  if (!item.product) return true;
+                  const prod = item.product;
                   const itemStock = item.variant?.stock ?? prod.stock ?? 0;
                   return (
                     prod.stockStatus === "outofstock" ||

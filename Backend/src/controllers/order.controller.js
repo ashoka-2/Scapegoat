@@ -82,6 +82,15 @@ const calculateCouponDiscount = async (couponCode, orderItems = [], itemsPrice =
  * @access  Private
  */
 export const createOrder = async (req, res) => {
+    const deductedStock = [];
+    const rollbackStock = async () => {
+        await Promise.all(
+            deductedStock.map(({ product, quantity }) =>
+                productModel.findByIdAndUpdate(product, { $inc: { stock: quantity } })
+            )
+        );
+        deductedStock.length = 0;
+    };
     try {
         const userId = req.user._id;
         const { shippingAddress, paymentMethod, items: customItems, couponCode } = req.body;
@@ -102,32 +111,47 @@ export const createOrder = async (req, res) => {
 
         let orderItems = [];
         let itemsPrice = 0;
+        let cartToClear = null;
 
         if (customItems && customItems.length > 0) {
             // Direct Buy-Now flow
             for (const item of customItems) {
+                const quantity = Number(item.quantity);
+                if (!Number.isInteger(quantity) || quantity < 1) {
+                    await rollbackStock();
+                    return res.status(400).json({ success: false, message: "Order quantities must be positive whole numbers." });
+                }
                 const product = await productModel.findById(item.product);
                 if (!product) {
+                    await rollbackStock();
                     return res.status(404).json({ success: false, message: `Product not found: ${item.product}` });
                 }
 
+                if (product.status !== "published") {
+                    await rollbackStock();
+                    return res.status(400).json({ success: false, message: `"${product.title}" is not available for purchase.` });
+                }
+
                 if (product.seller.toString() === userId.toString()) {
+                    await rollbackStock();
                     return res.status(400).json({ success: false, message: `You cannot purchase your own product: "${product.title}"` });
                 }
 
                 // Atomic stock check and deduction
                 const updatedProduct = await productModel.findOneAndUpdate(
-                    { _id: product._id, stock: { $gte: item.quantity } },
-                    { $inc: { stock: -item.quantity } },
+                    { _id: product._id, stock: { $gte: quantity } },
+                    { $inc: { stock: -quantity } },
                     { new: true }
                 );
 
                 if (!updatedProduct) {
+                    await rollbackStock();
                     return res.status(400).json({
                         success: false,
                         message: `Insufficient stock for "${product.title}". Someone else may have just purchased it.`,
                     });
                 }
+                deductedStock.push({ product: product._id, quantity });
 
                 const price = product.sellingPrice?.amount || product.maxPrice?.amount || 0;
                 const imgUrl = product.images?.[0]?.url || (typeof product.images?.[0] === "string" ? product.images[0] : "") || "";
@@ -138,10 +162,10 @@ export const createOrder = async (req, res) => {
                     name: product.title,
                     image: imgUrl,
                     price,
-                    quantity: item.quantity,
+                    quantity,
                 });
 
-                itemsPrice += price * item.quantity;
+                itemsPrice += price * quantity;
             }
         } else {
             // Checkout from Cart
@@ -152,25 +176,32 @@ export const createOrder = async (req, res) => {
 
             for (const cartItem of cart.items) {
                 const product = cartItem.product;
-                if (!product) continue;
+                const quantity = Number(cartItem.quantity);
+                if (!product || !Number.isInteger(quantity) || quantity < 1 || product.status !== "published") {
+                    await rollbackStock();
+                    return res.status(400).json({ success: false, message: "One or more cart items are no longer available." });
+                }
 
                 if (product.seller && product.seller.toString() === userId.toString()) {
+                    await rollbackStock();
                     return res.status(400).json({ success: false, message: `You cannot purchase your own product: "${product.title}"` });
                 }
 
                 // Atomic stock check and deduction
                 const updatedProduct = await productModel.findOneAndUpdate(
-                    { _id: product._id, stock: { $gte: cartItem.quantity } },
-                    { $inc: { stock: -cartItem.quantity } },
+                    { _id: product._id, stock: { $gte: quantity } },
+                    { $inc: { stock: -quantity } },
                     { new: true }
                 );
 
                 if (!updatedProduct) {
+                    await rollbackStock();
                     return res.status(400).json({
                         success: false,
                         message: `Insufficient stock for "${product.title}". Please adjust your cart.`,
                     });
                 }
+                deductedStock.push({ product: product._id, quantity });
 
                 const price = cartItem.variant?.price?.amount || product.sellingPrice?.amount || product.maxPrice?.amount || 0;
                 const imgUrl = product.images?.[0]?.url || (typeof product.images?.[0] === "string" ? product.images[0] : "") || "";
@@ -181,17 +212,16 @@ export const createOrder = async (req, res) => {
                     name: product.title,
                     image: imgUrl,
                     price,
-                    quantity: cartItem.quantity,
+                    quantity,
                     selectedAttributes: cartItem.selectedAttributes || {},
                     variantId: cartItem.variantId || null,
                 });
 
-                itemsPrice += price * cartItem.quantity;
+                itemsPrice += price * quantity;
             }
 
-            // Clear user's cart after successful order creation
-            cart.items = [];
-            await cart.save();
+            // Clear only after the order is safely persisted.
+            cartToClear = cart;
         }
 
         if (orderItems.length === 0) {
@@ -219,6 +249,17 @@ export const createOrder = async (req, res) => {
             status: "Processing",
         });
 
+        // The order is the durable source of truth from this point. Do not
+        // compensate stock for later best-effort side effects.
+        deductedStock.length = 0;
+
+        if (cartToClear) {
+            cartToClear.items = [];
+            await cartToClear.save().catch((error) => {
+                console.error("Order created but cart cleanup failed:", error.message);
+            });
+        }
+
         if (coupon?.couponId) {
             await couponModel.findByIdAndUpdate(coupon.couponId, { $inc: { usedCount: 1 } });
         }
@@ -244,6 +285,7 @@ export const createOrder = async (req, res) => {
             order: populatedOrder,
         });
     } catch (error) {
+        await rollbackStock().catch(() => {});
         console.error("Create order error:", error);
         return res.status(500).json({ success: false, message: error.message || "Failed to place order." });
     }
@@ -751,11 +793,15 @@ export const handleRazorpayWebhook = async (req, res) => {
             return res.status(400).json({ success: false, message: "Missing Razorpay webhook signature header." });
         }
 
-        // 1. Verify Webhook HMAC SHA-256 Signature
-        const payloadString = JSON.stringify(req.body);
+        // 1. Verify the original Razorpay request bytes, before deserializing.
+        // Re-serializing JSON changes the signature input and is unsafe.
+        const rawBody = Buffer.isBuffer(req.body) ? req.body : null;
+        if (!rawBody) {
+            return res.status(400).json({ success: false, message: "Webhook payload must be raw JSON." });
+        }
         const expectedSignature = crypto
             .createHmac("sha256", webhookSecret)
-            .update(payloadString)
+            .update(rawBody)
             .digest("hex");
 
         const isValid =
@@ -767,7 +813,12 @@ export const handleRazorpayWebhook = async (req, res) => {
             return res.status(400).json({ success: false, message: "Invalid webhook signature." });
         }
 
-        const event = req.body;
+        let event;
+        try {
+            event = JSON.parse(rawBody.toString("utf8"));
+        } catch {
+            return res.status(400).json({ success: false, message: "Invalid webhook JSON." });
+        }
         const eventId =
             req.headers["x-razorpay-event-id"] ||
             event.event_id ||

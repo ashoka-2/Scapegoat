@@ -3,12 +3,14 @@ import multer from "multer";
 // Configure multer memory storage so file buffers are kept in memory for ImageKit upload
 const storage = multer.memoryStorage();
 
-// File filter: accept image formats
+// Banner/product uploads are rendered in browsers. Reject SVG and arbitrary
+// octet streams so an uploaded file cannot become script-capable content.
 const fileFilter = (req, file, cb) => {
-  if (file && file.mimetype && (file.mimetype.startsWith("image/") || file.mimetype === "application/octet-stream")) {
+  const safeImageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+  if (file && safeImageTypes.has(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(null, true); // Permissive filter to avoid Multer rejection errors during form parsing
+    cb(new multer.MulterError("LIMIT_UNEXPECTED_FILE", file?.fieldname));
   }
 };
 

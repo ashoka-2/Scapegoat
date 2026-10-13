@@ -6,6 +6,14 @@ import { uploadFile } from "../services/imageKit.service.js";
 import { getUserAiQuotaStatus } from "../middlewares/aiQuota.middleware.js";
 import { executeCartAction, executeWishlistAction, getProductReviewInsights } from "../services/ai/aiTools.service.js";
 import productModel from "../models/product.model.js";
+import { ensureGuestSession, getGuestSessionHash } from "../utils/aiGuestSession.js";
+
+const getSessionOwnershipFilter = (req, res, { createGuest = false } = {}) => {
+  if (req.user?._id) return { user: req.user._id };
+  const guestSessionHash = createGuest ? ensureGuestSession(req, res) : getGuestSessionHash(req);
+  if (!guestSessionHash) return null;
+  return { user: null, guestSessionHash };
+};
 
 /**
  * @desc    Get Current User AI Quota Status
@@ -15,7 +23,7 @@ import productModel from "../models/product.model.js";
 export const getAiQuota = async (req, res) => {
   try {
     const user = req.user;
-    const visitorId = req.headers["x-visitor-id"] || req.query.visitorId;
+    const visitorId = user?._id ? null : getGuestSessionHash(req);
     const status = await getUserAiQuotaStatus(user, visitorId);
     return res.status(200).json({ success: true, quota: status });
   } catch (error) {
@@ -75,7 +83,7 @@ export const precomputeImageEmbedding = async (req, res) => {
 export const streamAiChat = async (req, res) => {
   const { message = "", sessionId = null, images = [] } = req.body;
   const user = req.user;
-  const visitorId = req.headers["x-visitor-id"] || req.body.visitorId;
+  const visitorId = req.headers["x-visitor-id"];
 
   if (!message.trim() && (!images || images.length === 0)) {
     return res.status(400).json({ success: false, message: "Message or image is required." });
@@ -94,9 +102,23 @@ export const streamAiChat = async (req, res) => {
 
   try {
     // 1. Get or Create Persistent Session
+    const ownershipFilter = getSessionOwnershipFilter(req, res, { createGuest: !user?._id });
     let session = null;
-    if (sessionId && mongoose.Types.ObjectId.isValid(sessionId)) {
-      session = await AiChatSession.findById(sessionId);
+    if (sessionId) {
+      if (!mongoose.Types.ObjectId.isValid(sessionId)) {
+        sendEvent("error", { message: "Invalid session ID." });
+        return res.end();
+      }
+      if (!ownershipFilter) {
+        sendEvent("error", { message: "Guest session is unavailable. Start a new chat." });
+        return res.end();
+      }
+      session = await AiChatSession.findOne({ _id: sessionId, ...ownershipFilter });
+      if (!session) {
+        // Non-disclosing response prevents session-ID enumeration.
+        sendEvent("error", { message: "Session not found." });
+        return res.end();
+      }
     }
 
     if (!session) {
@@ -105,6 +127,7 @@ export const streamAiChat = async (req, res) => {
       session = await AiChatSession.create({
         user: user?._id || null,
         visitorId: user?._id ? null : visitorId,
+        guestSessionHash: user?._id ? null : ownershipFilter.guestSessionHash,
         title: autoTitle,
       });
     }
@@ -225,11 +248,9 @@ export const streamAiChat = async (req, res) => {
 export const getAiSessions = async (req, res) => {
   try {
     const user = req.user;
-    const visitorId = req.headers["x-visitor-id"] || req.query.visitorId;
 
-    const filter = user?._id
-      ? { user: user._id }
-      : { visitorId: visitorId || "anon", user: null };
+    const filter = getSessionOwnershipFilter(req, res);
+    if (!filter) return res.status(200).json({ success: true, sessions: [] });
 
     const sessions = await AiChatSession.find(filter)
       .sort({ isPinned: -1, lastMessageAt: -1 })
@@ -257,17 +278,20 @@ export const getAiSessionDetail = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid session ID." });
     }
 
-    const session = await AiChatSession.findById(sessionId).lean();
+    const ownershipFilter = getSessionOwnershipFilter(req, res);
+    if (!ownershipFilter) return res.status(404).json({ success: false, message: "Session not found." });
+
+    const session = await AiChatSession.findOne({ _id: sessionId, ...ownershipFilter }).lean();
     if (!session) {
       return res.status(404).json({ success: false, message: "Session not found." });
     }
 
-    const filter = { session: sessionId };
+    const filter = { session: session._id };
     if (before) {
       filter.createdAt = { $lt: new Date(before) };
     }
 
-    const totalMessages = await AiChatMessage.countDocuments({ session: sessionId });
+    const totalMessages = await AiChatMessage.countDocuments({ session: session._id });
 
     // Fetch `limit` messages sorted descending (most recent first)
     const rawMessages = await AiChatMessage.find(filter)
@@ -281,7 +305,7 @@ export const getAiSessionDetail = async (req, res) => {
     if (rawMessages.length > 0) {
       const oldestInBatch = rawMessages[rawMessages.length - 1].createdAt;
       const olderCount = await AiChatMessage.countDocuments({
-        session: sessionId,
+        session: session._id,
         createdAt: { $lt: oldestInBatch },
       });
       hasMore = olderCount > 0;
@@ -314,10 +338,12 @@ export const deleteAiSession = async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid session ID." });
     }
 
-    await Promise.all([
-      AiChatSession.findByIdAndDelete(sessionId),
-      AiChatMessage.deleteMany({ session: sessionId }),
-    ]);
+    const ownershipFilter = getSessionOwnershipFilter(req, res);
+    if (!ownershipFilter) return res.status(404).json({ success: false, message: "Session not found." });
+
+    const session = await AiChatSession.findOneAndDelete({ _id: sessionId, ...ownershipFilter });
+    if (!session) return res.status(404).json({ success: false, message: "Session not found." });
+    await AiChatMessage.deleteMany({ session: session._id });
 
     return res.status(200).json({ success: true, message: "Session deleted successfully." });
   } catch (error) {

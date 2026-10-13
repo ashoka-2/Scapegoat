@@ -165,7 +165,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
   const handleBannerClick = useCallback((banner) => {
     if (banner.link && banner.link !== "#") {
       if (banner.link.startsWith("http")) {
-        window.open(banner.link, "_blank");
+        window.open(banner.link, "_blank", "noopener,noreferrer");
       } else {
         navigate(banner.link);
       }
@@ -176,7 +176,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
     e.stopPropagation();
     if (btn.link && btn.link !== "#") {
       if (btn.link.startsWith("http")) {
-        window.open(btn.link, "_blank");
+        window.open(btn.link, "_blank", "noopener,noreferrer");
       } else {
         navigate(btn.link);
       }
@@ -299,6 +299,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
                           color: el.textColor || el.color || "#ffffff",
                           letterSpacing: el.letterSpacing ? `${el.letterSpacing}px` : "normal",
                           lineHeight: el.lineHeight ? `${el.lineHeight}` : "normal",
+                          zIndex: el.zIndex || 20,
                           textShadow: el.shadowColor ? `${el.shadowX || 0}px ${el.shadowY || 2}px ${el.shadowBlur || 4}px ${el.shadowColor}` : "none",
                         }}
                       >
@@ -331,6 +332,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
                           borderWidth: `${el.borderWidth || 0}px`,
                           borderRadius: `${el.borderRadius || 12}px`,
                           fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
+                          zIndex: el.zIndex || 20,
                         }}
                       >
                         <div className="flex items-center gap-1.5 whitespace-nowrap px-2 font-bold">
@@ -351,7 +353,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
                       onClick={(e) => {
                         e.stopPropagation();
                         if (el.link && el.link !== "#") {
-                          if (el.link.startsWith("http")) window.open(el.link, "_blank");
+                          if (el.link.startsWith("http")) window.open(el.link, "_blank", "noopener,noreferrer");
                           else navigate(el.link);
                         }
                       }}
@@ -368,6 +370,7 @@ const BannerCarousel = ({ page = "home", placement = "hero", onBannerCountChange
                         borderWidth: `${el.borderWidth || 0}px`,
                         borderRadius: `${el.borderRadius || 12}px`,
                         fontSize: `${((el.fontSize || 14) / cWidth) * 100}cqw`,
+                        zIndex: el.zIndex || 20,
                       }}
                     >
                       {el.content || "SHOP NOW"}
