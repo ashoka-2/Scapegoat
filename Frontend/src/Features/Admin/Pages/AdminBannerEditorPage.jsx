@@ -559,6 +559,26 @@ const AdminBannerEditorPage = () => {
       fd.append("autoCloseSeconds", autoCloseSeconds);
       fd.append("showTimesPerDay", showTimesPerDay);
       fd.append("elements", JSON.stringify(elements));
+
+      // Extract primary CTA button link and button text for direct link handling
+      const buttonEls = (elements || []).filter(el => el.type === "button");
+      const primaryBtn = buttonEls[0];
+      if (primaryBtn) {
+        fd.append("link", primaryBtn.link || "#");
+        fd.append("buttonText", primaryBtn.content || primaryBtn.label || "Shop Now");
+      } else {
+        fd.append("link", "#");
+        fd.append("buttonText", "Shop Now");
+      }
+      const serializedButtons = buttonEls.map(b => ({
+        text: b.content || b.label || "Shop Now",
+        link: b.link || "#",
+        style: b.style || "primary",
+      }));
+      if (serializedButtons.length > 0) {
+        fd.append("buttons", JSON.stringify(serializedButtons));
+      }
+
       if (desktopFile) fd.append("image", desktopFile);
       else if (blob) fd.append("image", blob, `banner_${Date.now()}.png`);
       if (mobileFile) fd.append("mobileImage", mobileFile);

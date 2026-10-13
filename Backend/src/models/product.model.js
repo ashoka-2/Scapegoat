@@ -106,7 +106,7 @@ const productSchema = new Schema(
       type: String,
       required: [true, "Product title is required"],
       trim: true,
-      maxlength: [200, "Title cannot exceed 200 characters"],
+      maxlength: [160, "Title cannot exceed 160 characters"],
     },
     slug: {
       type: String,
@@ -123,7 +123,7 @@ const productSchema = new Schema(
     shortDescription: {
       type: String,
       trim: true,
-      maxlength: [500, "Short description cannot exceed 500 characters"],
+      maxlength: [160, "Short description cannot exceed 160 characters"],
     },
 
     // ── SEO Metadata ──────────────────────────────────────────────────────

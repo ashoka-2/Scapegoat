@@ -731,7 +731,14 @@ const CreateProduct = () => {
   // Form Validation & Submission
   const validateForm = () => {
     const errors = {};
-    if (!formData.title.trim()) errors.title = "Product title is required";
+    if (!formData.title.trim()) {
+      errors.title = "Product title is required";
+    } else if (formData.title.trim().length > 160) {
+      errors.title = "Product title cannot exceed 160 characters";
+    }
+    if (formData.shortDescription && formData.shortDescription.trim().length > 200) {
+      errors.shortDescription = "Short summary cannot exceed 200 characters";
+    }
     if (!formData.description.trim()) {
       errors.description = "Description is required";
     } else if (cleanDescriptionHtml(formData.description).length > 50000) {
@@ -945,14 +952,20 @@ const CreateProduct = () => {
             {fetchingEditProduct ? (
               <div className="w-full h-12 bg-foreground/15 rounded-xl animate-pulse border border-border-theme/40" />
             ) : (
-              <input
-                type="text"
-                name="title"
-                value={formData.title}
-                onChange={handleChange}
-                placeholder="Product title (e.g. Lenovo LOQ Gaming Laptop, Nike Air Force 1)"
-                className="w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 text-lg font-bold text-foreground outline-none transition-all focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25"
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  name="title"
+                  maxLength={160}
+                  value={formData.title}
+                  onChange={handleChange}
+                  placeholder="Product title (e.g. Lenovo LOQ Gaming Laptop, Nike Air Force 1)"
+                  className="w-full bg-background border border-border-theme focus:border-accent rounded-xl px-4 py-3 pr-20 text-lg font-bold text-foreground outline-none transition-all focus:ring-4 focus:ring-accent/10 placeholder:text-foreground/25"
+                />
+                <span className={`absolute right-3.5 bottom-3 text-xs font-mono font-bold ${formData.title?.length >= 150 ? 'text-amber-500' : 'text-foreground/40'}`}>
+                  {formData.title?.length || 0}/160
+                </span>
+              </div>
             )}
 
             {/* Permalink Preview */}
@@ -1016,14 +1029,20 @@ const CreateProduct = () => {
             </h2>
 
             <FormField label="Short Summary / Subtitle" loading={fetchingEditProduct}>
-              <input
-                type="text"
-                name="shortDescription"
-                value={formData.shortDescription}
-                onChange={handleChange}
-                placeholder="e.g. High-performance gaming laptop with RTX 4060 & AMD Ryzen 7"
-                className={inputClass}
-              />
+              <div className="relative">
+                <input
+                  type="text"
+                  name="shortDescription"
+                  maxLength={200}
+                  value={formData.shortDescription}
+                  onChange={handleChange}
+                  placeholder="e.g. High-performance gaming laptop with RTX 4060 & AMD Ryzen 7"
+                  className={`${inputClass} pr-20`}
+                />
+                <span className={`absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-mono font-bold ${formData.shortDescription?.length >= 190 ? 'text-amber-500' : 'text-foreground/40'}`}>
+                  {formData.shortDescription?.length || 0}/200
+                </span>
+              </div>
             </FormField>
 
             <FormField label="Tags (comma separated)" loading={fetchingEditProduct}>

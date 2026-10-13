@@ -6,7 +6,7 @@ const buttonSchema = new mongoose.Schema(
             type: String,
             required: true,
             trim: true,
-            maxlength: [80, "Button text cannot exceed 80 characters"],
+            maxlength: [250, "Button text cannot exceed 250 characters"],
         },
         link: {
             type: String,
@@ -228,7 +228,7 @@ const bannerSchema = new mongoose.Schema(
             type: String,
             trim: true,
             default: "Shop Now",
-            maxlength: [50, "Button text cannot exceed 50 characters"],
+            maxlength: [250, "Button text cannot exceed 250 characters"],
         },
 
         // ── Overlay CTA buttons & text & countdown timer ──

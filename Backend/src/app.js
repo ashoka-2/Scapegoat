@@ -94,8 +94,8 @@ app.use(cors(corsOptions));
 
 // 3. Logging & Body Parsers
 app.use(morgan("dev"));
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+app.use(express.json({ limit: "25mb" }));
+app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(cookieParser());
 app.use(passport.initialize());
 
@@ -139,6 +139,13 @@ app.use((err, req, res, next) => {
   if (origin && isAllowedOrigin(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Access-Control-Allow-Credentials", "true");
+  }
+
+  if (err && (err.name === "MulterError" || err.code?.startsWith?.("LIMIT_"))) {
+    return res.status(400).json({
+      success: false,
+      message: err.message || "File upload error: payload or field size exceeds allowed limit",
+    });
   }
 
   console.error("Unhandled Backend Error:", err);

@@ -21,8 +21,15 @@ export const validateCreateProduct = [
     .withMessage("Product title is required")
     .isString()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage("Title cannot exceed 500 characters"),
+    .isLength({ max: 160 })
+    .withMessage("Title cannot exceed 160 characters"),
+
+  body("shortDescription")
+    .optional({ checkFalsy: true })
+    .isString()
+    .trim()
+    .isLength({ max: 200 })
+    .withMessage("Short description cannot exceed 200 characters"),
 
   body("description")
     .notEmpty()
@@ -45,8 +52,15 @@ export const validateUpdateProduct = [
     .optional({ checkFalsy: true })
     .isString()
     .trim()
-    .isLength({ max: 500 })
-    .withMessage("Title cannot exceed 500 characters"),
+    .isLength({ max: 160 })
+    .withMessage("Title cannot exceed 160 characters"),
+
+  body("shortDescription")
+    .optional({ checkFalsy: true })
+    .isString()
+    .trim()
+    .isLength({ max: 160 })
+    .withMessage("Short description cannot exceed 160 characters"),
 
   body("description")
     .optional({ checkFalsy: true })
