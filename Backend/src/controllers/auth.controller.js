@@ -565,6 +565,9 @@ export const getUserById = async (req, res) => {
         if (!user) {
             return res.status(404).json({ success: false, message: "User not found" });
         }
+        if (!isAdmin && user.role === "admin") {
+            return res.status(404).json({ success: false, message: "User not found" });
+        }
 
         const userObjId = new mongoose.Types.ObjectId(id);
         const sellerId = req.user._id;

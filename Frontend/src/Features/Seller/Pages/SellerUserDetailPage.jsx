@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSeller } from "../Hooks/useSeller";
 import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
+import customAxios from "../../../utils/axios";
 
 const SellerUserDetailPage = () => {
   const { id } = useParams();
@@ -12,6 +13,7 @@ const SellerUserDetailPage = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("wishlist");
+  const [bills, setBills] = useState([]);
 
   useEffect(() => {
     if (id) {
@@ -21,6 +23,20 @@ const SellerUserDetailPage = () => {
         .finally(() => setLoading(false));
     }
   }, [id]);
+
+  useEffect(() => {
+    if (!id) return;
+    customAxios.get("/api/bills/seller", { params: { customerId: id } })
+      .then(({ data }) => setBills(data.data || []))
+      .catch(() => setBills([]));
+  }, [id]);
+
+  const makeBill = async () => {
+    try {
+      const { data } = await customAxios.post("/api/bills", { customerId: id });
+      navigate(`/seller/bill/${data.data._id}`);
+    } catch (error) { window.alert(error.response?.data?.message || "Could not start a bill for this user."); }
+  };
 
   if (loading) {
     return <SellerTableSkeleton />;
@@ -45,6 +61,7 @@ const SellerUserDetailPage = () => {
     { id: "wishlist", label: "Wishlist", icon: "ri-heart-line", count: user.wishlist?.products?.length || 0 },
     { id: "cart", label: "Cart", icon: "ri-shopping-bag-line", count: user.cart?.items?.length || 0 },
     { id: "orders", label: "Orders", icon: "ri-receipt-line", count: user.orders?.length || 0 },
+    { id: "bills", label: "Bills", icon: "ri-bill-line", count: bills.length },
     ...(user.role === "seller"
       ? [{ id: "products", label: "Products", icon: "ri-store-2-line", count: user.products?.length || 0 }]
       : []),
@@ -66,6 +83,7 @@ const SellerUserDetailPage = () => {
           </span>
           <h1 className="text-2xl font-black uppercase text-foreground">{user.fullname || "User Profile"}</h1>
         </div>
+        {user.role !== "admin" && <button type="button" onClick={makeBill} className="ml-auto rounded-full bg-accent px-4 py-3 text-xs font-bold text-accent-content hover:opacity-90">＋ Make a bill</button>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
@@ -256,6 +274,13 @@ const SellerUserDetailPage = () => {
                       </div>
                     ))
                   )}
+                </motion.div>
+              )}
+
+              {activeTab === "bills" && (
+                <motion.div key="bills" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.2 }} className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-sm font-bold">Shop bills for {user.fullname}</h2><button type="button" onClick={makeBill} className="rounded-full bg-accent px-4 py-2.5 text-xs font-bold text-accent-content">＋ Make a bill</button></div>
+                  {!bills.length ? <p className="py-10 text-center text-xs text-foreground/45">No shop bills for this customer yet.</p> : bills.map((bill) => <Link key={bill._id} to={`/seller/bill/${bill._id}`} className="flex items-center justify-between gap-3 rounded-2xl border border-border-theme/50 bg-background/50 p-4 hover:border-accent/40"><div><p className="text-xs font-bold text-accent">{bill.billNumber}</p><p className="mt-1 text-[11px] text-foreground/55">{new Date(bill.createdAt).toLocaleDateString()} · {bill.status}</p></div><strong className="text-sm">₹{Number(bill.subtotal || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</strong></Link>)}
                 </motion.div>
               )}
 

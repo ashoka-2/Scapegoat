@@ -25,6 +25,7 @@ import bannerRouter from "./routes/banner.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
 import couponRouter from "./routes/coupon.routes.js";
 import aiRouter from "./routes/ai.routes.js";
+import billRouter from "./routes/bill.routes.js";
 import { generalLimiter } from "./middlewares/rateLimiter.middleware.js";
 import { isAllowedCorsOrigin, parseAllowedOrigins } from "./config/corsPolicy.js";
 
@@ -118,6 +119,7 @@ app.use("/api/banners", bannerRouter);
 app.use("/api/notifications", notificationRouter);
 app.use("/api/coupons", couponRouter);
 app.use("/api/ai", aiRouter);
+app.use("/api/bills", billRouter);
 
 // 6. Global Error Handling Middleware (Ensures CORS headers are preserved on error responses)
 app.use((err, req, res, next) => {

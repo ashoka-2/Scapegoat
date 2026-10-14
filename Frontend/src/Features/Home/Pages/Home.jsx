@@ -39,10 +39,10 @@ const Home = () => {
         <BannerCarousel page="home" placement="hero" />
       </motion.div>
 
-      <StorePromises />
-
       {/* Original Hero Section */}
       <Hero />
+
+      <StorePromises />
 
       {/* Inline Grid Banners */}
       <motion.div layout transition={{ duration: 0.4, ease: "easeInOut" }}>

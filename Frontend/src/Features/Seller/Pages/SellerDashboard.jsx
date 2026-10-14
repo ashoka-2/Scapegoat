@@ -46,12 +46,11 @@ const SellerDashboard = () => {
             Welcome back, <strong className="text-accent">{user?.fullname || user?.username}</strong>! Manage your products, catalog, and real-time sales performance.
           </p>
         </div>
-        <Link
-          to="/products/create"
-          className="px-5 py-3 rounded-xl bg-accent text-accent-content font-bold text-xs shadow-md hover:opacity-90 transition cursor-pointer"
-        >
-          Create New Product
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link to="/seller/bills" className="px-5 py-3 rounded-xl border border-accent/30 bg-accent/10 text-accent font-bold text-xs hover:bg-accent/15 transition">View shop bills</Link>
+          <Link to="/seller/bills" className="px-5 py-3 rounded-xl bg-accent text-accent-content font-bold text-xs shadow-md hover:opacity-90 transition">＋ Quick make a bill</Link>
+          <Link to="/products/create" className="px-5 py-3 rounded-xl border border-border-theme text-foreground font-bold text-xs hover:border-accent transition">Create New Product</Link>
+        </div>
       </div>
 
       {/* Metrics Grid */}

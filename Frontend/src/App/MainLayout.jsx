@@ -39,6 +39,15 @@ const MainLayout = () => {
   const userId = user?._id || user?.id;
 
   useEffect(() => {
+    const token = localStorage.getItem("scapegoat_token");
+    socket.auth = token ? { token } : {};
+    if (socket.connected) {
+      socket.disconnect();
+      socket.connect();
+    }
+  }, [userId]);
+
+  useEffect(() => {
     if (userId) {
       getWishlist();
       handleGetCart();

@@ -27,6 +27,9 @@ import SellerWishlistsPage from "../Features/Seller/Pages/SellerWishlistsPage.js
 import SellerCustomersPage from "../Features/Seller/Pages/SellerCustomersPage.jsx";
 import SellerCartsPage from "../Features/Seller/Pages/SellerCartsPage.jsx";
 import SellerAnalyticsPage from "../Features/Seller/Pages/SellerAnalyticsPage.jsx";
+import SellerBillsPage from "../Features/Seller/Pages/SellerBillsPage.jsx";
+import SellerBillsDashboardPage from "../Features/Seller/Pages/SellerBillsDashboardPage.jsx";
+import MyBills from "../Features/Orders/Pages/MyBills.jsx";
 import CartPage from "../Features/Cart/Pages/CartPage.jsx";
 import Wishlist from "../Features/Wishlist/Pages/Wishlist.jsx";
 import ForgotPassword from "../Features/auth/Pages/ForgotPassword.jsx";
@@ -117,6 +120,10 @@ export const routes = createBrowserRouter([
   {
     path: "/ai-stylist/:sessionId",
     element: <AIAssistantPage />,
+  },
+  {
+    path: "/seller/bill/:id",
+    element: <Protected><SellerRoute><SellerBillsPage /></SellerRoute></Protected>,
   },
   {
     path: "/admin",
@@ -287,6 +294,14 @@ export const routes = createBrowserRouter([
         ),
       },
       {
+        path: "my-bills",
+        element: (
+          <Protected>
+            <MyBills />
+          </Protected>
+        ),
+      },
+      {
         path: "product/:id",
         element: <SingleProduct />,
       },
@@ -329,6 +344,10 @@ export const routes = createBrowserRouter([
       {
         path: "dashboard",
         element: <SellerDashboard />,
+      },
+      {
+        path: "bills",
+        element: <SellerBillsDashboardPage />,
       },
       {
         path: "analytics",

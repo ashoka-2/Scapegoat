@@ -3,20 +3,48 @@ import { config } from "../config/config.js";
 import mongoose from "mongoose";
 import userModel from "../models/user.model.js";
 import { parseUserAgent } from "../utils/userAgentParser.js";
+import jwt from "jsonwebtoken";
+import { isAllowedCorsOrigin, parseAllowedOrigins } from "../config/corsPolicy.js";
 
 let io;
 const activeSocketsMap = new Map();
 
 export const setupSocket = (httpServer) => {
+  const allowedOrigins = parseAllowedOrigins(config.FRONTEND_URL);
   io = new Server(httpServer, {
     cors: {
       origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        return callback(null, true);
+        if (isAllowedCorsOrigin(origin, allowedOrigins, config.NODE_ENV)) return callback(null, true);
+        return callback(new Error("Origin is not allowed by CORS"));
       },
       methods: ["GET", "POST", "PUT", "DELETE", "PATCH"],
       credentials: true,
     },
+    allowRequest: (request, callback) => {
+      const origin = request.headers.origin;
+      callback(null, isAllowedCorsOrigin(origin, allowedOrigins, config.NODE_ENV));
+    },
+  });
+
+  // Private user and seller events are authorized from the signed session,
+  // never from a room name supplied by the browser.
+  io.use(async (socket, next) => {
+    try {
+      const cookieHeader = socket.handshake.headers.cookie || "";
+      const cookieToken = cookieHeader.split(";").map((part) => part.trim()).find((part) => part.startsWith("token="))?.slice(6);
+      const token = socket.handshake.auth?.token || (cookieToken ? decodeURIComponent(cookieToken) : null);
+      if (!token) return next();
+      const decoded = jwt.verify(token, config.JWT_SECRET);
+      const user = await userModel.findById(decoded.id).select("_id role fullname isBanned").lean();
+      if (user && !user.isBanned) {
+        socket.data.userId = String(user._id);
+        socket.data.userRole = user.role;
+        socket.data.fullname = user.fullname;
+      }
+      return next();
+    } catch {
+      return next();
+    }
   });
 
   io.on("connection", (socket) => {
@@ -44,13 +72,20 @@ export const setupSocket = (httpServer) => {
       lastActiveAt: new Date(),
     });
 
-    // Join private room (e.g. "user_64a7b..." or "seller_64a7b...")
-    socket.on("join_room", async (roomName, metadata = {}) => {
-      if (roomName) {
-        socket.join(roomName);
-        console.log(`Socket ${socket.id} joined room: ${roomName}`);
+    if (socket.data.userId) {
+      socket.join(`user_${socket.data.userId}`);
+      if (socket.data.userRole === "seller") socket.join(`seller_${socket.data.userId}`);
+    }
 
-        const rawUserId = roomName.replace("user_", "").replace("seller_", "");
+    // Join only the caller's own private rooms. Arbitrary room names would
+    // expose other customers' orders and billing events.
+    socket.on("join_room", async (roomName, metadata = {}) => {
+      const userId = socket.data.userId;
+      const canJoinOwnUserRoom = userId && roomName === `user_${userId}`;
+      const canJoinOwnSellerRoom = userId && socket.data.userRole === "seller" && roomName === `seller_${userId}`;
+      if (canJoinOwnUserRoom || canJoinOwnSellerRoom) {
+        socket.join(roomName);
+        const rawUserId = userId;
         if (mongoose.Types.ObjectId.isValid(rawUserId)) {
           const uaString =
             socket.handshake.headers["user-agent"] || metadata.userAgent || "";
@@ -91,25 +126,25 @@ export const setupSocket = (httpServer) => {
         userAgent: uaString,
       };
 
+      const authenticatedId = socket.data.userId || null;
       const sessionInfo = {
         socketId: socket.id,
-        _id: data.userId || `guest_${socket.id}`,
-        userId: data.userId || null,
-        fullname:
-          data.fullname || (data.userId ? "Registered User" : "Guest Visitor"),
-        email: data.email || null,
-        profilePic: data.profilePic || null,
-        role: data.role || "guest",
-        isGuest: !data.userId || data.role === "guest",
+        _id: authenticatedId || `guest_${socket.id}`,
+        userId: authenticatedId,
+        fullname: socket.data.fullname || "Guest Visitor",
+        email: null,
+        profilePic: null,
+        role: socket.data.userRole || "guest",
+        isGuest: !authenticatedId,
         deviceInfo: finalDevice,
         lastActiveAt: new Date(),
       };
 
       activeSocketsMap.set(socket.id, sessionInfo);
 
-      if (data.userId && mongoose.Types.ObjectId.isValid(data.userId)) {
+      if (authenticatedId && mongoose.Types.ObjectId.isValid(authenticatedId)) {
         await userModel
-          .findByIdAndUpdate(data.userId, {
+          .findByIdAndUpdate(authenticatedId, {
             lastActiveAt: new Date(),
             deviceInfo: finalDevice,
           })

@@ -125,7 +125,7 @@ export async function vectorSearchText(queryVector, limit = 40) {
  * @param {number} limit
  * @returns {Promise<Array<{product, score}>>}
  */
-export async function vectorSearchImages(queryVector, limit = 40) {
+export async function vectorSearchImages(queryVector, limit = 40, productFilter = {}) {
   if (!Array.isArray(queryVector) || queryVector.length === 0) return [];
   try {
     const [rootRows, nestedRows] = await Promise.all([
@@ -139,7 +139,7 @@ export async function vectorSearchImages(queryVector, limit = 40) {
             numCandidates: Math.min(limit * 8, 300),
           },
         },
-        ...buildProductMatchStages(),
+        ...buildProductMatchStages(productFilter),
         { $limit: limit },
       ]),
       productModel.aggregate([
@@ -152,7 +152,7 @@ export async function vectorSearchImages(queryVector, limit = 40) {
             numCandidates: Math.min(limit * 8, 300),
           },
         },
-        ...buildProductMatchStages(),
+        ...buildProductMatchStages(productFilter),
         { $limit: limit },
       ]),
     ]);

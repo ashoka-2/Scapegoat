@@ -13,6 +13,7 @@ const SellerNavbar = () => {
 
   const menuItems = [
     { name: "Dashboard", path: "/seller/dashboard", icon: "ri-dashboard-3-line" },
+    { name: "Shop bills", path: "/seller/bills", icon: "ri-bill-line" },
     { name: "Profit & Loss", path: "/seller/analytics", icon: "ri-line-chart-line" },
     { name: "Catalog", path: "/seller/catalog", icon: "ri-box-3-line" },
     { name: "User Directory", path: "/seller/users", icon: "ri-user-line" },

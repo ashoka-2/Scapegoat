@@ -15,7 +15,7 @@
 
 <p align="center">
   <b>Smart Search. Instant Drops. Seamless Checkout.</b><br />
-  A state-of-the-art full-stack e-commerce marketplace powered by LangGraph AI agents, CLIP visual image search, real-time WebSocket state synchronization, Snap2Bill counter POS billing, and Redis-cached high-throughput APIs.
+  A full-stack e-commerce marketplace with multimodal product search, a tool-enabled shopping assistant, real-time updates, seller counter billing, and Redis-backed caching.
 </p>
 
 ---
@@ -26,7 +26,7 @@
 - [✨ Core Highlights](#-core-highlights)
 - [🧠 Advanced AI & Multimodal Search](#-advanced-ai--multimodal-search)
 - [⚡ Real-Time Socket.io System](#-real-time-socketio-system)
-- [📸 Snap2Bill: Camera POS Quick-Billing](#-snap2bill-camera-pos-quick-billing)
+- [📸 Seller Counter Bills](#-seller-counter-bills)
 - [🛒 Full E-Commerce Capabilities](#-full-e-commerce-capabilities)
 - [🌐 System Architecture](#-system-architecture)
 - [🔐 Authentication & Role-Based Security](#-authentication--role-based-security)
@@ -37,18 +37,18 @@
   - [Frontend Environment Variables](#frontend-environment-variables)
   - [Running Locally](#running-locally)
 - [📁 Project Structure](#-project-structure)
-- [📄 License](#-license)
+- [License](#license)
 
 ---
 
 ## ✨ Core Highlights
 
-- **🤖 LangGraph & Multi-Agent AI Shopping Concierge**: Conversational shopping agent with real-time SSE streaming, product recommendation tool calling, AI Review Insights synthesis, and direct 1-click bundle-to-cart actions.
-- **👁️ Google Lens-Style Visual Search**: Upload or capture a camera photo of any clothing or product to instantly find visually identical or similar catalogue items via OpenAI CLIP (`clip-vit-base-patch32`) embeddings.
+- **🤖 AI Shopping Assistant**: A streaming, tool-enabled assistant with product search, review insights, and cart or wishlist actions. It can fall back between configured Gemini, Groq, Mistral, and OpenRouter providers.
+- **👁️ Visual Product Search**: Upload or capture a camera photo to find visually similar catalogue items using Voyage multimodal embeddings, Pinecone, and MongoDB vector-search fallback.
 - **⚡ Real-Time Live Catalog Sync**: WebSockets powered by Socket.io notify shoppers of live product drops (*"🔥 New Arrival Just Dropped!"*), update out-of-stock badges on open product pages, and chime seller dashboards on new orders.
 - **🔄 Multi-Tab Cart & Wishlist Sync**: Cart and wishlist badge counts update instantly across all open browser tabs and devices for the authenticated user without page refreshing.
-- **🧾 Snap2Bill POS System**: Revolutionary in-store counter tool allowing retail sellers to snap a photo of a physical item to match embeddings in <50ms, generate a digital bill draft, and produce instant PDF / WhatsApp invoices while automatically decrementing MongoDB inventory.
-- **💳 Razorpay Payment Integration**: End-to-end checkout flow supporting UPI, Cards, NetBanking, and Wallets with cryptographic HMAC signature verification and automated stock reservation.
+- **🧾 Seller Counter Billing**: A responsive seller workspace for persistent multi-bill drafts, catalogue search and photo matching, walk-in or registered customers, editable prices and quantities, payment recording, and tracked-stock updates.
+- **💳 Razorpay Payment Integration**: Checkout supports COD, UPI, cards, NetBanking, and Razorpay with payment-signature verification. Tracked stock is checked at checkout and updated during order processing; adding an item to the cart does not reserve stock.
 - **🎨 Modern Responsive Storefront**: Built on React 19, Vite, and Tailwind CSS with smooth infinite scroll, multi-variant selectors (sizes, colors, materials), and high-density product carousels.
 
 ---
@@ -59,10 +59,10 @@ ScapeGoat combines multi-provider LLMs with high-dimensional vector search to el
 
 | Feature | Model / Technology | Description |
 |---|---|---|
-| **Semantic Natural Language Search** | `@xenova/transformers` (`all-MiniLM-L6-v2`) | Understands descriptive, contextual shopping queries (e.g., *"breathable oversized linen shirt for beach vacation"*). |
-| **Visual / Photo Search** | OpenAI CLIP (`clip-vit-base-patch32`) | Generates 512-dimension visual embeddings from uploaded images or live camera snaps to match products by appearance, pattern, and silhouette. |
-| **Streaming AI Agent Concierge** | LangGraph + Google Gemini & Groq LLaMA 3.3 | Multi-turn streaming assistant (`/api/ai/chat/stream`) with memory, intent classification, and automated tool execution (`addBundleToCartAction`, `getReviewInsightsAction`). |
-| **Vector Indexing Engine** | Pinecone & MongoDB Atlas `$vectorSearch` | HNSW (Hierarchical Navigable Small World) spatial graph indexing achieving sub-15ms nearest-neighbor vector retrieval at scale. |
+| **Text and Image Embeddings** | Voyage Multimodal 3.5 | Creates shared 1024-dimension vectors for product text and images. |
+| **Visual / Photo Search** | Pinecone + MongoDB Atlas `$vectorSearch` fallback | Matches uploaded photos against catalogue image vectors and falls back to MongoDB vector search when Pinecone is unavailable. |
+| **Streaming AI Shopping Assistant** | Custom tool-enabled orchestrator | Streams `/api/ai/chat/stream` responses, searches products, and can execute cart, wishlist, and review-insight actions. Configured model providers are tried in sequence. |
+| **Vector Storage** | Pinecone + MongoDB | Product embeddings remain in MongoDB and are mirrored to Pinecone for vector retrieval and recovery. |
 | **Granular Image Vectors** | Multi-Image Embeddings | Stores separate vector embeddings for every product image (up to 7) and variant image (up to 7 per variant) for high-precision visual matches. |
 
 ---
@@ -93,15 +93,15 @@ ScapeGoat eliminates stale e-commerce states through bi-directional WebSocket ev
 
 ---
 
-## 📸 Snap2Bill: Camera POS Quick-Billing
+## 📸 Seller Counter Bills
 
-Built specifically for brick-and-mortar stores and hybrid retailers:
-1. **Live Camera Scanner**: The seller accesses the dedicated **Snap2Bill** console on their phone, tablet, or POS terminal.
-2. **Instant Visual Matching**: Snapping a photo of a physical garment or item queries the visual embedding index in `<50ms`.
-3. **Bill Draft Generation**: The matched product, variant, tax, and price are instantly appended to the active billing slip.
-4. **1-Tap Invoice & Fulfillment**:
-   - Generates an instant printable PDF invoice and WhatsApp receipt link.
-   - Automatically decrements online and in-store MongoDB stock counts in real time.
+Sellers can open **Shop bills** from the seller workspace at `/seller/bills`:
+
+- Create and switch between multiple bills. Draft items, customer details, quantities, and prices are saved to MongoDB as the seller works.
+- Add products by searching the seller's catalogue or capturing a product photo. Photo matches use the existing visual-search embeddings and are restricted to that seller's products. If there is no match, the seller can open product creation.
+- Bill a registered buyer or seller, or enter a walk-in customer's name and optional phone number.
+- Adjust item prices and quantities, remove items, and print a receipt. Drafts do not reserve stock. Completing a bill with cash, UPI, card, or another recorded method checks and deducts tracked stock.
+- Customers with bills see **My shop bills** in their profile. They can inspect bill details but cannot edit them. A seller's change to a paid bill is held until the registered customer approves or declines it through the live bill update. Walk-in paid bills cannot be edited through customer approval.
 
 ---
 
@@ -145,7 +145,7 @@ Built specifically for brick-and-mortar stores and hybrid retailers:
 │  ├──────────────────────────────────────────────────────────────────┤  │
 │  │ Controllers: Auth, Products, Orders, AI, Cart, Wishlist, Sellers │  │
 │  ├──────────────────────────────────────────────────────────────────┤  │
-│  │ AI Services: LangGraph Agent, CLIP Embeddings, MiniLM Search     │  │
+│  │ AI: Tool-enabled assistant, Voyage embeddings, vector search     │  │
 │  └──────────────────────────────────────────────────────────────────┘  │
 │         │               │                │               │             │
 │         ▼               ▼                ▼               ▼             │
@@ -284,7 +284,7 @@ Scapegoat/
 │   │   ├── middlewares/     # Auth, RBAC, AI Quotas, Rate Limiter, Error handler
 │   │   ├── models/          # User, Product, Order, Review, Coupon, Category, Brand
 │   │   ├── routes/          # Express route definitions for all features
-│   │   ├── services/        # LangGraph agents, CLIP embedding, Razorpay, ImageKit
+│   │   ├── services/        # AI orchestration, Voyage/Pinecone, payments, ImageKit
 │   │   ├── utils/           # Socket.io emitters, Redis helpers, Error wrappers
 │   │   └── validators/      # Express-validator schema sanitizers
 │   ├── package.json
@@ -315,9 +315,14 @@ Scapegoat/
 
 ---
 
-## 📄 License
+## License
 
-This project is licensed under the **MIT License**.
+Copyright © 2026 ScapeGoat. All rights reserved.
+
+This repository is proprietary. No permission is granted to copy, modify,
+distribute, sublicense, or use this project's source code without prior written
+permission from the copyright holder. Third-party dependencies and assets remain
+subject to their respective licenses.
 
 <div align="center">
   <sub>Engineered by Ashok Kumar & the ScapeGoat Team.</sub>

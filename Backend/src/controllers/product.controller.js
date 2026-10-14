@@ -2221,6 +2221,7 @@ export const aiSearchProducts = async (req, res) => {
  */
 export const aiImageSearchProducts = async (req, res) => {
   try {
+    const sellerFilter = req.user?.role === "seller" ? { seller: req.user._id } : {};
     let imageUrl = req.body.imageUrl || null;
     let imageEmbedding = [];
 
@@ -2249,7 +2250,7 @@ export const aiImageSearchProducts = async (req, res) => {
     let vectorScores = null; // productId → best image score (Pinecone or MongoVS)
 
     const pineconeRes = pineconeReady()
-      ? await queryImageVectors(imageEmbedding, 60)
+      ? await queryImageVectors(imageEmbedding, Object.keys(sellerFilter).length ? 200 : 60)
       : { ok: false, matches: [] };
 
     if (pineconeRes.ok) {
@@ -2268,7 +2269,7 @@ export const aiImageSearchProducts = async (req, res) => {
           vectorScores = byProduct;
           candidates = await productModel.aggregate(
             buildProductAggregation(
-              { status: "published", _id: { $in: ids.map((id) => new MongoTypes.ObjectId(id)) } },
+              { status: "published", ...sellerFilter, _id: { $in: ids.map((id) => new MongoTypes.ObjectId(id)) } },
               { imageEmbedding: true }
             )
           );
@@ -2277,7 +2278,8 @@ export const aiImageSearchProducts = async (req, res) => {
     } else if (imageEmbedding && imageEmbedding.length > 0) {
       // Pinecone unavailable/error/quota → MongoDB Atlas Vector Search fallback
       // (root + nested image vectors merged; scores from $vectorSearch meta).
-      const vs = await vectorSearchImages(imageEmbedding, 40);
+      const isSellerSearch = Object.keys(sellerFilter).length > 0;
+      const vs = await vectorSearchImages(imageEmbedding, isSellerSearch ? 100 : 40, sellerFilter);
       if (vs.length > 0) {
         vectorScores = new Map(vs.map((r) => [String(r.product._id), r.score]));
         candidates = vs.map((r) => r.product);

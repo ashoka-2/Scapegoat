@@ -43,6 +43,8 @@ router.get("/search/ai", aiSearchProducts);
 
 // AI Visual Photo Search (Camera photo upload / Google Lens style)
 router.post("/search/visual", upload.array("images", 1), aiImageSearchProducts);
+// Seller-only photo matching searches and returns that seller's own published catalogue.
+router.post("/search/visual/seller", verifyToken, requireRole("seller"), upload.array("images", 1), aiImageSearchProducts);
 
 // Get single product by ID or Slug (with optional token verification so sellers can edit drafts)
 const handleGetSingleProduct = (req, res, next) => {

@@ -9,6 +9,7 @@ import PasswordRequirementChecker, {
   isPasswordValid,
 } from "../components/PasswordRequirementChecker";
 import * as reviewApi from "../../Reviews/Services/review.api";
+import customAxios from "../../../utils/axios";
 
 import ProfileSkeleton from "../components/Skeletons/ProfileSkeleton";
 
@@ -52,6 +53,7 @@ const Profile = () => {
   const avatarInputRef = useRef(null);
   const [avatarPreview, setAvatarPreview] = useState(null);
   const [activeTab, setActiveTab] = useState("personal");
+  const [hasBills, setHasBills] = useState(false);
 
   const [formData, setFormData] = useState({
     fullname: "",
@@ -111,6 +113,15 @@ const Profile = () => {
       loadUserReviews();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (!user?._id) { setHasBills(false); return undefined; }
+    let active = true;
+    customAxios.get("/api/bills/my")
+      .then(({ data }) => active && setHasBills((data.count || data.data?.length || 0) > 0))
+      .catch(() => active && setHasBills(false));
+    return () => { active = false; };
+  }, [user?._id]);
 
   if (authLoading && !user) {
     return <ProfileSkeleton />;
@@ -522,6 +533,20 @@ const Profile = () => {
                 </div>
                 <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent group-hover:translate-x-1 transition-transform" />
               </div>
+
+              {hasBills && (
+                <button
+                  type="button"
+                  onClick={() => navigate("/my-bills")}
+                  className="bg-surface border border-border-theme/80 hover:border-accent rounded-2xl p-5 flex items-center justify-between text-left transition-all shadow-sm group"
+                >
+                  <span className="flex items-center gap-4">
+                    <span className="w-10 h-10 rounded-xl bg-accent/10 text-accent flex items-center justify-center text-xl group-hover:scale-105 transition-transform"><i className="ri-bill-line" /></span>
+                    <span><span className="block text-sm font-bold text-foreground group-hover:text-accent transition">My shop bills</span><span className="block text-xs text-foreground/50">View bills created for you by sellers</span></span>
+                  </span>
+                  <i className="ri-arrow-right-s-line text-lg text-foreground/40 group-hover:text-accent" />
+                </button>
+              )}
 
               {/* Seller Dashboard or Sell on Scapegoat */}
               {user?.role === "seller" ? (

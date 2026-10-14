@@ -3,6 +3,7 @@ import { useSelector } from "react-redux";
 import { useNavigate } from "react-router-dom";
 import { useSeller } from "../Hooks/useSeller";
 import SellerTableSkeleton from "../Components/Skeletons/SellerTableSkeleton";
+import customAxios from "../../../utils/axios";
 
 const SellerCustomersPage = () => {
   const navigate = useNavigate();
@@ -41,6 +42,13 @@ const SellerCustomersPage = () => {
       );
     });
   }, [customers, searchVal]);
+
+  const makeBill = async (customerId) => {
+    try {
+      const { data } = await customAxios.post("/api/bills", { customerId });
+      navigate(`/seller/bill/${data.data._id}`);
+    } catch (error) { window.alert(error.response?.data?.message || "Could not start a bill for this customer."); }
+  };
 
   if (loading && (!users || users.length === 0)) {
     return <SellerTableSkeleton />;
@@ -118,6 +126,7 @@ const SellerCustomersPage = () => {
                       </span>
                     </td>
                     <td className="p-4 text-right">
+                      <button type="button" onClick={() => makeBill(usr._id)} className="mr-2 px-3 py-1.5 bg-accent text-accent-content rounded-xl text-xs font-bold uppercase hover:opacity-90">Make bill</button>
                       <button
                         onClick={() => navigate(`/seller/users/${usr._id}`)}
                         className="px-3 py-1.5 bg-accent/10 text-accent border border-accent/20 rounded-xl text-xs font-bold uppercase hover:bg-accent hover:text-accent-content transition cursor-pointer"
