@@ -41,6 +41,7 @@ const SellerMetadataManager = () => {
 
   // Category Form State
   const [catName, setCatName] = useState("");
+  const [catImage, setCatImage] = useState("");
   const [parentCatId, setParentCatId] = useState("");
   const [editingCatId, setEditingCatId] = useState(null);
 
@@ -64,7 +65,7 @@ const SellerMetadataManager = () => {
   // Category Form Submit
   const handleCategorySubmit = async (e) => {
     e.preventDefault();
-    if (!catName.trim()) return;
+    if (!catName.trim() || (!editingCatId && !catImage.trim())) return;
 
     if (editingCatId) {
       const res = await handleUpdateCategory(editingCatId, { name: catName.trim() });
@@ -75,11 +76,13 @@ const SellerMetadataManager = () => {
     } else {
       const payload = {
         name: catName.trim(),
+        image: catImage.trim(),
         parentCategory: parentCatId || null,
       };
       const res = await handleCreateCategory(payload);
       if (res.success) {
         setCatName("");
+        setCatImage("");
         setParentCatId("");
       }
     }
@@ -177,7 +180,7 @@ const SellerMetadataManager = () => {
             <h3 className="text-xs font-extrabold uppercase tracking-wider text-accent">
               {editingCatId ? "Edit Category" : "+ Add New Category / Subcategory"}
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               <input
                 type="text"
                 placeholder="Category Name (e.g. Footwear)"
@@ -186,6 +189,7 @@ const SellerMetadataManager = () => {
                 className={inputStyle}
                 required
               />
+              {!editingCatId && <input type="url" placeholder="Category image URL (required)" value={catImage} onChange={(e) => setCatImage(e.target.value)} className={inputStyle} required />}
               {!editingCatId && (
                 <select
                   value={parentCatId}
@@ -213,6 +217,7 @@ const SellerMetadataManager = () => {
                     onClick={() => {
                       setEditingCatId(null);
                       setCatName("");
+                      setCatImage("");
                     }}
                     className="px-3 py-2.5 rounded-xl bg-surface border border-border-theme text-foreground text-xs font-bold"
                   >

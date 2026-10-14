@@ -32,7 +32,7 @@ const SellerProductCard = ({ product, onEdit, onDelete, onPublish }) => {
       ease: "elastic.out(1, 0.3)",
     });
     setTimeout(() => {
-      navigate(`/product/${product?._id || product?.slug}`);
+      navigate(`/product/${product?.slug || product?._id}`);
     }, 150);
   };
 

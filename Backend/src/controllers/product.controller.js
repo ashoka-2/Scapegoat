@@ -1435,7 +1435,7 @@ const productLookupStages = (opts = {}) => {
   return [
     { $lookup: { from: "categories", localField: "category", foreignField: "_id", as: "category" } },
     { $unwind: { path: "$category", preserveNullAndEmptyArrays: true } },
-    { $lookup: { from: "subcategories", localField: "subcategories", foreignField: "_id", as: "subcategories" } },
+    { $lookup: { from: "categories", localField: "subcategories", foreignField: "_id", as: "subcategories" } },
     { $lookup: { from: "brands", localField: "brand", foreignField: "_id", as: "brand" } },
     { $unwind: { path: "$brand", preserveNullAndEmptyArrays: true } },
     { $lookup: { from: "sellers", localField: "seller", foreignField: "_id", as: "seller" } },
@@ -1731,20 +1731,26 @@ export const getAllProducts = async (req, res) => {
       ? String(req.query.category).split(",").map((s) => s.trim()).filter(Boolean)
       : [];
     if (categoryNameList.length > 0) {
-      // Shop passes NAMES — resolve to ObjectIds
+      // Resolve selected category names and include their direct subcategories
+      // so a main-category page shows the complete collection.
       const cats = await categoryModel.find({ name: { $in: categoryNameList } }).select("_id").lean();
-      const ids = cats.map((c) => c._id);
-      if (ids.length === 1) filter.category = ids[0];
-      else if (ids.length > 1) filter.category = { $in: ids };
-    } else if (categoryIds.length === 1) {
-      filter.category = categoryIds[0];
-    } else if (categoryIds.length > 1) {
-      filter.category = { $in: categoryIds };
+      const parentIds = cats.map((category) => category._id);
+      const children = parentIds.length
+        ? await categoryModel.find({ parentCategory: { $in: parentIds }, isActive: true }).select("_id").lean()
+        : [];
+      const ids = [...parentIds, ...children.map((category) => category._id)];
+      if (ids.length) filter.$or = [{ category: { $in: ids } }, { subcategories: { $in: ids } }];
+    } else if (categoryIds.length > 0) {
+      const objectIds = categoryIds.filter((id) => MongoTypes.ObjectId.isValid(id)).map((id) => new MongoTypes.ObjectId(id));
+      filter.category = objectIds.length === 1 ? objectIds[0] : { $in: objectIds };
     }
 
     // Subcategory filter (matches products with this subcategory ID)
     if (req.query.subcategory) {
-      filter.subcategories = req.query.subcategory;
+      if (!MongoTypes.ObjectId.isValid(String(req.query.subcategory))) {
+        return res.status(400).json({ success: false, message: "Invalid subcategory" });
+      }
+      filter.subcategories = new MongoTypes.ObjectId(String(req.query.subcategory));
     }
 
     // Brand filter (single ID via ?brand= OR name-list via ?brands=)

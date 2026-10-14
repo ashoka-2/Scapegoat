@@ -649,7 +649,7 @@ const Profile = () => {
                         className="p-4 bg-background/50 border border-border-theme/40 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
                       >
                         <div
-                          onClick={() => prod._id && navigate(`/product/${prod._id}`)}
+                          onClick={() => (prod.slug || prod._id) && navigate(`/product/${prod.slug || prod._id}`)}
                           className="flex items-center gap-3 cursor-pointer group min-w-0"
                         >
                           <img src={imgUrl} alt={prod.title} className="w-12 h-14 object-cover rounded-lg border border-border-theme shrink-0 group-hover:border-accent transition" />

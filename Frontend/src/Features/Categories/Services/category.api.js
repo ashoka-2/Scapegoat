@@ -10,6 +10,16 @@ export async function getAllCategoriesApi(all = true) {
   return response.data;
 }
 
+export async function getCategoriesPageApi({ page = 1, limit = 12, roots = false, parentCategory } = {}) {
+  const response = await categoryApiInstance.get("", { params: { all: false, page, limit, ...(roots ? { roots: true } : {}), ...(parentCategory ? { parentCategory } : {}) } });
+  return response.data;
+}
+
+export async function getCategoryByIdApi(id) {
+  const response = await categoryApiInstance.get(`/${id}`);
+  return response.data;
+}
+
 /**
  * Create a new category or subcategory
  */

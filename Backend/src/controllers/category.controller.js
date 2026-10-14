@@ -1,6 +1,7 @@
 import categoryModel from "../models/category.model.js";
 import productModel from "../models/product.model.js";
 import { clearCatalogCache } from "../services/cache.service.js";
+import { Types as MongoTypes } from "mongoose";
 
 /**
  * Get all active categories (including parent & subcategories)
@@ -8,17 +9,41 @@ import { clearCatalogCache } from "../services/cache.service.js";
 export const getAllCategories = async (req, res) => {
   try {
     const filter = req.query.all === "true" || req.user?.role === "admin" ? {} : { isActive: true };
-    const categories = await categoryModel.find(filter).populate("parentCategory", "name").sort({ name: 1 }).lean();
+    if (req.query.parentCategory) filter.parentCategory = req.query.parentCategory;
+    else if (req.query.roots === "true") filter.parentCategory = null;
+
+    const isPaginated = req.query.page !== undefined || req.query.limit !== undefined;
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const limit = Math.min(50, Math.max(1, Number.parseInt(req.query.limit, 10) || 12));
+    const query = categoryModel.find(filter).populate("parentCategory", "name").sort({ name: 1 });
+    const total = isPaginated ? await categoryModel.countDocuments(filter) : null;
+    if (isPaginated) query.skip((page - 1) * limit).limit(limit);
+    const categories = await query.lean();
     return res.status(200).json({
       success: true,
       data: categories,
       categories,
+      ...(isPaginated ? { page, limit, total, pages: Math.ceil(total / limit), hasMore: page * limit < total } : {}),
     });
   } catch (error) {
     return res.status(500).json({
       success: false,
       message: error.message || "Failed to fetch categories",
     });
+  }
+};
+
+export const getCategoryById = async (req, res) => {
+  try {
+    const identifier = String(req.params.id || "");
+    const filter = MongoTypes.ObjectId.isValid(identifier)
+      ? { _id: identifier, isActive: true }
+      : { slug: identifier.toLowerCase(), isActive: true };
+    const category = await categoryModel.findOne(filter).populate("parentCategory", "name").lean();
+    if (!category) return res.status(404).json({ success: false, message: "Category not found" });
+    return res.status(200).json({ success: true, data: category });
+  } catch (error) {
+    return res.status(500).json({ success: false, message: error.message || "Failed to fetch category" });
   }
 };
 
@@ -36,6 +61,10 @@ export const createCategory = async (req, res) => {
       });
     }
 
+    if (typeof image !== "string" || !image.trim()) {
+      return res.status(400).json({ success: false, message: "A category image is required" });
+    }
+
     const existing = await categoryModel.findOne({ name: { $regex: new RegExp(`^${name.trim()}$`, "i") } });
     if (existing) {
       return res.status(400).json({
@@ -47,7 +76,7 @@ export const createCategory = async (req, res) => {
     const category = await categoryModel.create({
       name: name.trim(),
       description: description ? description.trim() : "",
-      image: image || "https://placehold.co/400x400/18181b/ffffff?text=Category",
+      image: image.trim(),
       parentCategory: parentCategory || null,
       createdBy: req.user?._id || null,
     });
@@ -94,6 +123,10 @@ export const updateCategory = async (req, res) => {
       });
     }
 
+    if (image !== undefined && (typeof image !== "string" || !image.trim())) {
+      return res.status(400).json({ success: false, message: "A category image is required" });
+    }
+
     if (!isAdmin && !isOwner) {
       return res.status(403).json({
         success: false,
@@ -103,7 +136,7 @@ export const updateCategory = async (req, res) => {
 
     if (name && name.trim()) category.name = name.trim();
     if (description !== undefined) category.description = description.trim();
-    if (image) category.image = image;
+    if (image !== undefined) category.image = image.trim();
     if (parentCategory !== undefined) category.parentCategory = parentCategory || null;
     if (isActive !== undefined) category.isActive = Boolean(isActive);
     if (isAdmin && req.body.isLocked !== undefined) category.isLocked = Boolean(req.body.isLocked);

@@ -225,7 +225,7 @@ const AIChatMessage = ({ message, isStreaming = false, onAddToCart, onAddToWishl
                 return (
                   <Link
                     key={prod._id}
-                    to={`/product/${prod._id}`}
+                    to={`/product/${prod.slug || prod._id}`}
                     className="flex items-center gap-3 p-2.5 rounded-2xl bg-surface border border-border-theme/80 hover:border-accent transition group"
                   >
                     <div className="w-11 h-13 rounded-xl overflow-hidden bg-background border border-border-theme shrink-0">

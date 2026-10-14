@@ -190,7 +190,7 @@ const SellerUserDetailPage = () => {
                     user.wishlist?.products?.map((p) => (
                       <div
                         key={p._id}
-                        onClick={() => navigate(`/product/${p._id}`)}
+                        onClick={() => navigate(`/product/${p.slug || p._id}`)}
                         className="flex items-center justify-between gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
                       >
                         <div className="flex items-center gap-3">
@@ -230,7 +230,7 @@ const SellerUserDetailPage = () => {
                       return (
                         <div
                           key={idx}
-                          onClick={() => p._id && navigate(`/product/${p._id}`)}
+                          onClick={() => (p.slug || p._id) && navigate(`/product/${p.slug || p._id}`)}
                           className="flex items-center justify-between gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
                         >
                           <div className="flex items-center gap-3">
@@ -299,7 +299,7 @@ const SellerUserDetailPage = () => {
                     user.products?.map((p) => (
                       <div
                         key={p._id}
-                        onClick={() => navigate(`/product/${p._id}`)}
+                        onClick={() => navigate(`/product/${p.slug || p._id}`)}
                         className="flex items-center gap-3 p-3 bg-background/50 rounded-2xl border border-border-theme/40 hover:border-accent/40 cursor-pointer transition"
                       >
                         <img

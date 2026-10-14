@@ -95,6 +95,10 @@ const AdminCategoriesPage = () => {
       setFormError("Category name is required.");
       return;
     }
+    if (!editingId && !image.trim()) {
+      setFormError("A category image is required.");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -335,13 +339,14 @@ const AdminCategoriesPage = () => {
 
               <div className="space-y-1.5">
                 <label className="text-foreground/70 text-[10px] font-extrabold uppercase">
-                  Image URL
+                  Category Image URL {editingId ? "" : "*"}
                 </label>
                 <input
                   type="text"
                   placeholder="https://..."
                   value={image}
                   onChange={(e) => setImage(e.target.value)}
+                  required={!editingId}
                   className="w-full bg-background border border-border-theme rounded-xl px-4 py-2.5 text-foreground focus:outline-none focus:border-accent"
                 />
               </div>

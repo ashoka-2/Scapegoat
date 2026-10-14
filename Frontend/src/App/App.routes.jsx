@@ -16,6 +16,7 @@ import AdminLayout from "../Features/Admin/Components/AdminLayout.jsx";
 import CreateProduct from "../Features/Products/Pages/CreateProduct.jsx";
 import SingleProduct from "../Features/Products/Pages/SingleProduct.jsx";
 import Shop from "../Features/Products/Pages/Shop.jsx";
+import { CategoriesPage, CategoryDetailPage } from "../Features/Categories/Pages/CategoryPages.jsx";
 import SellerDashboard from "../Features/Seller/Pages/SellerDashboard.jsx";
 import SellerCatalog from "../Features/Seller/Pages/SellerCatalog.jsx";
 import SellerMetadataManager from "../Features/Seller/Pages/SellerMetadataManager.jsx";
@@ -220,6 +221,14 @@ export const routes = createBrowserRouter([
       {
         path: "shop",
         element: <Shop />,
+      },
+      {
+        path: "categories",
+        element: <CategoriesPage />,
+      },
+      {
+        path: "categories/:categorySlug",
+        element: <CategoryDetailPage />,
       },
       {
         path: "about",

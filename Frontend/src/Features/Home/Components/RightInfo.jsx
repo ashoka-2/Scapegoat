@@ -100,7 +100,7 @@ const ProductCardItem = ({ product }) => {
 
   return (
     <div
-      onClick={() => navigate(`/product/${product?._id || product?.slug}`)}
+      onClick={() => navigate(`/product/${product?.slug || product?._id}`)}
       className={`bg-surface dark:bg-[#1C1C1E] text-foreground p-2.5 sm:p-3 rounded-[2rem] sm:rounded-[2.5rem] w-[185px] min-[380px]:w-[200px] sm:w-[240px] shadow-md lg:shadow-2xl relative border border-white/10 dark:border-white/10 transition-colors flex-shrink-0 snap-center cursor-pointer group`}
     >
       <div className="w-full h-auto rounded-[1.4rem] sm:rounded-[1.7rem] overflow-hidden mb-3 sm:mb-4 bg-background relative">

@@ -72,6 +72,7 @@ const CreateProduct = () => {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [editingCatId, setEditingCatId] = useState(null);
   const [newCatName, setNewCatName] = useState("");
+  const [newCatImage, setNewCatImage] = useState("");
   const [isSubcategoryModal, setIsSubcategoryModal] = useState(false);
   const [modalParentCat, setModalParentCat] = useState("");
 
@@ -1903,10 +1904,11 @@ const CreateProduct = () => {
             setShowCategoryModal(false);
             setEditingCatId(null);
             setNewCatName("");
+            setNewCatImage("");
           }}
           onSubmit={async (e) => {
             if (e) e.preventDefault();
-            if (!newCatName.trim()) return;
+            if (!newCatName.trim() || (!editingCatId && !newCatImage.trim())) return;
 
             if (editingCatId) {
               const res = await handleUpdateCategory(editingCatId, { name: newCatName.trim() });
@@ -1918,6 +1920,7 @@ const CreateProduct = () => {
             } else {
               const payload = {
                 name: newCatName.trim(),
+                image: newCatImage.trim(),
                 parentCategory: isSubcategoryModal ? modalParentCat || formData.category || null : null,
               };
               const res = await handleCreateCategory(payload);
@@ -1928,6 +1931,7 @@ const CreateProduct = () => {
                   setFormData((prev) => ({ ...prev, category: res.data._id }));
                 }
                 setNewCatName("");
+                setNewCatImage("");
                 setIsSubcategoryModal(false);
                 setShowCategoryModal(false);
               }
@@ -1946,6 +1950,9 @@ const CreateProduct = () => {
                 autoFocus
               />
             </FormField>
+            {!editingCatId && <FormField label="Category Image URL" required>
+              <input type="url" value={newCatImage} onChange={(e) => setNewCatImage(e.target.value)} className={inputClass} placeholder="https://..." required />
+            </FormField>}
           </div>
         </Modal>
       )}

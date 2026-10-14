@@ -122,7 +122,7 @@ const ProductCard = ({ product, imageOverride, colorLabel, colorParam }) => {
       ref={cardRef}
       onClick={() =>
         navigate(
-          `/product/${product?._id || product?.slug}${colorParam ? `?color=${encodeURIComponent(colorParam)}` : ""}`
+          `/product/${product?.slug || product?._id}${colorParam ? `?color=${encodeURIComponent(colorParam)}` : ""}`
         )
       }
       className="group relative bg-surface dark:bg-[#121212] border border-border-theme/30 rounded-[1.8rem] sm:rounded-[2.2rem] w-full min-w-0 max-w-[260px] mx-auto shadow-sm hover:shadow-2xl transition-all duration-500 overflow-hidden cursor-pointer p-2 sm:p-2.5"

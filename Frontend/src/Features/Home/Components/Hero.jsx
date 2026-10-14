@@ -1,10 +1,14 @@
-import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { useEffect, useMemo, useRef, useState } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { useNavigate } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { useCategory } from "../../Categories/Hooks/useCategory";
 import LeftInfo from "./LeftInfo";
 import RightInfo from "./RightInfo";
+import { DEFAULT_HERO_PRESET, getHeroPreset } from "../Config/heroSlides.config";
+
+gsap.registerPlugin(useGSAP);
 
 const FALLBACK_CATEGORIES = [
   { _id: "clothing", name: "Clothing" },
@@ -17,24 +21,7 @@ const FALLBACK_CATEGORIES = [
   { _id: "tools", name: "Tools" },
 ];
 
-const HERO_BACKGROUNDS = ["#633c4a", "#365573", "#4c5644", "#6a4938", "#454b70", "#5c5140", "#365653"];
 const EMPTY_PRODUCTS = [];
-
-const categoryArtwork = (name = "") => {
-  const value = name.toLowerCase();
-  if (/shoe|footwear|sneaker|sandal/.test(value)) return "/hero-categories/footwear.png";
-  if (/computer|electronic|laptop|mobile|phone|camera|gadget/.test(value)) return "/hero-categories/electronics.png";
-  if (/furnit|chair|table|sofa|desk/.test(value)) return "/hero-categories/furniture.png";
-  if (/massage|massager|wellness/.test(value)) return "/hero-categories/massagers.png";
-  if (/tool|hardware|torch|lighter|spare|mixi/.test(value)) return "/hero-categories/tools.png";
-  if (/school|kid|toy|backpack|bag/.test(value)) return "/hero-categories/school.png";
-  if (/station|book|notebook|paper|pen|pencil/.test(value)) return "/hero-categories/stationery.png";
-  if (/bottle|home|kitchen|household|decor/.test(value)) return "/hero-categories/home.png";
-  if (/women|girl/.test(value)) return "/model.png";
-  if (/\bmen\b|men's|mens|boy/.test(value)) return "/hero-categories/menswear.png";
-  if (/cloth|cotton|linen|hoodie|shirt|pant|sweater|fashion|polo/.test(value)) return "/model.png";
-  return null;
-};
 
 const productMatchesCategory = (product, category) => {
   const categoryId = String(category?._id || "");
@@ -81,6 +68,8 @@ const Hero = () => {
   const { categories, handleFetchCategories } = useCategory();
   const products = useSelector((state) => state.product.products) || EMPTY_PRODUCTS;
   const [currentIndex, setCurrentIndex] = useState(0);
+  const heroRef = useRef(null);
+  const previousSlideRef = useRef(null);
 
   useEffect(() => {
     if (!categories?.length) handleFetchCategories();
@@ -91,12 +80,14 @@ const Hero = () => {
     const source = activeCategories.length ? activeCategories : FALLBACK_CATEGORIES;
     return source.map((category, index) => {
       const categoryProducts = products.filter((product) => productMatchesCategory(product, category));
-      const hash = [...String(category._id || category.name)].reduce((value, char) => value + char.charCodeAt(0), 0);
+      const preset = getHeroPreset(category.name);
       return {
         ...category,
         key: String(category._id || category.slug || category.name),
-        artwork: categoryArtwork(category.name) || category.image || "/hero-categories/home.png",
-        background: HERO_BACKGROUNDS[hash % HERO_BACKGROUNDS.length],
+        artwork: preset?.artwork || category.image || DEFAULT_HERO_PRESET.artwork,
+        gradient: preset?.gradient || DEFAULT_HERO_PRESET.gradient,
+        heroTitle: preset?.title,
+        eyebrow: preset?.eyebrow,
         featured: (categoryProducts.length ? categoryProducts : products).slice(0, 5),
         index,
       };
@@ -105,6 +96,33 @@ const Hero = () => {
 
   const activeIndex = slides.length ? currentIndex % slides.length : 0;
   const activeSlide = slides[activeIndex];
+
+  useGSAP(() => {
+    const root = heroRef.current;
+    if (!root || !activeSlide) return;
+    const background = root.querySelector("[data-hero-background]");
+    const art = root.querySelector("[data-hero-art]");
+    const copy = root.querySelector("[data-hero-copy]");
+    const info = root.querySelector("[data-hero-info]");
+    const previous = previousSlideRef.current;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches || !previous) {
+      background.style.backgroundImage = activeSlide.gradient;
+      gsap.set([art, copy, info], { autoAlpha: 1, clearProps: "transform" });
+      previousSlideRef.current = activeSlide.key;
+      return;
+    }
+    const timeline = gsap.timeline({
+      onComplete: () => { previousSlideRef.current = activeSlide.key; },
+    });
+    timeline
+      .to(background, { opacity: 0.25, duration: 0.25, ease: "power1.out" }, 0)
+      .add(() => { background.style.backgroundImage = activeSlide.gradient; })
+      .to(background, { opacity: 1, duration: 0.65, ease: "power2.inOut" })
+      .fromTo(art, { autoAlpha: 0, x: 24, y: 12, scale: 0.97 }, { autoAlpha: 1, x: 0, y: 0, scale: 1, duration: 0.75, ease: "power3.out" }, 0.05)
+      .fromTo(copy, { autoAlpha: 0, y: 16 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "power2.out" }, 0.12)
+      .fromTo(info, { autoAlpha: 0, y: 12 }, { autoAlpha: 1, y: 0, duration: 0.45, ease: "power2.out" }, 0.18);
+    return () => timeline.kill();
+  }, { scope: heroRef, dependencies: [activeSlide?.key], revertOnUpdate: true });
 
   useEffect(() => {
     if (slides.length < 2 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return undefined;
@@ -120,41 +138,32 @@ const Hero = () => {
     <div className="w-full pb-10 sm:pb-16 flex flex-col items-center pt-4">
       <HeroHeader />
 
-      <div className="relative w-[98%] max-w-[1300px] mx-auto min-h-[500px] lg:min-h-[550px] flex flex-col items-center justify-end px-2 sm:px-6 z-10">
-        <div className="w-full h-auto lg:h-[500px] rounded-[40px] lg:rounded-[64px] relative flex flex-col lg:flex-row shadow-xl lg:shadow-2xl z-0 border border-border-theme overflow-visible lg:overflow-hidden transition-colors duration-700" style={{ backgroundColor: activeSlide?.background || "#633c4a" }}>
-          <div className="absolute left-[-10%] top-[-10%] w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] bg-white/10 rounded-full z-0 opacity-60 blur-[30px] sm:blur-[60px] transition-colors duration-700" />
+      <div ref={heroRef} className="relative w-[98%] max-w-[1300px] mx-auto min-h-[500px] lg:min-h-[550px] flex flex-col items-center justify-end px-2 sm:px-6 z-10">
+        <div className="w-full min-h-[590px] lg:min-h-0 lg:h-[500px] rounded-[40px] lg:rounded-[64px] relative flex flex-col lg:flex-row shadow-xl lg:shadow-2xl z-0 border border-border-theme overflow-visible isolate">
+          <div data-hero-background className="absolute inset-0 z-0 rounded-[40px] lg:rounded-[64px] transition-none" style={{ backgroundImage: activeSlide?.gradient }} />
+          <div className="absolute inset-0 z-[1] rounded-[40px] lg:rounded-[64px] bg-black/10 pointer-events-none" />
+          <div className="absolute left-[-10%] top-[-10%] w-[300px] h-[300px] sm:w-[450px] sm:h-[450px] bg-white/10 rounded-full z-[1] opacity-60 blur-[30px] sm:blur-[60px] pointer-events-none" />
 
-          <div className="w-full lg:w-[35%] relative z-10 px-6 sm:px-12 lg:px-16 pt-[70px] pb-12 lg:py-0 flex flex-col justify-center h-full">
-            <motion.div key={`copy-${activeSlide?.key}`} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, ease: "easeOut" }}>
+          <div className="absolute inset-x-0 top-[-145px] bottom-0 z-[2] overflow-hidden pointer-events-none rounded-t-[40px] lg:rounded-t-[64px]" aria-hidden="true">
+            <img data-hero-art src={activeSlide?.artwork} alt="" className="absolute right-[-18%] bottom-[-2%] w-[88%] h-[calc(100%+145px)] object-contain object-bottom sm:right-[-10%] sm:bottom-[-4%] sm:w-[74%] sm:h-[calc(100%+145px)] lg:right-auto lg:left-[28%] lg:bottom-[-15%] lg:w-[48%] lg:h-[calc(100%+145px)] drop-shadow-[0_24px_32px_rgba(0,0,0,0.2)]" />
+          </div>
+          <div className="pointer-events-none absolute inset-0 z-[3] rounded-[40px] lg:rounded-[64px] opacity-20 mix-blend-soft-light" style={{ backgroundImage: "url('/hero-noise.svg')", backgroundSize: "180px 180px" }} aria-hidden="true" />
+
+          <div data-hero-copy className="w-full lg:w-[35%] relative z-10 px-6 sm:px-12 lg:px-16 pt-8 sm:pt-10 lg:pt-0 pb-5 sm:pb-8 lg:pb-0 flex flex-col justify-start lg:justify-center min-h-[255px] lg:min-h-0 lg:h-full">
               <LeftInfo
-                badgeText={`SCAPEGOAT / ${categoryName}`}
-                title={`${categoryName.length > 14 ? "Shop" : "Discover"}\n${categoryName}`}
+                badgeText={`${activeSlide?.eyebrow || "SCAPEGOAT"} / ${categoryName}`}
+                title={activeSlide?.heroTitle || `${categoryName.length > 14 ? "Shop" : "Discover"}\n${categoryName}`}
                 subtitle={categorySubtitle}
                 buttonText={`Shop ${categoryName}`}
                 ratingText={`Curated picks across\n${categoryName}.`}
                 onExplore={() => navigate(`/shop?categories=${encodeURIComponent(categoryName)}`)}
               />
-            </motion.div>
           </div>
 
           <div className="hidden lg:block lg:w-[30%] lg:h-full" />
 
-          <div className="hidden lg:flex lg:w-[35%] relative z-10 px-6 sm:px-12 lg:px-12 flex-col lg:items-end justify-center pt-8 pb-[100px] lg:py-0 h-full">
+          <div data-hero-info className="hidden lg:flex lg:w-[35%] relative z-10 px-6 sm:px-12 lg:px-12 flex-col lg:items-end justify-center pt-8 pb-[100px] lg:py-0 h-full">
             <RightInfo products={activeSlide?.featured} slideKey={activeSlide?.key} />
-          </div>
-        </div>
-
-        <div className="absolute inset-x-2 sm:inset-x-6 bottom-0 top-0 pointer-events-none z-10 lg:overflow-visible" style={{ clipPath: "inset(-1000px 0px -1000px -1000px)" }}>
-          <div className="absolute bottom-[52%] md:bottom-[50%] lg:bottom-[24px] left-1/2 -translate-x-[25%] lg:-translate-x-1/2 w-[500px] sm:w-[520px] md:w-[580px] lg:w-[570px] xl:w-[580px] flex justify-center">
-            <motion.img
-              key={`art-${activeSlide?.key}`}
-              src={activeSlide?.artwork}
-              alt={`${categoryName} collection`}
-              initial={{ opacity: 0, y: 18, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.55, ease: "easeOut" }}
-              className="w-full h-auto max-h-[850px] object-contain object-bottom translate-y-6"
-            />
           </div>
         </div>
 

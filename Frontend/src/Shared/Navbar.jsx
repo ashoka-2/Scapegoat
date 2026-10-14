@@ -6,6 +6,7 @@ import { useCart } from "../Features/Cart/Hooks/useCart";
 import { aiSearchProductsApi } from "../Features/Products/Services/product.api";
 import VisualSearchModal from "./VisualSearch/VisualSearchModal";
 import { useDebounce } from "../utils/timingUtils";
+import CategoryMenu from "./CategoryMenu";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 
@@ -261,7 +262,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const menuLinks = [
     { id: "01", name: "Home", path: "/", desc: "Start here" },
     { id: "02", name: "Shop All", path: "/shop", desc: "Latest products" },
-    { id: "03", name: "Categories", path: "/shop", desc: "Sort by categories" },
+    { id: "03", name: "Categories", path: "/categories", desc: "Browse all categories" },
     { id: "04", name: "About Us", path: "/about", desc: "Identity" },
     { id: "05", name: "Contact Us", path: "/contact", desc: "Contact Us" },
   ];
@@ -269,6 +270,7 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
   const navLinks = [
     { name: "Home", path: "/" },
     { name: "Shop", path: "/shop" },
+    { name: "Categories", path: "/shop", categories: true },
     { name: "About", path: "/about" },
     { name: "Contact", path: "/contact" },
   ];
@@ -310,7 +312,8 @@ const Navbar = ({ toggleTheme, isDarkMode }) => {
         {/* Middle: Nav Links (desktop) — centered, active link highlighted */}
         <div className="hidden md:flex items-center gap-4 lg:gap-8 flex-1 justify-center ml-6 lg:ml-10">
           {navLinks.map((link, index) => {
-            const active = location.pathname === link.path;
+            const active = link.categories ? location.pathname.startsWith("/categories") : location.pathname === link.path;
+            if (link.categories) return <CategoryMenu key={link.name} active={active} />;
             return (
               <Link
                 key={index}
