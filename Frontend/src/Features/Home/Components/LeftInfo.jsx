@@ -1,11 +1,10 @@
-import React from "react";
-
 const LeftInfo = ({
   badgeText = "New Drop",
   title = "Meets \n your \n Style",
   subtitle = "Step into the future of urban streetwear today.",
   buttonText = "Explore Collection",
   ratingText = "Rated 5 Stars by\nThe ScapeGoat Community",
+  onExplore,
   avatars = [
     "https://i.pravatar.cc/100?img=12",
     "https://i.pravatar.cc/100?img=33",
@@ -25,7 +24,7 @@ const LeftInfo = ({
         {subtitle}
       </p>
 
-      <button className="bg-white dark:bg-accent text-[#131313] dark:text-accent-content rounded-full px-4 sm:px-8 py-2.5 sm:py-4 w-fit font-bold flex items-center gap-2 sm:gap-3 hover:scale-105 transition-all shadow-xl group text-xs sm:text-sm md:text-base border border-transparent hover:border-white cursor-pointer">
+      <button onClick={onExplore} className="bg-white dark:bg-accent text-[#131313] dark:text-accent-content rounded-full px-4 sm:px-8 py-2.5 sm:py-4 w-fit font-bold flex items-center gap-2 sm:gap-3 hover:scale-105 transition-all shadow-xl group text-xs sm:text-sm md:text-base border border-transparent hover:border-white cursor-pointer">
         {buttonText}
         <span className="bg-accent dark:bg-background text-accent-content dark:text-accent rounded-full p-1 group-hover:translate-x-1 transition-transform flex items-center justify-center w-6 h-6 sm:w-8 sm:h-8">
           <i className="ri-arrow-right-line text-xs sm:text-base"></i>

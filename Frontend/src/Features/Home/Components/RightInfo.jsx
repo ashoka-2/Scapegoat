@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { useDispatch, useSelector } from "react-redux";
 import { motion, useAnimation } from "framer-motion";
 import { useNavigate } from "react-router-dom";
-import { useProduct } from "../../Products/Hooks/useProduct";
 import { addToast } from "../../../utils/toast.slice";
 import { useCart } from "../../Cart/Hooks/useCart";
 import FeaturedProductCardSkeleton from "./Skeletons/FeaturedProductCardSkeleton";
@@ -170,25 +169,8 @@ const ProductCardItem = ({ product }) => {
   );
 };
 
-const FeatureCard = () => {
-  const { handleFetchAllProducts } = useProduct();
-  const reduxProducts = useSelector((state) => state.product.products) || [];
-  const [localProducts, setLocalProducts] = useState([]);
-
-  const hasFetchedRef = useRef(false);
-
-  useEffect(() => {
-    if (
-      !hasFetchedRef.current &&
-      (!reduxProducts || reduxProducts.length === 0)
-    ) {
-      hasFetchedRef.current = true;
-      handleFetchAllProducts();
-    }
-  }, []);
-
-  const allProducts = reduxProducts.length > 0 ? reduxProducts : localProducts;
-  const featuredProducts = allProducts.slice(0, 5);
+const FeatureCard = ({ products = [], slideKey }) => {
+  const featuredProducts = products.slice(0, 5);
   const [currentIndex, setCurrentIndex] = useState(0);
   const desktopCardRef = useRef(null);
 
@@ -208,7 +190,7 @@ const FeatureCard = () => {
         { opacity: 1, y: 0, scale: 1, duration: 0.8, ease: "power3.out" },
       );
     }
-  }, [currentIndex, featuredProducts.length]);
+  }, [currentIndex, featuredProducts.length, slideKey]);
 
   if (featuredProducts.length === 0) {
     return (
@@ -262,6 +244,8 @@ const FeatureCard = () => {
 };
 
 const RightInfo = ({
+  products = [],
+  slideKey,
   features = [
     { title: "Future\nThreads", iconClass: "ri-price-tag-3-line" },
     { title: "Unique\nDesigns", iconClass: "ri-quill-pen-line" },
@@ -288,7 +272,7 @@ const RightInfo = ({
         ))}
       </div>
 
-      <FeatureCard />
+      <FeatureCard key={slideKey} products={products} slideKey={slideKey} />
     </div>
   );
 };
