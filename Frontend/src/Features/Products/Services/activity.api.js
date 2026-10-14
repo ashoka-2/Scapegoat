@@ -45,8 +45,8 @@ export async function getRecentlyViewedApi(limit = 10) {
 }
 
 /** Get personalized "For You" products (Instagram-style) */
-export async function getForYouApi(limit = 10) {
-  const res = await activityApi.get("/for-you", { params: { limit } });
+export async function getForYouApi(limit = 12, page = 1) {
+  const res = await activityApi.get("/for-you", { params: { limit, page } });
   return res.data;
 }
 

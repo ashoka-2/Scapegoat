@@ -1,6 +1,8 @@
 import UserActivity from "../models/userActivity.model.js";
 import productModel from "../models/product.model.js";
 import orderModel from "../models/order.model.js";
+import { pineconeReady, queryTextVectors } from "../services/pinecone.service.js";
+import { vectorSearchText } from "../services/mongoVectorSearch.service.js";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const MAX_VIEWS = 100; // Cap stored views per user
@@ -261,24 +263,7 @@ export const scoreForYouProducts = async (activity, limit) => {
     .slice(0, 6)
     .map(([term]) => term);
 
-  const topCats = Object.entries(catInterests)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id]) => id);
-  const topBrands = Object.entries(brandInterests)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([id]) => id);
-
   const filter = { status: "published" };
-  const interestRestriction = [];
-  if (topCats.length > 0) interestRestriction.push({ category: { $in: topCats } });
-  if (topBrands.length > 0) interestRestriction.push({ brand: { $in: topBrands } });
-  // Restrict to interest categories/brands ONLY when there are no search terms —
-  // otherwise search affinity should get a chance to rank the whole catalog.
-  if (interestRestriction.length > 0 && topSearchTerms.length === 0) {
-    filter.$or = interestRestriction;
-  }
 
   const scoreCandidate = (p) => {
     let score = 0;
@@ -289,6 +274,11 @@ export const scoreForYouProducts = async (activity, limit) => {
     if (catId && catInterests[catId]) score += catInterests[catId] * 3;
     // Brand affinity score
     if (brandId && brandInterests[brandId]) score += brandInterests[brandId] * 2;
+
+    // Similarity from the text vector index is a strong but bounded signal.
+    // This lets products outside the user's top categories still surface when
+    // their content is genuinely similar to products they engage with.
+    score += (semanticScores.get(p._id.toString()) || 0) * 30;
 
     // Search-term affinity: products matching what the user searches get a
     // solid boost (the "which user searches more" signal)
@@ -311,18 +301,51 @@ export const scoreForYouProducts = async (activity, limit) => {
     productModel
       .find(f)
       .sort({ createdAt: -1 })
-      .limit(100)
+      .limit(400)
       .populate("category", "name slug")
       .populate("brand", "name slug image")
       .populate("seller", "fullname profilePic")
       .lean();
 
-  let candidates = await fetchCandidates(filter);
+  // Retrieve semantic neighbors of the products this visitor most engages
+  // with. Query a few representative vectors rather than embedding on demand.
+  const semanticScores = new Map();
+  const engagedIds = [...activity.views]
+    .sort((a, b) => (b.dwellMs + b.viewCount * 15000) - (a.dwellMs + a.viewCount * 15000))
+    .slice(0, 3)
+    .map((v) => v.product);
+  if (engagedIds.length) {
+    const sources = await productModel.find({ _id: { $in: engagedIds } }).select("+embedding").lean();
+    const sourceById = new Map(sources.map((p) => [p._id.toString(), p]));
+    const neighbors = await Promise.all(engagedIds.map(async (id) => {
+      const vector = sourceById.get(id.toString())?.embedding;
+      if (!Array.isArray(vector) || vector.length === 0) return [];
+      if (pineconeReady()) {
+        const result = await queryTextVectors(vector, 80);
+        if (result.ok && result.matches.length) return result.matches;
+      }
+      return vectorSearchText(vector, 80);
+    }));
+    neighbors.flat().forEach((match) => {
+      const rawId = match.id || match.product?._id;
+      const id = rawId?.toString().replace(/^p:/, "");
+      if (!id) return;
+      const similarity = Number(match.score) || 0;
+      semanticScores.set(id, Math.max(semanticScores.get(id) || 0, similarity));
+    });
+  }
 
-  // Thin pool (e.g. the visitor viewed everything in their interest category):
-  // broaden to the whole catalog so recommendations never come back empty.
-  if (candidates.length < 5) {
-    candidates = await fetchCandidates({ status: "published" });
+  const candidates = await fetchCandidates(filter);
+  const candidateIds = new Set(candidates.map((p) => p._id.toString()));
+  const semanticOnlyIds = [...semanticScores.keys()].filter((id) => !candidateIds.has(id));
+  if (semanticOnlyIds.length) {
+    const semanticProducts = await productModel
+      .find({ _id: { $in: semanticOnlyIds }, status: "published" })
+      .populate("category", "name slug")
+      .populate("brand", "name slug image")
+      .populate("seller", "fullname profilePic")
+      .lean();
+    candidates.push(...semanticProducts);
   }
 
   const scored = candidates
@@ -344,37 +367,46 @@ export const scoreForYouProducts = async (activity, limit) => {
 export const getForYouProducts = async (req, res) => {
   try {
     const identity = resolveIdentity(req);
-    if (!identity) {
-      // No identity → newest products as fallback (matches the no-activity case)
-      const newest = await productModel
-        .find({ status: "published" })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate("category", "name slug")
-        .populate("brand", "name slug image")
-        .populate("seller", "fullname profilePic")
-        .lean();
-      return res.status(200).json({ success: true, data: newest });
-    }
-    const limit = Math.min(parseInt(req.query.limit, 10) || 10, 30);
+    const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 12, 1), 30);
+    const page = Math.max(parseInt(req.query.page, 10) || 1, 1);
 
-    const activity = await findActivity(identity).lean();
+    const activity = identity ? await findActivity(identity).lean() : null;
 
     // If no activity, return newest products as fallback
-    if (!activity || !activity.views || activity.views.length === 0) {
-      const newest = await productModel
-        .find({ status: "published" })
+    const ranked = activity?.views?.length ? await scoreForYouProducts(activity, 400) : [];
+    const rankedIds = ranked.map((product) => product._id);
+    const rankedCount = ranked.length;
+    const offset = (page - 1) * limit;
+    const result = [];
+
+    if (offset < rankedCount) result.push(...ranked.slice(offset, offset + limit));
+    const genericOffset = Math.max(0, offset - rankedCount);
+    const remaining = limit - result.length;
+    if (remaining > 0) {
+      const genericFilter = { status: "published" };
+      if (rankedIds.length) genericFilter._id = { $nin: rankedIds };
+      const generic = await productModel
+        .find(genericFilter)
         .sort({ createdAt: -1 })
-        .limit(limit)
+        .skip(genericOffset)
+        .limit(remaining)
         .populate("category", "name slug")
         .populate("brand", "name slug image")
         .populate("seller", "fullname profilePic")
         .lean();
-      return res.status(200).json({ success: true, data: newest });
+      result.push(...generic);
     }
-
-    const results = await scoreForYouProducts(activity, limit);
-    return res.status(200).json({ success: true, data: results });
+    const total = await productModel.countDocuments({ status: "published" });
+    return res.status(200).json({
+      success: true,
+      data: result,
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+      personalizedCount: rankedCount,
+      hasMore: offset + result.length < total,
+    });
   } catch (error) {
     console.error("Error fetching for-you products:", error);
     return res.status(500).json({ success: false, message: error.message });

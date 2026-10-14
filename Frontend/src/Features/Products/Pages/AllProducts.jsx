@@ -26,7 +26,7 @@ const AllProducts = () => {
         handleFetchAllProducts();
       }
       fetchRecentlyViewed(10);
-      fetchForYou(10);
+      fetchForYou(10, 1);
     }
   }, [products]);
 
@@ -67,6 +67,17 @@ const AllProducts = () => {
         </div>
       ) : (
         <>
+          {/* Home teaser: keep the personalized set compact like the other rows. */}
+          {forYouProducts.length > 0 && (
+            <ProductCarousel
+              badge="Picked for your taste"
+              title="Your personal edit"
+              subtitle="A few picks shaped by what you view, revisit, and search for."
+              products={forYouProducts.slice(0, 10)}
+              onViewAll={() => navigate("/shop?filter=for-you")}
+            />
+          )}
+
           {/* 1. New Arrivals Section (Max 10, Slider) */}
           {newArrivals.length > 0 && (
             <ProductCarousel
@@ -86,17 +97,6 @@ const AllProducts = () => {
               subtitle="Products you were checking out earlier."
               products={recentlyViewed}
               onViewAll={() => navigate("/shop?filter=recently-viewed")}
-            />
-          )}
-
-          {/* 3. For You Section (Instagram-Style Algorithm Recommendations) */}
-          {forYouProducts && forYouProducts.length > 0 && (
-            <ProductCarousel
-              badge="Picked For You"
-              title="Curated Recommendations"
-              subtitle="Based on your interests, viewing patterns, and preferences."
-              products={forYouProducts}
-              onViewAll={() => navigate("/shop?filter=for-you")}
             />
           )}
 

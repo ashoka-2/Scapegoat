@@ -1,5 +1,4 @@
 import { useState, useCallback, useRef } from "react";
-import { useSelector } from "react-redux";
 import {
   trackViewApi,
   trackDwellApi,
@@ -10,11 +9,11 @@ import {
 
 // ── Hook ─────────────────────────────────────────────────────────────────────
 export const useUserActivity = () => {
-  const user = useSelector((state) => state.auth?.user);
-  const userId = user?._id || user?.id;
-
   const [recentlyViewed, setRecentlyViewed] = useState([]);
   const [forYouProducts, setForYouProducts] = useState([]);
+  const [forYouHasMore, setForYouHasMore] = useState(false);
+  const [forYouPage, setForYouPage] = useState(0);
+  const [forYouTotal, setForYouTotal] = useState(0);
   const [fbtProducts, setFbtProducts] = useState([]);
   const [loadingRecent, setLoadingRecent] = useState(false);
   const [loadingForYou, setLoadingForYou] = useState(false);
@@ -58,13 +57,17 @@ export const useUserActivity = () => {
 
   // Fetch "For You" personalized products
   const fetchForYou = useCallback(
-    async (limit = 10) => {
+    async (limit = 12, page = 1, append = false) => {
       setLoadingForYou(true);
       try {
-        const data = await getForYouApi(limit);
-        setForYouProducts(data.data || []);
+        const data = await getForYouApi(limit, page);
+        setForYouProducts((current) => append ? [...current, ...(data.data || [])] : (data.data || []));
+        setForYouHasMore(Boolean(data.hasMore));
+        setForYouPage(data.page || page);
+        setForYouTotal(data.total || 0);
       } catch {
-        setForYouProducts([]);
+        if (!append) setForYouProducts([]);
+        setForYouHasMore(false);
       } finally {
         setLoadingForYou(false);
       }
@@ -95,6 +98,9 @@ export const useUserActivity = () => {
     trackDwell,
     recentlyViewed,
     forYouProducts,
+    forYouHasMore,
+    forYouPage,
+    forYouTotal,
     fbtProducts,
     loadingRecent,
     loadingForYou,
@@ -107,8 +113,6 @@ export const useUserActivity = () => {
 
 // ── Dwell time tracker hook ──────────────────────────────────────────────────
 export const useDwellTracker = (productId) => {
-  const user = useSelector((state) => state.auth?.user);
-  const userId = user?._id || user?.id;
   const startTimeRef = useRef(null);
 
   const prevProductIdRef = useRef(null);
@@ -120,13 +124,13 @@ export const useDwellTracker = (productId) => {
 
   // Record dwell time when leaving page or changing product
   const recordDwell = useCallback(() => {
-    if (startTimeRef.current && productId && userId) {
+    if (startTimeRef.current && productId) {
       const dwellMs = Date.now() - startTimeRef.current;
       if (dwellMs > 2000) {
         trackDwellApi(productId, dwellMs);
       }
     }
-  }, [productId, userId]);
+  }, [productId]);
 
   return recordDwell;
 };

@@ -410,7 +410,16 @@ const Shop = () => {
   const initialFilter = searchParams.get("filter") || "";
 
   const { loading } = useSelector((state) => state.product);
-  const { recentlyViewed, forYouProducts, fetchRecentlyViewed, fetchForYou } = useUserActivity();
+  const {
+    recentlyViewed,
+    forYouProducts,
+    forYouHasMore,
+    forYouPage,
+    forYouTotal,
+    loadingForYou,
+    fetchRecentlyViewed,
+    fetchForYou,
+  } = useUserActivity();
 
   const [rawSearchQuery, setRawSearchQuery] = useState(initialQuery);
 
@@ -569,8 +578,8 @@ const Shop = () => {
     async (reset) => {
       const isSearchActive = Boolean(debouncedSearchQuery && debouncedSearchQuery.trim());
       const isActivityPool =
-        (initialFilter === "recently-viewed" && recentlyViewed.length > 0) ||
-        (initialFilter === "for-you" && forYouProducts.length > 0);
+        initialFilter === "for-you" ||
+        (initialFilter === "recently-viewed" && recentlyViewed.length > 0);
       // Search results (AI) and activity pools are fetched by their own flows
       if (isSearchActive || isActivityPool) return;
 
@@ -606,11 +615,14 @@ const Shop = () => {
     if (!hasShopFetchedRef.current) {
       hasShopFetchedRef.current = true;
       fetchShopPage(true);
-      if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
-      if (initialFilter === "for-you") fetchForYou(20);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialFilter]);
+
+  useEffect(() => {
+    if (initialFilter === "recently-viewed") fetchRecentlyViewed(20);
+    if (initialFilter === "for-you") fetchForYou(20, 1);
+  }, [initialFilter, fetchRecentlyViewed, fetchForYou]);
 
   // Refetch page 1 whenever search/filters/sort change
   useEffect(() => {
@@ -781,12 +793,16 @@ const Shop = () => {
   // Reset pagination count when search/filters change (handled by the refetch
   // effect above — this hook keeps the sentinel/state consistent)
   const loadMoreProducts = useCallback(() => {
+    if (initialFilter === "for-you") {
+      if (forYouHasMore && !loadingForYou) fetchForYou(20, forYouPage + 1, true);
+      return;
+    }
     if (fetchingMore || !hasMorePages) return;
     fetchShopPage(false);
-  }, [fetchingMore, hasMorePages, fetchShopPage]);
+  }, [initialFilter, forYouHasMore, loadingForYou, forYouPage, fetchForYou, fetchingMore, hasMorePages, fetchShopPage]);
 
-  const hasMore = hasMorePages;
-  const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || isAiLoading || fetchingMore);
+  const hasMore = initialFilter === "for-you" ? forYouHasMore : hasMorePages;
+  const sentinelRef = useInfiniteScroll(loadMoreProducts, hasMore, loading || loadingForYou || isAiLoading || fetchingMore);
 
   const displayedProducts = useMemo(() => {
     // Visual mode: the backend already ranked by similarity — keep its order
@@ -866,7 +882,7 @@ const Shop = () => {
             </div>
           )}
           <p className="text-xs font-bold uppercase tracking-widest text-foreground/50">
-            Showing <span className="text-foreground font-black">{displayedProducts.length}</span> of {shopTotal || filteredProducts.length} Drops
+            Showing <span className="text-foreground font-black">{displayedProducts.length}</span> of {initialFilter === "for-you" ? forYouTotal : (shopTotal || filteredProducts.length)} Drops
           </p>
           <button
             onClick={() => setIsMobileFilterOpen(true)}
@@ -937,7 +953,7 @@ const Shop = () => {
               </button>
             </div>
           )}
-          {shopLoading && shopProducts.length === 0 ? (
+          {(shopLoading && shopProducts.length === 0) || (initialFilter === "for-you" && loadingForYou && forYouProducts.length === 0) ? (
             <ProductGridSkeleton count={8} />
           ) : displayedProducts.length > 0 ? (
             <>
