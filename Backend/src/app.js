@@ -4,6 +4,9 @@ import morgan from "morgan";
 import cors from "cors";
 import helmet from "helmet";
 import passport from "passport";
+import path from "path";
+import fs from "fs";
+import { fileURLToPath } from "url";
 import "./config/passport.js";
 
 import { config } from "./config/config.js";
@@ -87,10 +90,6 @@ app.use(cookieParser());
 app.use(passport.initialize());
 
 // 3. Health Check
-app.get("/", (_req, res) => {
-  res.status(200).json({ message: "Scapegoat API Server is running" });
-});
-
 // Public health endpoint — used by the frontend wake-ping and uptime keep-alive
 // monitors so the Render free tier doesn't serve 502s while spinning up.
 app.get("/api/health", (_req, res) => {
@@ -121,7 +120,27 @@ app.use("/api/coupons", couponRouter);
 app.use("/api/ai", aiRouter);
 app.use("/api/bills", billRouter);
 
-// 6. Global Error Handling Middleware (Ensures CORS headers are preserved on error responses)
+// 6. Serve static Frontend build from /public when available (Single-URL Render deployment)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const publicDirectoryPath = path.resolve(__dirname, "../public");
+const indexHtmlPath = path.join(publicDirectoryPath, "index.html");
+
+if (fs.existsSync(indexHtmlPath)) {
+  app.use(express.static(publicDirectoryPath));
+  app.get("*", (req, res, next) => {
+    if (req.path.startsWith("/api")) {
+      return next();
+    }
+    res.sendFile(indexHtmlPath);
+  });
+} else {
+  app.get("/", (_req, res) => {
+    res.status(200).json({ message: "Scapegoat API Server is running" });
+  });
+}
+
+// 7. Global Error Handling Middleware (Ensures CORS headers are preserved on error responses)
 app.use((err, req, res, next) => {
   const origin = req.headers.origin;
   if (origin && isAllowedOrigin(origin)) {

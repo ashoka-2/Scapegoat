@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "build:backend": "vite build && robocopy dist ../Backend/public /E /IS || exit 0",
     "lint": "eslint .",
     "preview": "vite preview"
   },
