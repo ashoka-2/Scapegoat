@@ -128,11 +128,13 @@ const indexHtmlPath = path.join(publicDirectoryPath, "index.html");
 
 if (fs.existsSync(indexHtmlPath)) {
   app.use(express.static(publicDirectoryPath));
-  app.get("*", (req, res, next) => {
-    if (req.path.startsWith("/api")) {
-      return next();
+  // In Express 5 (path-to-regexp v0.1.x+ / v6+), raw '*' wildcard is deprecated/throws TypeError:
+  // Use regex /^(?!\/api).+/ or a catch-all middleware app.use(...) for SPA fallback.
+  app.use((req, res, next) => {
+    if (req.method === "GET" && !req.path.startsWith("/api")) {
+      return res.sendFile(indexHtmlPath);
     }
-    res.sendFile(indexHtmlPath);
+    next();
   });
 } else {
   app.get("/", (_req, res) => {
